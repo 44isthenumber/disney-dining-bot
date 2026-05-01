@@ -2,10 +2,9 @@
 import sys
 import os
 
-# In Lambda, all files are at the function root. Packages are in packages/.
-_fn_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, _fn_dir)
-sys.path.insert(0, os.path.join(_fn_dir, "packages"))
+# In Lambda, included_files (auth.py, storage.py, app.py) and pip-installed
+# packages all land at the function root alongside api.py.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from mangum import Mangum
 from app import app

@@ -18,8 +18,6 @@ jobs:
           node-version: '20'
       - name: Install Netlify CLI
         run: npm install -g netlify-cli
-      - name: Install Python function dependencies
-        run: pip install -r netlify/functions/requirements.txt -t netlify/functions/packages
       - name: Deploy to Netlify
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
