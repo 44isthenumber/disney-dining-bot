@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Disney Dining Bot</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --blue: #1a56db;
+    --blue-dark: #1245b8;
+    --green: #276749;
+    --green-bg: #e3f9e5;
+    --grey: #f0f0f0;
+    --border: #e0e0e0;
+    --text: #1a1a2e;
+    --muted: #777;
+  }
+  body { font-family: system-ui, -apple-system, sans-serif; background: #f7f8fc; color: var(--text); }
+
+  /* ── Header ─── */
+  header {
+    background: #1a1a2e;
+    color: #eee;
+    padding: 12px 20px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+  }
+  header h1 { font-size: 15px; font-weight: 700; white-space: nowrap; }
+  .hdr-sep { width: 1px; height: 20px; background: #444; flex-shrink: 0; }
+  .hdr-field { display: flex; align-items: center; gap: 5px; }
+  .hdr-field label { font-size: 12px; color: #aaa; white-space: nowrap; }
+  .hdr-field input {
+    background: #2a2a4e; border: 1px solid #555; color: #eee;
+    padding: 4px 8px; border-radius: 4px; font-size: 12px;
+  }
+  .hdr-field input[type=date] { width: 120px; }
+  .hdr-field input[type=text] { width: 120px; }
+  .hdr-field select {
+    background: #2a2a4e; border: 1px solid #555; color: #eee;
+    padding: 4px 6px; border-radius: 4px; font-size: 12px;
+  }
+  #hdr-status { display: flex; align-items: center; gap: 6px; margin-left: auto; font-size: 12px; }
+  #status-dot { width: 9px; height: 9px; border-radius: 50%; background: #888; flex-shrink: 0; }
+  #status-dot.ok   { background: #4caf50; }
+  #status-dot.warn { background: #ff9800; }
+  #status-dot.err  { background: #f44336; }
+  #status-text { color: #bbb; }
+
+  /* ── Tabs ─── */
+  .tabs { display: flex; background: #fff; border-bottom: 2px solid var(--border); padding: 0 20px; }
+  .tab-btn {
+    padding: 12px 18px; font-size: 14px; font-weight: 500;
+    border: none; background: none; cursor: pointer; color: var(--muted);
+    border-bottom: 2px solid transparent; margin-bottom: -2px;
+    transition: color .15s;
+  }
+  .tab-btn.active { color: var(--blue); border-bottom-color: var(--blue); }
+
+  /* ── Main content ─── */
+  main { max-width: 1100px; margin: 0 auto; padding: 20px; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* ── Filters ─── */
+  .filters {
+    display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; align-items: center;
+  }
+  .filters input, .filters select {
+    padding: 7px 12px; border: 1px solid var(--border); border-radius: 6px;
+    font-size: 14px; background: #fff;
+  }
+  #search { flex: 1; min-width: 180px; }
+  #results-count { color: var(--muted); font-size: 13px; margin-left: auto; }
+
+  /* ── Restaurant grid ─── */
+  #rest-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 14px;
+  }
+  .card {
+    border: 1px solid var(--border); border-radius: 10px;
+    overflow: hidden; background: #fff;
+    transition: box-shadow .15s, transform .15s;
+  }
+  .card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.1); transform: translateY(-2px); }
+  .card img { width: 100%; height: 120px; object-fit: cover; background: #f0f0f0; display: block; }
+  .card-body { padding: 10px 12px; }
+  .card-name { font-weight: 600; font-size: 13px; line-height: 1.3; margin-bottom: 3px; }
+  .card-meta { font-size: 11px; color: var(--muted); }
+  .card-badges { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 5px; }
+  .badge { font-size: 10px; padding: 2px 6px; border-radius: 20px; background: #e8f0fe; color: var(--blue); }
+  .badge.watch { background: var(--green-bg); color: var(--green); }
+  .card-btn {
+    display: block; width: calc(100% - 20px); margin: 6px 10px 10px;
+    padding: 7px; background: var(--blue); color: #fff;
+    border: none; border-radius: 6px; font-size: 12px; cursor: pointer; text-align: center;
+  }
+  .card-btn:hover { background: var(--blue-dark); }
+  #rest-empty { text-align: center; color: #bbb; padding: 48px; font-size: 14px; display: none; }
+  #rest-loading { text-align: center; color: #bbb; padding: 48px; font-size: 14px; }
+
+  /* ── Watch list panel ─── */
+  #watch-list h2 { font-size: 18px; font-weight: 700; margin-bottom: 14px; }
+  #watch-count { font-size: 13px; color: var(--muted); font-weight: 400; margin-left: 6px; }
+  #watches-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px,1fr)); gap: 12px; }
+  .watch-card { border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; background: #fff; }
+  .watch-name { font-weight: 600; font-size: 15px; margin-bottom: 4px; }
+  .watch-meta { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+  .watch-dates { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    display: flex; align-items: center; gap: 3px;
+    background: #e8f0fe; color: var(--blue); border-radius: 20px;
+    padding: 3px 8px 3px 10px; font-size: 12px; font-weight: 500;
+  }
+  .chip button {
+    background: none; border: none; cursor: pointer;
+    color: var(--blue); font-size: 15px; line-height: 1; padding: 0 2px;
+  }
+  .chip button:hover { color: #c0392b; }
+  #watches-empty { text-align: center; color: #bbb; font-size: 14px; padding: 48px; display: none; }
+
+  /* ── Calendar modal ─── */
+  #modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,.55); z-index: 9000;
+    align-items: center; justify-content: center;
+  }
+  #modal-overlay.open { display: flex; }
+  #modal {
+    background: #fff; border-radius: 14px; padding: 24px;
+    max-width: 520px; width: 95vw; max-height: 92vh; overflow-y: auto;
+    box-shadow: 0 16px 48px rgba(0,0,0,.2);
+  }
+  #modal-hdr { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
+  #modal-title { font-size: 18px; font-weight: 700; }
+  #modal-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  #modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: #999; line-height: 1; }
+  #modal-close:hover { color: #333; }
+
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11px; color: #555; margin-bottom: 14px; }
+  .leg-dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 3px; vertical-align: middle; }
+
+  #month-nav { display: flex; align-items: center; margin-bottom: 10px; }
+  #month-nav button {
+    background: none; border: 1px solid var(--border); border-radius: 6px;
+    padding: 4px 10px; cursor: pointer; font-size: 16px; color: #555;
+  }
+  #month-nav button:hover { background: var(--grey); }
+  #month-label { font-weight: 600; font-size: 14px; flex: 1; text-align: center; }
+
+  #cal-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 3px; margin-bottom: 12px; }
+  .dow { text-align: center; font-size: 10px; font-weight: 600; color: #bbb; padding: 3px 0; }
+  .day {
+    aspect-ratio: 1; border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; font-size: 12px; cursor: default; transition: transform .1s;
+  }
+  .day.empty    { visibility: hidden; }
+  .day.outside  { color: #ccc; }
+  .day.past     { color: #ddd; }
+  .day.available { background: var(--green-bg); color: var(--green); font-weight: 600; }
+  .day.available:hover { background: #c6f1cc; }
+  .day.watchable { background: var(--grey); color: #555; cursor: pointer; }
+  .day.watchable:hover { background: #dde3f9; transform: scale(1.1); }
+  .day.watched  { background: var(--blue); color: #fff; font-weight: 600; cursor: pointer; }
+  .day.watched:hover  { background: #c0392b; }
+  .day.today    { box-shadow: 0 0 0 2px var(--blue); }
+
+  #bulk-btn {
+    display: block; width: 100%; padding: 8px; margin-bottom: 8px;
+    background: var(--grey); color: #555; border: 1px dashed #ccc;
+    border-radius: 8px; font-size: 13px; cursor: pointer; text-align: center;
+  }
+  #bulk-btn:hover { background: #e0e7ff; border-color: var(--blue); color: var(--blue); }
+  #modal-msg { font-size: 11px; color: var(--muted); text-align: center; min-height: 16px; }
+
+  @media (max-width: 600px) {
+    header { gap: 6px; }
+    .hdr-sep { display: none; }
+    main { padding: 12px; }
+    #rest-grid { grid-template-columns: repeat(auto-fill, minmax(160px,1fr)); }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── Header ──────────────────────────────────────────────────────── -->
+<header>
+  <h1>🏰 Disney Dining Bot</h1>
+  <div class="hdr-sep"></div>
+  <div class="hdr-field">
+    <label>Trip</label>
+    <input type="date" id="trip-start" />
+    <span style="color:#666;margin:0 3px">–</span>
+    <input type="date" id="trip-end" />
+  </div>
+  <div class="hdr-sep"></div>
+  <div class="hdr-field">
+    <label>Party</label>
+    <select id="global-party">
+      <option value="1">1</option>
+      <option value="2" selected>2</option>
+      <option value="3">3</option>
+      <option value="4">4</option>
+      <option value="5">5</option>
+      <option value="6">6</option>
+    </select>
+  </div>
+  <div class="hdr-sep"></div>
+  <div class="hdr-field">
+    <label>Secret</label>
+    <input type="text" id="api-secret" placeholder="(API secret)" />
+  </div>
+  <div id="hdr-status">
+    <div id="status-dot"></div>
+    <span id="status-text">Connecting…</span>
+  </div>
+</header>
+
+<!-- ── Tabs ────────────────────────────────────────────────────────── -->
+<div class="tabs">
+  <button class="tab-btn active" data-tab="restaurants">Restaurants</button>
+  <button class="tab-btn" data-tab="watches">My Watches</button>
+</div>
+
+<main>
+  <!-- Restaurants tab -->
+  <div id="tab-restaurants" class="tab-panel active">
+    <div class="filters">
+      <input type="search" id="search" placeholder="Search restaurants…" />
+      <input type="text" id="park-filter" placeholder="Park / Resort" style="width:150px" />
+      <input type="text" id="cuisine-filter" placeholder="Cuisine" style="width:120px" />
+      <span id="results-count"></span>
+    </div>
+    <div id="rest-loading">Loading restaurants…</div>
+    <div id="rest-grid" style="display:none"></div>
+    <div id="rest-empty">No restaurants match.</div>
+  </div>
+
+  <!-- Watches tab -->
+  <div id="tab-watches" class="tab-panel">
+    <div id="watch-list">
+      <h2>Active Watches <span id="watch-count"></span></h2>
+      <div id="watches-grid"></div>
+      <div id="watches-empty">No active watches. Open a restaurant calendar and click grey dates to start watching.</div>
+    </div>
+  </div>
+</main>
+
+<!-- ── Calendar modal ───────────────────────────────────────────────── -->
+<div id="modal-overlay">
+  <div id="modal" role="dialog" aria-modal="true">
+    <div id="modal-hdr">
+      <div>
+        <div id="modal-title"></div>
+        <div id="modal-sub"></div>
+      </div>
+      <button id="modal-close">×</button>
+    </div>
+    <div class="legend">
+      <span><span class="leg-dot" style="background:#4caf50"></span>Available — book now</span>
+      <span><span class="leg-dot" style="background:#e0e0e0"></span>Not available — click to watch</span>
+      <span><span class="leg-dot" style="background:#1a56db"></span>Watching — click to remove</span>
+    </div>
+    <div id="month-nav">
+      <button id="prev-month">‹</button>
+      <span id="month-label"></span>
+      <button id="next-month">›</button>
+    </div>
+    <div id="cal-grid"></div>
+    <button id="bulk-btn">Watch all unavailable dates this month</button>
+    <div id="modal-msg"></div>
+  </div>
+</div>
+
+<script>
+// ── Utilities ────────────────────────────────────────────────────────────────
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function getSecret() { return localStorage.getItem('disneyApiSecret') || ''; }
+function getTripStart() { return localStorage.getItem('disneyTripStart') || ''; }
+function getTripEnd() { return localStorage.getItem('disneyTripEnd') || ''; }
+function getPartySize() { return parseInt(document.getElementById('global-party').value) || 2; }
+
+async function apiFetch(path, opts) {
+  opts = opts || {};
+  const res = await fetch('/_api' + path, Object.assign({}, opts, {
+    headers: Object.assign({
+      'Content-Type': 'application/json',
+      'X-API-Secret': getSecret(),
+    }, opts.headers || {})
+  }));
+  if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
+  return res.status === 204 ? null : res.json();
+}
+
+// ── Config inputs ────────────────────────────────────────────────────────────
+
+(function initConfig() {
+  const secretEl = document.getElementById('api-secret');
+  const tsEl = document.getElementById('trip-start');
+  const teEl = document.getElementById('trip-end');
+  const pyEl = document.getElementById('global-party');
+
+  secretEl.value = localStorage.getItem('disneyApiSecret') || '';
+  tsEl.value = getTripStart();
+  teEl.value = getTripEnd();
+  pyEl.value = localStorage.getItem('disneyPartySize') || '2';
+
+  secretEl.addEventListener('input', function() { localStorage.setItem('disneyApiSecret', this.value); refreshStatus(); });
+  tsEl.addEventListener('input', function() { localStorage.setItem('disneyTripStart', this.value); });
+  teEl.addEventListener('input', function() { localStorage.setItem('disneyTripEnd', this.value); });
+  pyEl.addEventListener('change', function() { localStorage.setItem('disneyPartySize', this.value); });
+})();
+
+// ── Status ───────────────────────────────────────────────────────────────────
+
+async function refreshStatus() {
+  const dot = document.getElementById('status-dot');
+  const txt = document.getElementById('status-text');
+  try {
+    const s = await apiFetch('/status');
+    const min = s.token_expires_in_minutes;
+    if (s.token_status === 'ok' && min > 0) {
+      dot.className = min < 60 ? 'warn' : 'ok';
+      const pollStr = s.last_poll_at
+        ? ' · polled ' + new Date(s.last_poll_at).toLocaleTimeString()
+        : '';
+      txt.textContent = 'Token ~' + min + 'm · ' + s.watches_count + ' watch' + (s.watches_count !== 1 ? 'es' : '') + pollStr;
+    } else {
+      dot.className = 'err';
+      txt.textContent = 'Token ' + s.token_status;
+    }
+  } catch(e) {
+    dot.className = 'err';
+    txt.textContent = 'Error: ' + e.message;
+  }
+}
+
+refreshStatus();
+setInterval(refreshStatus, 60000);
+
+// ── Tabs ─────────────────────────────────────────────────────────────────────
+
+document.querySelectorAll('.tab-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+    document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    if (btn.dataset.tab === 'watches') loadWatches();
+  });
+});
+
+// ── Restaurant browser ───────────────────────────────────────────────────────
+
+var allRestaurants = [];
+var debounce = null;
+
+async function loadRestaurants() {
+  try {
+    const data = await apiFetch('/restaurants');
+    allRestaurants = data.restaurants || [];
+    renderGrid(allRestaurants);
+  } catch(e) {
+    document.getElementById('rest-loading').textContent = 'Failed: ' + e.message;
+  }
+}
+
+function renderGrid(list) {
+  const loading = document.getElementById('rest-loading');
+  const grid = document.getElementById('rest-grid');
+  const empty = document.getElementById('rest-empty');
+  const count = document.getElementById('results-count');
+  loading.style.display = 'none';
+  if (!list.length) {
+    grid.style.display = 'none'; empty.style.display = 'block';
+    count.textContent = '0 results'; return;
+  }
+  empty.style.display = 'none'; grid.style.display = 'grid';
+  count.textContent = list.length + ' restaurant' + (list.length !== 1 ? 's' : '');
+
+  grid.innerHTML = list.map(function(r) {
+    const wc = (r.watched_dates || []).length;
+    const wb = wc ? '<span class="badge watch">Watching ' + wc + (wc>1?' dates':' date') + '</span>' : '';
+    const img = r.thumbnail_url
+      ? '<img src="' + esc(r.thumbnail_url) + '" alt="" loading="lazy" />'
+      : '<div style="height:120px;background:#f0f0f0;display:flex;align-items:center;justify-content:center;color:#ccc;font-size:11px">No image</div>';
+    return '<div class="card">' + img +
+      '<div class="card-body">' +
+        '<div class="card-name">' + esc(r.name) + '</div>' +
+        '<div class="card-meta">' + esc(r.park||'') + (r.cuisine ? ' · '+esc(r.cuisine) : '') + '</div>' +
+        '<div class="card-badges">' +
+          (r.price_range ? '<span class="badge">'+esc(r.price_range.split(' ')[0])+'</span>' : '') +
+          (r.experience_type ? '<span class="badge">'+esc(r.experience_type)+'</span>' : '') + wb +
+        '</div>' +
+      '</div>' +
+      '<button class="card-btn" data-id="'+esc(r.facility_id)+'" data-slug="'+esc(r.slug)+'" data-name="'+esc(r.name)+'">View Calendar</button>' +
+    '</div>';
+  }).join('');
+
+  grid.querySelectorAll('.card-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      openModal(btn.dataset.id, btn.dataset.slug, btn.dataset.name, getPartySize());
+    });
+  });
+}
+
+function filterAndRender() {
+  const q = document.getElementById('search').value.toLowerCase().trim();
+  const pk = document.getElementById('park-filter').value.toLowerCase().trim();
+  const cu = document.getElementById('cuisine-filter').value.toLowerCase().trim();
+  renderGrid(allRestaurants.filter(function(r) {
+    return (!q||r.name.toLowerCase().includes(q)) &&
+           (!pk||(r.park||'').toLowerCase().includes(pk)) &&
+           (!cu||(r.cuisine||'').toLowerCase().includes(cu));
+  }));
+}
+
+['search','park-filter','cuisine-filter'].forEach(function(id) {
+  document.getElementById(id).addEventListener('input', function() {
+    clearTimeout(debounce); debounce = setTimeout(filterAndRender, 250);
+  });
+});
+
+loadRestaurants();
+
+// ── Watch list ───────────────────────────────────────────────────────────────
+
+async function loadWatches() {
+  try {
+    const data = await apiFetch('/watches');
+    renderWatches(data.watches || []);
+  } catch(e) {
+    document.getElementById('watches-grid').innerHTML = '<p style="color:#f44336;padding:20px">Failed: '+esc(e.message)+'</p>';
+  }
+}
+
+function renderWatches(watches) {
+  const grid = document.getElementById('watches-grid');
+  const empty = document.getElementById('watches-empty');
+  const count = document.getElementById('watch-count');
+
+  if (!watches.length) {
+    grid.style.display = 'none'; empty.style.display = 'block';
+    count.textContent = ''; return;
+  }
+  empty.style.display = 'none'; grid.style.display = 'grid';
+  count.textContent = '(' + watches.length + ')';
+
+  // Group by facility + party size
+  const groups = {};
+  watches.forEach(function(w) {
+    const k = w.facility_id + '__' + w.party_size;
+    if (!groups[k]) groups[k] = { name: w.name, party_size: w.party_size, meal_periods: w.meal_periods, dates: [] };
+    groups[k].dates.push({ date: w.date, watch_id: w.watch_id });
+  });
+
+  grid.innerHTML = Object.values(groups).sort(function(a,b) {
+    return a.name.localeCompare(b.name);
+  }).map(function(g) {
+    const chips = g.dates.sort(function(a,b) { return a.date.localeCompare(b.date); }).map(function(d) {
+      return '<span class="chip">' + esc(d.date) +
+        '<button data-id="'+esc(d.watch_id)+'" title="Remove">&times;</button></span>';
+    }).join('');
+    const meals = (g.meal_periods||[]).filter(function(m) { return m!=='ALL'; }).join(', ');
+    return '<div class="watch-card">' +
+      '<div class="watch-name">' + esc(g.name) + '</div>' +
+      '<div class="watch-meta">Party of ' + g.party_size + (meals ? ' · '+esc(meals) : '') + '</div>' +
+      '<div class="watch-dates">' + chips + '</div>' +
+    '</div>';
+  }).join('');
+
+  grid.querySelectorAll('.chip button').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      deleteWatch(btn.dataset.id);
+    });
+  });
+}
+
+async function deleteWatch(watchId) {
+  try {
+    await apiFetch('/watches/' + watchId, { method: 'DELETE' });
+    loadWatches(); loadRestaurants();
+  } catch(e) { alert('Remove failed: ' + e.message); }
+}
+
+// ── Calendar modal ───────────────────────────────────────────────────────────
+
+var cal = {
+  facilityId: null, slug: null, name: null, partySize: 2,
+  available: new Set(), watched: new Set(),
+  year: 0, month: 0, pending: false,
+};
+
+document.getElementById('modal-close').addEventListener('click', closeModal);
+document.getElementById('modal-overlay').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeModal(); });
+document.getElementById('prev-month').addEventListener('click', function() { shiftMonth(-1); });
+document.getElementById('next-month').addEventListener('click', function() { shiftMonth(1); });
+document.getElementById('bulk-btn').addEventListener('click', watchAllGrey);
+
+function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); }
+
+async function openModal(facilityId, slug, name, partySize) {
+  cal.facilityId = facilityId; cal.slug = slug; cal.name = name; cal.partySize = partySize;
+  cal.available = new Set(); cal.watched = new Set(); cal.pending = false;
+  document.getElementById('modal-title').textContent = name;
+  document.getElementById('modal-sub').textContent = 'Party of ' + partySize + ' · Loading…';
+  document.getElementById('modal-msg').textContent = '';
+  document.getElementById('modal-overlay').classList.add('open');
+
+  // Start at trip start or today
+  var ts = getTripStart();
+  var base = ts ? new Date(ts + 'T00:00:00') : new Date();
+  cal.year = base.getFullYear(); cal.month = base.getMonth();
+
+  try {
+    var [calData, watchData] = await Promise.all([
+      apiFetch('/calendar/' + facilityId + '?party_size=' + partySize),
+      apiFetch('/watches')
+    ]);
+    cal.available = new Set(calData.available_dates || []);
+    cal.watched = new Set(
+      (watchData.watches || [])
+        .filter(function(w) { return w.facility_id === facilityId && w.party_size === partySize; })
+        .map(function(w) { return w.date; })
+    );
+    document.getElementById('modal-sub').textContent =
+      'Party of ' + partySize + ' · ' + cal.available.size + ' dates with availability';
+  } catch(e) {
+    document.getElementById('modal-sub').textContent = 'Error: ' + e.message;
+  }
+  renderCalendar();
+}
+
+function shiftMonth(d) {
+  cal.month += d;
+  if (cal.month < 0)  { cal.month = 11; cal.year--; }
+  if (cal.month > 11) { cal.month = 0;  cal.year++; }
+  renderCalendar();
+}
+
+function isoDate(y, m, d) {
+  return y + '-' + String(m+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+}
+
+function tripIncludes(date) {
+  var ts = getTripStart(), te = getTripEnd();
+  if (!ts || !te) return true;
+  var s = new Date(ts + 'T00:00:00'), e = new Date(te + 'T00:00:00');
+  return date >= s && date <= e;
+}
+
+function renderCalendar() {
+  var y = cal.year, m = cal.month;
+  var today = new Date(); today.setHours(0,0,0,0);
+  document.getElementById('month-label').textContent =
+    new Date(y, m, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
+
+  var dows = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+  var html = dows.map(function(d) { return '<div class="dow">'+d+'</div>'; }).join('');
+  var firstDow = new Date(y, m, 1).getDay();
+  for (var i = 0; i < firstDow; i++) html += '<div class="day empty"></div>';
+  var daysInMonth = new Date(y, m+1, 0).getDate();
+
+  for (var day = 1; day <= daysInMonth; day++) {
+    var iso = isoDate(y, m, day);
+    var date = new Date(y, m, day);
+    var isToday    = date.getTime() === today.getTime();
+    var isPast     = date < today;
+    var inTrip     = tripIncludes(date);
+    var isAvail    = cal.available.has(iso);
+    var isWatched  = cal.watched.has(iso);
+
+    var cls = 'day';
+    if (isPast) cls += ' past';
+    else if (!inTrip) cls += ' outside';
+    else if (isAvail) cls += ' available';
+    else if (isWatched) cls += ' watched';
+    else cls += ' watchable';
+    if (isToday) cls += ' today';
+
+    var title = isAvail ? 'Available — go book!'
+      : isWatched ? 'Watching — click to stop'
+      : (!isPast && inTrip) ? 'Click to watch ' + iso
+      : '';
+    html += '<div class="'+cls+'" data-date="'+iso+'" title="'+title+'">'+day+'</div>';
+  }
+
+  var grid = document.getElementById('cal-grid');
+  grid.innerHTML = html;
+  grid.querySelectorAll('.day.watchable, .day.watched').forEach(function(el) {
+    el.addEventListener('click', function() {
+      if (cal.pending) return;
+      if (el.classList.contains('watched')) calRemoveWatch(el.dataset.date);
+      else calAddWatch([el.dataset.date]);
+    });
+  });
+}
+
+async function calAddWatch(dates) {
+  cal.pending = true;
+  document.getElementById('modal-msg').textContent = 'Adding…';
+  try {
+    await apiFetch('/watches', {
+      method: 'POST',
+      body: JSON.stringify({
+        facility_id: cal.facilityId, name: cal.name, slug: cal.slug,
+        party_size: cal.partySize, meal_periods: ['ALL'], dates: dates,
+      })
+    });
+    dates.forEach(function(d) { cal.watched.add(d); });
+    document.getElementById('modal-msg').textContent = 'Watching ' + dates.length + ' date(s) ✓';
+    loadRestaurants();
+    renderCalendar();
+  } catch(e) { document.getElementById('modal-msg').textContent = 'Error: ' + e.message; }
+  finally { cal.pending = false; }
+}
+
+async function calRemoveWatch(date) {
+  cal.pending = true;
+  document.getElementById('modal-msg').textContent = 'Removing…';
+  try {
+    await apiFetch('/watches/' + cal.facilityId + '__' + cal.partySize + '__' + date, { method: 'DELETE' });
+    cal.watched.delete(date);
+    document.getElementById('modal-msg').textContent = 'Removed ' + date;
+    loadRestaurants();
+    renderCalendar();
+  } catch(e) { document.getElementById('modal-msg').textContent = 'Error: ' + e.message; }
+  finally { cal.pending = false; }
+}
+
+async function watchAllGrey() {
+  var dates = [];
+  document.querySelectorAll('#cal-grid .day.watchable').forEach(function(el) {
+    if (el.dataset.date) dates.push(el.dataset.date);
+  });
+  if (!dates.length) { document.getElementById('modal-msg').textContent = 'No unwatched dates in this month.'; return; }
+  await calAddWatch(dates);
+}
+</script>
+</body>
+</html>

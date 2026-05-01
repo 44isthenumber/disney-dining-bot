@@ -1,0 +1,361 @@
+<!-- Block 3: Calendar modal — paste into a Carrd "Embed" element -->
+<!-- Requires Block 1 (apiFetch) and Block 2 (ddRefreshBrowser) on the same page -->
+<style>
+  #dd-modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.55);
+    z-index: 9000;
+    align-items: center;
+    justify-content: center;
+  }
+  #dd-modal-overlay.open { display: flex; }
+  #dd-modal {
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px;
+    max-width: 580px;
+    width: 95vw;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 12px 40px rgba(0,0,0,.25);
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+  #dd-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 16px;
+  }
+  #dd-modal-title { font-size: 18px; font-weight: 700; margin: 0; }
+  #dd-modal-sub   { font-size: 13px; color: #777; margin: 2px 0 0; }
+  #dd-modal-close {
+    background: none; border: none; font-size: 22px;
+    cursor: pointer; color: #888; line-height: 1; padding: 0 4px;
+  }
+  #dd-modal-close:hover { color: #333; }
+
+  /* legend */
+  #dd-legend {
+    display: flex; gap: 12px; flex-wrap: wrap;
+    margin-bottom: 14px; font-size: 12px; color: #555;
+  }
+  .dd-legend-dot {
+    display: inline-block; width: 12px; height: 12px;
+    border-radius: 50%; margin-right: 4px; vertical-align: middle;
+  }
+
+  /* month nav */
+  #dd-month-nav {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 12px;
+  }
+  #dd-month-nav button {
+    background: none; border: 1px solid #ddd; border-radius: 6px;
+    padding: 4px 10px; cursor: pointer; font-size: 16px; color: #555;
+  }
+  #dd-month-nav button:hover { background: #f5f5f5; }
+  #dd-month-label { font-weight: 600; font-size: 15px; flex: 1; text-align: center; }
+
+  /* calendar grid */
+  #dd-cal-grid {
+    display: grid; grid-template-columns: repeat(7,1fr); gap: 4px;
+    margin-bottom: 14px;
+  }
+  .dd-cal-dow {
+    text-align: center; font-size: 11px; font-weight: 600;
+    color: #999; padding: 4px 0;
+  }
+  .dd-cal-day {
+    aspect-ratio: 1;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; cursor: default;
+    transition: transform .1s;
+    position: relative;
+  }
+  .dd-cal-day.empty { visibility: hidden; }
+  .dd-cal-day.outside { color: #ccc; }
+  .dd-cal-day.available {
+    background: #e3f9e5; color: #276749; font-weight: 600;
+    cursor: default;
+  }
+  .dd-cal-day.available:hover { background: #c6f1cc; }
+  .dd-cal-day.watchable {
+    background: #f0f0f0; color: #555;
+    cursor: pointer;
+  }
+  .dd-cal-day.watchable:hover { background: #e0e7ff; transform: scale(1.1); }
+  .dd-cal-day.watched {
+    background: #1a56db; color: #fff; font-weight: 600;
+    cursor: pointer;
+  }
+  .dd-cal-day.watched:hover { background: #c0392b; }
+  .dd-cal-day.past { color: #ccc; cursor: default; background: none; }
+  .dd-cal-day.today { box-shadow: 0 0 0 2px #1a56db; }
+
+  #dd-bulk-btn {
+    display: block; width: 100%;
+    padding: 9px; margin-bottom: 8px;
+    background: #f0f0f0; color: #555;
+    border: 1px dashed #ccc; border-radius: 8px;
+    font-size: 13px; cursor: pointer; text-align: center;
+  }
+  #dd-bulk-btn:hover { background: #e0e7ff; border-color: #1a56db; color: #1a56db; }
+  #dd-modal-msg { font-size: 12px; color: #888; text-align: center; min-height: 18px; }
+</style>
+
+<div id="dd-modal-overlay">
+  <div id="dd-modal" role="dialog" aria-modal="true">
+    <div id="dd-modal-header">
+      <div>
+        <p id="dd-modal-title">Restaurant</p>
+        <p id="dd-modal-sub"></p>
+      </div>
+      <button id="dd-modal-close" title="Close">×</button>
+    </div>
+
+    <div id="dd-legend">
+      <span><span class="dd-legend-dot" style="background:#4caf50"></span>Available — book now</span>
+      <span><span class="dd-legend-dot" style="background:#e0e0e0"></span>No availability — click to watch</span>
+      <span><span class="dd-legend-dot" style="background:#1a56db"></span>Watching — click to remove</span>
+    </div>
+
+    <div id="dd-month-nav">
+      <button id="dd-prev-month">‹</button>
+      <span id="dd-month-label"></span>
+      <button id="dd-next-month">›</button>
+    </div>
+
+    <div id="dd-cal-grid"></div>
+
+    <button id="dd-bulk-btn">Watch all grey dates in this month</button>
+    <div id="dd-modal-msg"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var state = {
+    facilityId: null,
+    slug: null,
+    name: null,
+    partySize: 2,
+    availableDates: new Set(),
+    watchedDates: new Set(),   // dates currently in watches
+    viewYear: 0,
+    viewMonth: 0,   // 0-indexed
+    tripStart: null,
+    tripEnd: null,
+    pending: false,
+  };
+
+  var overlay = document.getElementById('dd-modal-overlay');
+  var grid    = document.getElementById('dd-cal-grid');
+  var monthLbl= document.getElementById('dd-month-label');
+  var msg     = document.getElementById('dd-modal-msg');
+
+  document.getElementById('dd-modal-close').addEventListener('click', closeModal);
+  overlay.addEventListener('click', function (e) { if (e.target === overlay) closeModal(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeModal(); });
+  document.getElementById('dd-prev-month').addEventListener('click', function () { shiftMonth(-1); });
+  document.getElementById('dd-next-month').addEventListener('click', function () { shiftMonth(1); });
+  document.getElementById('dd-bulk-btn').addEventListener('click', watchAllGrey);
+
+  function closeModal() {
+    overlay.classList.remove('open');
+  }
+
+  function tripDates() {
+    var start = localStorage.getItem('disneyTripStart');
+    var end   = localStorage.getItem('disneyTripEnd');
+    if (!start || !end) return null;
+    return { start: new Date(start + 'T00:00:00'), end: new Date(end + 'T00:00:00') };
+  }
+
+  function inTrip(d) {
+    var t = tripDates();
+    if (!t) return true;  // no trip set → show all
+    return d >= t.start && d <= t.end;
+  }
+
+  async function openModal(facilityId, slug, name, partySize) {
+    state.facilityId = facilityId;
+    state.slug = slug;
+    state.name = name;
+    state.partySize = partySize || 2;
+    state.availableDates = new Set();
+    state.watchedDates = new Set();
+
+    document.getElementById('dd-modal-title').textContent = name;
+    document.getElementById('dd-modal-sub').textContent = 'Party of ' + state.partySize + ' · Loading…';
+    msg.textContent = '';
+    overlay.classList.add('open');
+
+    // Determine starting month: trip start or today
+    var trip = tripDates();
+    var base = trip ? trip.start : new Date();
+    state.viewYear  = base.getFullYear();
+    state.viewMonth = base.getMonth();
+
+    try {
+      // Load calendar availability and current watches in parallel
+      var [calData, watchData] = await Promise.all([
+        apiFetch('/calendar/' + facilityId + '?party_size=' + state.partySize),
+        apiFetch('/watches'),
+      ]);
+      state.availableDates = new Set(calData.available_dates || []);
+      state.watchedDates   = new Set(
+        (watchData.watches || [])
+          .filter(function (w) {
+            return w.facility_id === facilityId && w.party_size === state.partySize;
+          })
+          .map(function (w) { return w.date; })
+      );
+      document.getElementById('dd-modal-sub').textContent =
+        'Party of ' + state.partySize + ' · ' + state.availableDates.size + ' dates available';
+    } catch (e) {
+      document.getElementById('dd-modal-sub').textContent = 'Error: ' + e.message;
+    }
+
+    renderCalendar();
+  }
+
+  function shiftMonth(delta) {
+    state.viewMonth += delta;
+    if (state.viewMonth < 0)  { state.viewMonth = 11; state.viewYear--; }
+    if (state.viewMonth > 11) { state.viewMonth = 0;  state.viewYear++; }
+    renderCalendar();
+  }
+
+  function isoDate(y, m, d) {
+    return y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+  }
+
+  function renderCalendar() {
+    var year  = state.viewYear;
+    var month = state.viewMonth;
+    var today = new Date(); today.setHours(0,0,0,0);
+
+    monthLbl.textContent = new Date(year, month, 1).toLocaleString('default', {month:'long', year:'numeric'});
+
+    var days = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+    var html = days.map(function (d) {
+      return '<div class="dd-cal-dow">' + d + '</div>';
+    }).join('');
+
+    var firstDow = new Date(year, month, 1).getDay();
+    for (var i = 0; i < firstDow; i++) {
+      html += '<div class="dd-cal-day empty"></div>';
+    }
+
+    var daysInMonth = new Date(year, month + 1, 0).getDate();
+    for (var day = 1; day <= daysInMonth; day++) {
+      var iso  = isoDate(year, month, day);
+      var date = new Date(year, month, day);
+      var isToday   = date.getTime() === today.getTime();
+      var isPast    = date < today;
+      var isAvail   = state.availableDates.has(iso);
+      var isWatched = state.watchedDates.has(iso);
+      var inTripWindow = inTrip(date);
+
+      var cls = 'dd-cal-day';
+      if (isPast) {
+        cls += ' past';
+      } else if (!inTripWindow) {
+        cls += ' outside';
+      } else if (isAvail) {
+        cls += ' available';
+      } else if (isWatched) {
+        cls += ' watched';
+      } else {
+        cls += ' watchable';
+      }
+      if (isToday) cls += ' today';
+
+      var title = isAvail ? 'Available — visit the booking page'
+                : isWatched ? 'Click to stop watching ' + iso
+                : !isPast && inTripWindow ? 'Click to watch ' + iso
+                : '';
+
+      html += '<div class="' + cls + '" data-date="' + iso + '" title="' + title + '">' + day + '</div>';
+    }
+
+    grid.innerHTML = html;
+
+    // Attach click handlers
+    grid.querySelectorAll('.dd-cal-day.watchable, .dd-cal-day.watched').forEach(function (el) {
+      el.addEventListener('click', function () {
+        if (state.pending) return;
+        var date = el.dataset.date;
+        if (el.classList.contains('watched')) {
+          removeWatch(date);
+        } else {
+          addWatch([date]);
+        }
+      });
+    });
+  }
+
+  async function addWatch(dates) {
+    state.pending = true;
+    msg.textContent = 'Adding…';
+    try {
+      await apiFetch('/watches', {
+        method: 'POST',
+        body: JSON.stringify({
+          facility_id: state.facilityId,
+          name: state.name,
+          slug: state.slug,
+          party_size: state.partySize,
+          meal_periods: ['ALL'],
+          dates: dates,
+        }),
+      });
+      dates.forEach(function (d) { state.watchedDates.add(d); });
+      msg.textContent = 'Watching ' + dates.length + ' date' + (dates.length !== 1 ? 's' : '') + ' ✓';
+      if (window.ddRefreshBrowser) ddRefreshBrowser();
+      if (window.ddRefreshWatches) ddRefreshWatches();
+      renderCalendar();
+    } catch (e) {
+      msg.textContent = 'Error: ' + e.message;
+    } finally {
+      state.pending = false;
+    }
+  }
+
+  async function removeWatch(date) {
+    state.pending = true;
+    msg.textContent = 'Removing…';
+    try {
+      var watchId = state.facilityId + '__' + state.partySize + '__' + date;
+      await apiFetch('/watches/' + watchId, { method: 'DELETE' });
+      state.watchedDates.delete(date);
+      msg.textContent = 'Removed ' + date;
+      if (window.ddRefreshBrowser) ddRefreshBrowser();
+      if (window.ddRefreshWatches) ddRefreshWatches();
+      renderCalendar();
+    } catch (e) {
+      msg.textContent = 'Error: ' + e.message;
+    } finally {
+      state.pending = false;
+    }
+  }
+
+  async function watchAllGrey() {
+    // Collect all grey (watchable) dates visible in current month
+    var greyDates = [];
+    grid.querySelectorAll('.dd-cal-day.watchable').forEach(function (el) {
+      if (el.dataset.date) greyDates.push(el.dataset.date);
+    });
+    if (!greyDates.length) {
+      msg.textContent = 'No unwatched dates in this month.';
+      return;
+    }
+    await addWatch(greyDates);
+  }
+
+  // Expose for Block 2 to call
+  window.ddOpenCalendar = openModal;
+})();
+</script>

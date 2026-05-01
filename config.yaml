@@ -1,0 +1,12 @@
+alert_cooldown_minutes: 60
+polling_interval_minutes: 10
+restaurants:
+- dates:
+  - '2026-06-01'
+  - '2026-06-07'
+  facility_id: '19063652'
+  meal_periods:
+  - DINNER
+  name: Jaleo
+  party_size: 2
+  slug: jaleo

@@ -1,0 +1,178 @@
+<!-- Block 4: Watch list panel — paste into a Carrd "Embed" element -->
+<!-- Requires Block 1 (apiFetch) on the same page -->
+<style>
+  #dd-watchlist {
+    font-family: system-ui, -apple-system, sans-serif;
+    max-width: 960px;
+    margin: 0 auto;
+  }
+  #dd-watchlist h2 {
+    font-size: 18px;
+    font-weight: 700;
+    margin: 0 0 14px;
+    color: #1a1a2e;
+  }
+  #dd-watches-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 12px;
+  }
+  .dd-watch-card {
+    border: 1px solid #e0e0e0;
+    border-radius: 10px;
+    padding: 14px 16px;
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .dd-watch-name {
+    font-weight: 600;
+    font-size: 15px;
+    color: #1a1a2e;
+  }
+  .dd-watch-dates {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .dd-date-chip {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: #e8f0fe;
+    color: #1a56db;
+    border-radius: 20px;
+    padding: 3px 8px 3px 10px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .dd-date-chip button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #1a56db;
+    font-size: 15px;
+    line-height: 1;
+    padding: 0 2px;
+    display: flex;
+    align-items: center;
+  }
+  .dd-date-chip button:hover { color: #c0392b; }
+  .dd-watch-meta { font-size: 12px; color: #888; }
+  #dd-watches-empty {
+    color: #aaa;
+    font-size: 14px;
+    padding: 24px 0;
+    text-align: center;
+    display: none;
+  }
+  #dd-watches-loading {
+    color: #aaa;
+    font-size: 14px;
+    padding: 24px 0;
+    text-align: center;
+  }
+  #dd-watch-count { font-size: 13px; color: #888; margin-left: 8px; font-weight: 400; }
+</style>
+
+<div id="dd-watchlist">
+  <h2>Active Watches <span id="dd-watch-count"></span></h2>
+  <div id="dd-watches-loading">Loading…</div>
+  <div id="dd-watches-empty">No active watches. Open a restaurant calendar and click grey dates to start watching.</div>
+  <div id="dd-watches-grid" style="display:none"></div>
+</div>
+
+<script>
+(function () {
+  var loading = document.getElementById('dd-watches-loading');
+  var empty   = document.getElementById('dd-watches-empty');
+  var grid    = document.getElementById('dd-watches-grid');
+  var wcount  = document.getElementById('dd-watch-count');
+
+  function escHtml(s) {
+    return String(s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  async function loadWatches() {
+    try {
+      var data = await apiFetch('/watches');
+      renderWatches(data.watches || []);
+    } catch (e) {
+      loading.textContent = 'Failed to load: ' + e.message;
+    }
+  }
+
+  function renderWatches(watches) {
+    loading.style.display = 'none';
+    if (!watches.length) {
+      grid.style.display = 'none';
+      empty.style.display = 'block';
+      wcount.textContent = '';
+      return;
+    }
+    empty.style.display = 'none';
+    grid.style.display  = 'grid';
+    wcount.textContent  = '(' + watches.length + ')';
+
+    // Group by facility_id + party_size
+    var groups = {};
+    watches.forEach(function (w) {
+      var key = w.facility_id + '__' + w.party_size;
+      if (!groups[key]) {
+        groups[key] = { name: w.name, slug: w.slug, party_size: w.party_size,
+                        facility_id: w.facility_id, meal_periods: w.meal_periods, dates: [] };
+      }
+      groups[key].dates.push({ date: w.date, watch_id: w.watch_id });
+    });
+
+    grid.innerHTML = Object.values(groups).sort(function (a, b) {
+      return a.name.localeCompare(b.name);
+    }).map(function (g) {
+      var chips = g.dates.sort(function (a, b) { return a.date.localeCompare(b.date); }).map(function (d) {
+        return '<span class="dd-date-chip">' +
+          escHtml(d.date) +
+          '<button data-watchid="' + escHtml(d.watch_id) + '" title="Remove watch">&times;</button>' +
+          '</span>';
+      }).join('');
+
+      var mealStr = (g.meal_periods || []).join(', ');
+      return '<div class="dd-watch-card">' +
+        '<div class="dd-watch-name">' + escHtml(g.name) + '</div>' +
+        '<div class="dd-watch-meta">Party of ' + g.party_size +
+          (mealStr && mealStr !== 'ALL' ? ' · ' + escHtml(mealStr) : '') + '</div>' +
+        '<div class="dd-watch-dates">' + chips + '</div>' +
+        '</div>';
+    }).join('');
+
+    // Attach remove handlers
+    grid.querySelectorAll('.dd-date-chip button').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        removeWatch(btn.dataset.watchid);
+      });
+    });
+  }
+
+  async function removeWatch(watchId) {
+    try {
+      await apiFetch('/watches/' + watchId, { method: 'DELETE' });
+      if (window.ddRefreshBrowser) ddRefreshBrowser();
+      loadWatches();
+    } catch (e) {
+      alert('Remove failed: ' + e.message);
+    }
+  }
+
+  // Expose for other blocks to call after add/remove
+  window.ddRefreshWatches = loadWatches;
+
+  function init() {
+    if (typeof apiFetch === 'undefined') { setTimeout(init, 100); return; }
+    if (getApiBase()) loadWatches();
+  }
+  init();
+  window.addEventListener('dd-config-changed', loadWatches);
+})();
+</script>

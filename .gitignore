@@ -1,0 +1,11 @@
+.env
+tokens.json
+seen_slots.json
+bot_state.json
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+*.tmp
+venv/
+.venv/
