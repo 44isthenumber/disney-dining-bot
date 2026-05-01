@@ -330,7 +330,7 @@ async function handleStatus() {
 
   let restaurantsIndexed = 0;
   const rFile =
-    [path.join(__dirname, "public", "restaurants.json"), path.join(__dirname, "restaurants.json")]
+    [path.join(__dirname, "restaurants.json"), path.join(__dirname, "..", "..", "public", "restaurants.json")]
       .find(fs.existsSync);
   if (rFile) {
     try {
@@ -355,10 +355,10 @@ async function handleStatus() {
 }
 
 async function handleRestaurants(event) {
-  // Netlify included_files preserves path; falls back to local dev path
-  let restaurantsFile = path.join(__dirname, "public", "restaurants.json");
+  // Build step copies public/restaurants.json here; local dev uses public/ path
+  let restaurantsFile = path.join(__dirname, "restaurants.json");
   if (!fs.existsSync(restaurantsFile)) {
-    restaurantsFile = path.join(__dirname, "restaurants.json");
+    restaurantsFile = path.join(__dirname, "..", "..", "public", "restaurants.json");
   }
   if (!fs.existsSync(restaurantsFile)) {
     return response(503, { detail: "restaurants.json not found" });

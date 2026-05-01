@@ -1,5 +1,7 @@
 .env
 tokens.json
+netlify/functions/restaurants.json
+netlify/functions/node_modules/
 seen_slots.json
 bot_state.json
 __pycache__/
