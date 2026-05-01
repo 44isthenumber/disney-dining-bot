@@ -1,0 +1,27 @@
+name: Deploy to Netlify
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Netlify CLI
+        run: npm install -g netlify-cli
+      - name: Install Python function dependencies
+        run: pip install -r netlify/functions/requirements.txt -t netlify/functions/packages
+      - name: Deploy to Netlify
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: b1f7efc5-da94-4159-ade0-568de33ed24f
+        run: netlify deploy --prod --dir public --functions netlify/functions

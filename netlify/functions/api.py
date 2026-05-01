@@ -2,10 +2,16 @@
 import sys
 import os
 
-# Add project root to path so we can import app.py, auth.py, etc.
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
+# In Lambda, all files are at the function root. Packages are in packages/.
+_fn_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, _fn_dir)
+sys.path.insert(0, os.path.join(_fn_dir, "packages"))
 
 from mangum import Mangum
 from app import app
 
-handler = Mangum(app, lifespan="off")
+_mangum = Mangum(app, lifespan="off")
+
+
+def handler(event, context):
+    return _mangum(event, context)
