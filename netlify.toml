@@ -4,12 +4,6 @@
 
 [functions]
   directory = "netlify/functions"
-  included_files = [
-    "auth.py",
-    "storage.py",
-    "app.py",
-    "public/restaurants.json",
-  ]
 
 [[redirects]]
   from = "/_api/*"
