@@ -127,10 +127,11 @@ def main():
             print(f"[upload] {path}")
 
     # ── 5. Upload required function ZIPs ─────────────────────────────────────
+    # runtime=python3.9 is required — the Netlify API maps this to the Lambda runtime.
     required_funcs = set(deploy.get("required_functions", []))
     for fname, (h, zip_bytes) in func_zips.items():
         if h in required_funcs:
-            api_call("PUT", f"/deploys/{deploy_id}/functions/{fname}",
+            api_call("PUT", f"/deploys/{deploy_id}/functions/{fname}?runtime=python3.9",
                      body=zip_bytes, content_type="application/zip")
             print(f"[upload] function/{fname}")
 
