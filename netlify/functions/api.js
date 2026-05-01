@@ -329,14 +329,9 @@ async function handleStatus() {
   const botState = (await readJson("bot_state.json")) || {};
 
   let restaurantsIndexed = 0;
-  const rFile =
-    [path.join(__dirname, "restaurants.json"), path.join(__dirname, "..", "..", "public", "restaurants.json")]
-      .find(fs.existsSync);
-  if (rFile) {
-    try {
-      restaurantsIndexed = JSON.parse(fs.readFileSync(rFile, "utf8")).count || 0;
-    } catch {}
-  }
+  try {
+    restaurantsIndexed = require("./restaurants.json").count || 0;
+  } catch {}
 
   const cfg = await loadConfig();
   const watchesCount = (cfg.restaurants || []).reduce(
@@ -355,16 +350,14 @@ async function handleStatus() {
 }
 
 async function handleRestaurants(event) {
-  // Build step copies public/restaurants.json here; local dev uses public/ path
-  let restaurantsFile = path.join(__dirname, "restaurants.json");
-  if (!fs.existsSync(restaurantsFile)) {
-    restaurantsFile = path.join(__dirname, "..", "..", "public", "restaurants.json");
-  }
-  if (!fs.existsSync(restaurantsFile)) {
+  let data;
+  try {
+    // require() is traced by zip-it-and-ship-it so this file gets bundled.
+    // Build step copies public/restaurants.json here before ZISI runs.
+    data = require("./restaurants.json");
+  } catch {
     return response(503, { detail: "restaurants.json not found" });
   }
-
-  const data = JSON.parse(fs.readFileSync(restaurantsFile, "utf8"));
   let results = data.restaurants || [];
 
   const qs = event.queryStringParameters || {};
