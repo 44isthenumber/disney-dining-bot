@@ -13,7 +13,6 @@ import os
 import time
 from pathlib import Path
 
-from curl_cffi import requests as cffi_requests
 from dotenv import load_dotenv
 
 load_dotenv(dotenv_path=Path(__file__).parent / ".env")
@@ -117,6 +116,7 @@ def save_tokens(tokens: dict) -> None:
 
 def _do_refresh(tokens: dict) -> dict:
     """POST to Disney's refreshAuth endpoint and return updated tokens dict."""
+    from curl_cffi import requests as cffi_requests
     resp = cffi_requests.post(
         REFRESH_URL,
         headers={

@@ -1,0 +1,44 @@
+name: Disney Dining Bot Poll
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - name: Update calendar cache
+        env:
+          DISNEY_ACCESS_TOKEN: ${{ secrets.DISNEY_ACCESS_TOKEN }}
+          DISNEY_SWID: ${{ secrets.DISNEY_SWID }}
+          DISNEY_AKACD: ${{ secrets.DISNEY_AKACD }}
+          DISNEY_ABCK: ${{ secrets.DISNEY_ABCK }}
+          DISNEY_BM_SZ: ${{ secrets.DISNEY_BM_SZ }}
+          GITHUB_GIST_ID: ${{ secrets.GH_GIST_ID }}
+          GITHUB_TOKEN: ${{ secrets.GIST_TOKEN }}
+          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
+          TWILIO_FROM: ${{ secrets.TWILIO_FROM }}
+          TWILIO_TO: ${{ secrets.TWILIO_TO }}
+        run: python update_calendar_cache.py
+      - name: Poll for availability
+        env:
+          DISNEY_ACCESS_TOKEN: ${{ secrets.DISNEY_ACCESS_TOKEN }}
+          DISNEY_SWID: ${{ secrets.DISNEY_SWID }}
+          DISNEY_AKACD: ${{ secrets.DISNEY_AKACD }}
+          DISNEY_ABCK: ${{ secrets.DISNEY_ABCK }}
+          DISNEY_BM_SZ: ${{ secrets.DISNEY_BM_SZ }}
+          GITHUB_GIST_ID: ${{ secrets.GH_GIST_ID }}
+          GITHUB_TOKEN: ${{ secrets.GIST_TOKEN }}
+          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
+          TWILIO_FROM: ${{ secrets.TWILIO_FROM }}
+          TWILIO_TO: ${{ secrets.TWILIO_TO }}
+        run: python disney_bot.py --once

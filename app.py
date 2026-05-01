@@ -25,8 +25,7 @@ from pydantic import BaseModel
 load_dotenv(dotenv_path=Path(__file__).parent / ".env")
 
 import storage  # noqa: E402
-from auth import _jwt_exp, get_valid_token, load_tokens  # noqa: E402
-from monitor import get_available_calendar_days  # noqa: E402
+from auth import _jwt_exp, load_tokens  # noqa: E402
 
 RESTAURANTS_FILE = Path(__file__).parent / "public" / "restaurants.json"
 if not RESTAURANTS_FILE.exists():
@@ -162,18 +161,14 @@ def list_restaurants(q: str = "", park: str = "", cuisine: str = ""):
 
 @app.get("/calendar/{facility_id}", dependencies=[Depends(_check_secret)])
 def get_calendar(facility_id: str, party_size: int = 2):
-    slug = facility_id
-    if RESTAURANTS_FILE.exists():
-        data = json.loads(RESTAURANTS_FILE.read_text())
-        match = next((r for r in data["restaurants"] if r["facility_id"] == facility_id), None)
-        if match:
-            slug = match.get("slug", facility_id)
-    try:
-        token = get_valid_token()
-        available_dates = sorted(get_available_calendar_days(facility_id, token, slug))
-    except RuntimeError as e:
-        raise HTTPException(status_code=502, detail=str(e))
-    return {"facility_id": facility_id, "available_dates": available_dates}
+    cached = storage.read_json(f"calendar_{facility_id}.json")
+    if cached:
+        return {
+            "facility_id": facility_id,
+            "available_dates": cached.get("available_dates", []),
+            "cached_at": cached.get("cached_at"),
+        }
+    return {"facility_id": facility_id, "available_dates": [], "cached_at": None}
 
 
 @app.get("/watches", dependencies=[Depends(_check_secret)])

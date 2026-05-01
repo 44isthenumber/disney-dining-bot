@@ -3,21 +3,13 @@
 
 [functions]
   directory = "netlify/functions"
-  # Include all shared Python source files in the function bundle
   included_files = [
     "auth.py",
-    "monitor.py",
     "storage.py",
     "app.py",
-    "notify.py",
-    "disney_bot.py",
     "public/restaurants.json",
   ]
 
-[functions."bot_poll"]
-  schedule = "*/10 * * * *"
-
-# Route all /_api/* calls to the api Netlify Function
 [[redirects]]
   from = "/_api/*"
   to = "/.netlify/functions/api/:splat"
