@@ -569,10 +569,10 @@ async function handlePostWatch(event, user) {
 }
 
 async function handleDeleteWatch(watchIdStr, user) {
-  const parsed = parseWatchId(watchIdStr);
-  if (!parsed) return response(400, { detail: "Invalid watch_id format" });
   const watches = await loadWatches();
-  await saveWatches(watches.filter((w) => !(w.watch_id === watchIdStr && w.owner_id === user.id)));
+  const remaining = watches.filter((w) => !(w.watch_id === watchIdStr && w.owner_id === user.id));
+  if (remaining.length === watches.length) return response(404, { detail: "Watch not found" });
+  await saveWatches(remaining);
   return { statusCode: 204, headers: { "Access-Control-Allow-Origin": "*" }, body: "" };
 }
 
