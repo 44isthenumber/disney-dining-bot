@@ -123,6 +123,31 @@
   .chip button:hover { color: #c0392b; }
   #watches-empty { text-align: center; color: #bbb; font-size: 14px; padding: 48px; display: none; }
 
+  /* ── Create watch panel ─── */
+  #create-watch {
+    margin-bottom: 20px; padding: 18px; border: 1px solid var(--border);
+    border-radius: 12px; background: #fff;
+  }
+  #create-watch h2 { font-size: 18px; margin-bottom: 4px; }
+  #create-watch .hint { color: var(--muted); font-size: 13px; margin-bottom: 14px; }
+  .create-grid { display: grid; grid-template-columns: minmax(220px, 2fr) 90px minmax(220px, 1.3fr); gap: 12px; align-items: end; }
+  .create-field { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--muted); }
+  .create-field select, .create-field input, .create-field textarea {
+    padding: 8px 10px; border: 1px solid var(--border); border-radius: 7px;
+    background: #fff; color: var(--text); font-size: 14px;
+  }
+  .create-field textarea { min-height: 42px; resize: vertical; }
+  .meal-options { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 0; }
+  .meal-options label { color: var(--text); font-size: 13px; display: inline-flex; align-items: center; gap: 4px; }
+  .create-actions { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+  #create-btn {
+    padding: 9px 16px; background: var(--blue); color: #fff; border: 0;
+    border-radius: 7px; font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+  #create-btn:disabled { background: #aaa; cursor: default; }
+  #create-msg { font-size: 13px; color: var(--green); }
+  #create-msg.err { color: #e53e3e; }
+
   /* ── Calendar modal ─── */
   #modal-overlay {
     display: none; position: fixed; inset: 0;
@@ -194,6 +219,7 @@
     .hdr-sep { display: none; }
     main { padding: 12px; }
     #rest-grid { grid-template-columns: repeat(auto-fill, minmax(160px,1fr)); }
+    .create-grid { grid-template-columns: 1fr; }
   }
 
   /* ── Login overlay ─── */
@@ -291,6 +317,45 @@
 </div>
 
 <main>
+  <div id="create-watch">
+    <h2>Create Watch</h2>
+    <p class="hint">Tell us exactly what to alert on. Calendar browsing is optional; alerts are driven by these criteria.</p>
+    <form id="watch-form">
+      <div class="create-grid">
+        <label class="create-field">Restaurant
+          <select id="restaurant-select" required>
+            <option value="">Select a restaurant...</option>
+          </select>
+        </label>
+        <label class="create-field">Party
+          <input type="number" id="party-size" min="1" max="20" value="2" required>
+        </label>
+        <label class="create-field">Dates
+          <textarea id="dates" placeholder="2026-06-01, 2026-06-02" required></textarea>
+        </label>
+        <div class="create-field">
+          <span>Meal Period</span>
+          <div class="meal-options">
+            <label><input type="checkbox" name="meal-period" value="BREAKFAST"> Breakfast</label>
+            <label><input type="checkbox" name="meal-period" value="LUNCH"> Lunch</label>
+            <label><input type="checkbox" name="meal-period" value="DINNER"> Dinner</label>
+          </div>
+          <small>Leave unchecked for any meal.</small>
+        </div>
+        <label class="create-field">Earliest Time
+          <input type="time" id="time-from">
+        </label>
+        <label class="create-field">Latest Time
+          <input type="time" id="time-to">
+        </label>
+      </div>
+      <div class="create-actions">
+        <button type="submit" id="create-btn">Create Watch</button>
+        <div id="create-msg" role="status"></div>
+      </div>
+    </form>
+  </div>
+
   <!-- Restaurants tab -->
   <div id="tab-restaurants" class="tab-panel active">
     <div class="filters">
@@ -309,7 +374,7 @@
     <div id="watch-list">
       <h2>Active Watches <span id="watch-count"></span></h2>
       <div id="watches-grid"></div>
-      <div id="watches-empty">No active watches. Open a restaurant calendar and click grey dates to start watching.</div>
+      <div id="watches-empty">No active watches. Use the form above to create one.</div>
     </div>
   </div>
 </main>
@@ -452,8 +517,7 @@ async function attemptLogin() {
       localStorage.setItem('disneyApiSecret', pwd);
       localStorage.setItem('disneyUserId', userId);
       hideLogin();
-      refreshStatus();
-      loadRestaurants();
+      onLogin();
     } else {
       err.textContent = 'Incorrect password.';
       document.getElementById('login-pwd').focus();
@@ -577,7 +641,7 @@ function renderGrid(list) {
           (r.experience_type ? '<span class="badge">'+esc(r.experience_type)+'</span>' : '') + wb +
         '</div>' +
       '</div>' +
-      '<button class="card-btn" data-id="'+esc(r.facility_id)+'" data-slug="'+esc(r.slug)+'" data-name="'+esc(r.name)+'">View Calendar</button>' +
+      '<button class="card-btn" data-id="'+esc(r.facility_id)+'" data-slug="'+esc(r.slug)+'" data-name="'+esc(r.name)+'">Browse Availability</button>' +
     '</div>';
   }).join('');
 
@@ -618,46 +682,7 @@ async function loadWatches() {
   }
 }
 
-function renderWatches(watches) {
-  const grid = document.getElementById('watches-grid');
-  const empty = document.getElementById('watches-empty');
-  const count = document.getElementById('watch-count');
-
-  if (!watches.length) {
-    grid.style.display = 'none'; empty.style.display = 'block';
-    count.textContent = ''; return;
-  }
-  empty.style.display = 'none'; grid.style.display = 'grid';
-  count.textContent = '(' + watches.length + ')';
-
-  // Group by facility + party size + criteria
-  const groups = {};
-  watches.forEach(function(w) {
-    const k = [w.facility_id, w.party_size, (w.meal_periods||['ALL']).join(','), w.time_from||'', w.time_to||''].join('__');
-    if (!groups[k]) groups[k] = { name: w.name, party_size: w.party_size, criteria: watchCriteriaLabel(w), dates: [] };
-    groups[k].dates.push({ date: w.date, watch_id: w.watch_id });
-  });
-
-  grid.innerHTML = Object.values(groups).sort(function(a,b) {
-    return a.name.localeCompare(b.name);
-  }).map(function(g) {
-    const chips = g.dates.sort(function(a,b) { return a.date.localeCompare(b.date); }).map(function(d) {
-      return '<span class="chip">' + esc(d.date) +
-        '<button data-id="'+esc(d.watch_id)+'" title="Remove">&times;</button></span>';
-    }).join('');
-    return '<div class="watch-card">' +
-      '<div class="watch-name">' + esc(g.name) + '</div>' +
-      '<div class="watch-meta">Party of ' + g.party_size + ' · ' + esc(g.criteria) + '</div>' +
-      '<div class="watch-dates">' + chips + '</div>' +
-    '</div>';
-  }).join('');
-
-  grid.querySelectorAll('.chip button').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      deleteWatch(btn.dataset.id);
-    });
-  });
-}
+// renderWatches is redefined below
 
 async function deleteWatch(watchId) {
   try {
@@ -852,6 +877,93 @@ async function watchAllGrey() {
   });
   if (!dates.length) { document.getElementById('modal-msg').textContent = 'No unwatched dates in this month.'; return; }
   await calAddWatch(dates);
+}
+
+// ── Create Watch Form ────────────────────────────────────────────────────────
+
+async function populateRestaurantSelect() {
+  const select = document.getElementById('restaurant-select');
+  select.innerHTML = '<option value="">Loading...</option>';
+  try {
+    const data = await apiFetch('/restaurants');
+    const restaurants = data.restaurants || [];
+    select.innerHTML = '<option value="">Select a restaurant...</option>' + restaurants.map(function(r) {
+      return '<option value="' + esc(r.facility_id) + '">' + esc(r.name) + '</option>';
+    }).join('');
+  } catch(e) {
+    select.innerHTML = '<option value="">Error loading restaurants</option>';
+  }
+}
+
+document.getElementById('watch-form').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const btn = document.getElementById('create-btn');
+  const msg = document.getElementById('create-msg');
+  btn.disabled = true; btn.textContent = 'Creating…'; msg.textContent = '';
+  try {
+    const restaurantId = document.getElementById('restaurant-select').value;
+    const partySize = parseInt(document.getElementById('party-size').value);
+    const datesText = document.getElementById('dates').value.trim();
+    const timeFrom = document.getElementById('time-from').value || null;
+    const timeTo = document.getElementById('time-to').value || null;
+    const mealChecks = document.querySelectorAll('#watch-form input[type=checkbox]:checked');
+    const mealPeriods = Array.from(mealChecks).map(c => c.value);
+    if (!restaurantId || !datesText) throw new Error('Restaurant and dates are required.');
+    const dates = datesText.split(',').map(d => d.trim()).filter(d => d);
+    if (!dates.length) throw new Error('At least one date required.');
+    const restaurants = (await apiFetch('/restaurants')).restaurants || [];
+    const restaurant = restaurants.find(r => r.facility_id === restaurantId);
+    if (!restaurant) throw new Error('Restaurant not found.');
+    const body = {
+      facility_id: restaurantId,
+      name: restaurant.name,
+      slug: restaurant.slug,
+      party_size: partySize,
+      dates: dates,
+      meal_periods: mealPeriods.length ? mealPeriods : ['ALL'],
+      time_from: timeFrom,
+      time_to: timeTo
+    };
+    const result = await apiFetch('/watches', { method: 'POST', body: JSON.stringify(body) });
+    msg.textContent = 'Created ' + result.added.length + ' watch(es).';
+    loadWatches(); // refresh watches list
+    // reset form
+    document.getElementById('watch-form').reset();
+  } catch(e) {
+    msg.textContent = 'Error: ' + e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Create Watch';
+  }
+});
+
+// Enhance watches display
+function renderWatches(watches) {
+  var grid = document.getElementById('watches-grid');
+  var count = document.getElementById('watch-count');
+  if (watches.length) {
+    count.textContent = '(' + watches.length + ')';
+    grid.innerHTML = watches.map(function(w) {
+      var meals = (w.meal_periods || []).filter(m => m !== 'ALL').join(', ') || 'Any meal';
+      var timeWindow = w.time_from || w.time_to ? ' · ' + (w.time_from || 'Any') + '-' + (w.time_to || 'Any') : '';
+      return '<div class="watch-card" style="border: 1px solid var(--border); padding: 10px; margin: 5px; border-radius: 4px;">' +
+        '<strong>' + esc(w.name) + '</strong> on ' + esc(w.date) + ' for ' + w.party_size + ' people<br>' +
+        '<small>' + meals + timeWindow + '</small> ' +
+        '<button onclick="deleteWatch(\'' + esc(w.watch_id) + '\')" style="float:right;">Remove</button>' +
+        '</div>';
+    }).join('');
+  } else {
+    count.textContent = '';
+    grid.innerHTML = '';
+  }
+  document.getElementById('watches-empty').style.display = watches.length ? 'none' : 'block';
+}
+
+// Call populate after login
+function onLogin() {
+  refreshStatus();
+  loadRestaurants();
+  populateRestaurantSelect();
+  loadWatches();
 }
 </script>
 </body>
