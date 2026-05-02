@@ -47,7 +47,13 @@
   #status-dot.ok   { background: #4caf50; }
   #status-dot.warn { background: #ff9800; }
   #status-dot.err  { background: #f44336; }
+  #status-dot.stale { background: #aaa; }
   #status-text { color: #bbb; }
+  .owner-chip {
+    display: inline-flex; align-items: center;
+    background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2);
+    padding: 2px 10px; border-radius: 20px; font-size: 12px; color: #ddd;
+  }
 
   /* ── Tabs ─── */
   .tabs { display: flex; background: #fff; border-bottom: 2px solid var(--border); padding: 0 20px; }
@@ -100,7 +106,7 @@
     border: none; border-radius: 6px; font-size: 12px; cursor: pointer; text-align: center;
   }
   .card-btn:hover { background: var(--blue-dark); }
-  #rest-empty { text-align: center; color: #bbb; padding: 48px; font-size: 14px; display: none; }
+  #rest-empty { text-align: center; color: #999; padding: 48px 24px; font-size: 14px; display: none; line-height: 1.8; }
   #rest-loading { text-align: center; color: #bbb; padding: 48px; font-size: 14px; }
 
   /* ── Watch list panel ─── */
@@ -121,12 +127,14 @@
     color: var(--blue); font-size: 15px; line-height: 1; padding: 0 2px;
   }
   .chip button:hover { color: #c0392b; }
-  #watches-empty { text-align: center; color: #bbb; font-size: 14px; padding: 48px; display: none; }
+  #watches-empty { text-align: center; color: #999; font-size: 14px; padding: 48px 24px; display: none; line-height: 1.8; }
 
   /* ── Create watch panel ─── */
   #create-watch {
-    margin-bottom: 20px; padding: 18px; border: 1px solid var(--border);
+    margin-bottom: 20px; padding: 20px 22px; border: 1px solid #c3d4f7;
     border-radius: 12px; background: #fff;
+    box-shadow: 0 2px 14px rgba(26,86,219,.09);
+    border-top: 3px solid var(--blue);
   }
   #create-watch h2 { font-size: 18px; margin-bottom: 4px; }
   #create-watch .hint { color: var(--muted); font-size: 13px; margin-bottom: 14px; }
@@ -141,9 +149,11 @@
   .meal-options label { color: var(--text); font-size: 13px; display: inline-flex; align-items: center; gap: 4px; }
   .create-actions { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
   #create-btn {
-    padding: 9px 16px; background: var(--blue); color: #fff; border: 0;
-    border-radius: 7px; font-size: 14px; font-weight: 600; cursor: pointer;
+    padding: 11px 24px; background: var(--blue); color: #fff; border: 0;
+    border-radius: 7px; font-size: 15px; font-weight: 600; cursor: pointer;
+    letter-spacing: .01em; white-space: nowrap;
   }
+  #create-btn:hover { background: var(--blue-dark); }
   #create-btn:disabled { background: #aaa; cursor: default; }
   #create-msg { font-size: 13px; color: var(--green); }
   #create-msg.err { color: #e53e3e; }
@@ -215,11 +225,19 @@
   .watch-form small { color: var(--muted); font-size: 11px; }
 
   @media (max-width: 600px) {
-    header { gap: 6px; }
+    header { gap: 6px; padding: 10px 14px; }
     .hdr-sep { display: none; }
+    .hdr-field[data-collapse-mobile] { display: none; }
     main { padding: 12px; }
-    #rest-grid { grid-template-columns: repeat(auto-fill, minmax(160px,1fr)); }
+    #create-watch { padding: 16px; }
+    #rest-grid { grid-template-columns: repeat(auto-fill, minmax(150px,1fr)); }
     .create-grid { grid-template-columns: 1fr; }
+    .create-actions { flex-direction: column; align-items: stretch; }
+    #create-btn { width: 100%; padding: 13px; font-size: 15px; }
+    #create-msg { text-align: center; }
+    .tabs { padding: 0 12px; }
+    .tab-btn { padding: 10px 12px; font-size: 13px; }
+    .watch-card { padding: 12px 14px; }
   }
 
   /* ── Login overlay ─── */
@@ -271,10 +289,11 @@
   <div id="login-box">
     <div class="login-icon">🏰</div>
     <h2>Magic Table Finder</h2>
-    <p>Disney dining availability tracker</p>
+    <p>Disney dining alerts — choose your profile to get started.</p>
     <select id="login-profile"></select>
+    <p style="font-size:11px;color:#aaa;margin:-4px 0 10px;text-align:left;line-height:1.5">Alerts go to this profile's phone number when a table opens.</p>
     <input type="password" id="login-pwd" placeholder="Password" autocomplete="current-password" />
-    <button id="login-btn">Sign in</button>
+    <button id="login-btn">Sign In</button>
     <div id="login-error"></div>
   </div>
 </div>
@@ -283,7 +302,7 @@
 <header>
   <h1>🏰 Magic Table Finder</h1>
   <div class="hdr-sep"></div>
-  <div class="hdr-field">
+  <div class="hdr-field" data-collapse-mobile>
     <label>Trip</label>
     <input type="date" id="trip-start" />
     <span style="color:#666;margin:0 3px">–</span>
@@ -302,7 +321,7 @@
     </select>
   </div>
   <div class="hdr-sep"></div>
-  <span id="profile-label"></span>
+  <span id="profile-label" class="owner-chip"></span>
   <button id="logout-btn">Lock</button>
   <div id="hdr-status">
     <div id="status-dot"></div>
@@ -319,7 +338,7 @@
 <main>
   <div id="create-watch">
     <h2>Create Watch</h2>
-    <p class="hint">Tell us exactly what to alert on. Calendar browsing is optional; alerts are driven by these criteria.</p>
+    <p class="hint">You'll get an SMS when a matching table opens. The calendar is optional — just fill in the criteria below.</p>
     <form id="watch-form">
       <div class="create-grid">
         <label class="create-field">Restaurant
@@ -331,7 +350,8 @@
           <input type="number" id="party-size" min="1" max="20" value="2" required>
         </label>
         <label class="create-field">Dates
-          <textarea id="dates" placeholder="2026-06-01, 2026-06-02" required></textarea>
+          <textarea id="dates" placeholder="2026-06-01&#10;2026-06-02" required></textarea>
+          <small style="font-size:11px;color:var(--muted)">One per line or comma-separated &middot; YYYY-MM-DD</small>
         </label>
         <div class="create-field">
           <span>Meal Period</span>
@@ -366,7 +386,7 @@
     </div>
     <div id="rest-loading">Loading restaurants…</div>
     <div id="rest-grid" style="display:none"></div>
-    <div id="rest-empty">No restaurants match.</div>
+    <div id="rest-empty">No restaurants match — try clearing the filters.</div>
   </div>
 
   <!-- Watches tab -->
@@ -374,7 +394,7 @@
     <div id="watch-list">
       <h2>Active Watches <span id="watch-count"></span></h2>
       <div id="watches-grid"></div>
-      <div id="watches-empty">No active watches. Use the form above to create one.</div>
+      <div id="watches-empty">No active watches yet.<br><span style="font-size:13px">Create one above and you'll get an SMS when a slot opens.</span></div>
     </div>
   </div>
 </main>
@@ -563,6 +583,14 @@ document.getElementById('logout-btn').addEventListener('click', function() {
 
 // ── Status ───────────────────────────────────────────────────────────────────
 
+function friendlyPollTime(lastPollAt) {
+  var d = new Date(lastPollAt);
+  var diffMin = (Date.now() - d.getTime()) / 60000;
+  if (diffMin > 90) return 'Last checked ' + Math.round(diffMin / 60) + ' h ago — worker may be stalled';
+  if (diffMin > 25) return 'Last checked ' + Math.round(diffMin) + ' min ago';
+  return 'Last checked ' + d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
 async function refreshStatus() {
   const dot = document.getElementById('status-dot');
   const txt = document.getElementById('status-text');
@@ -570,20 +598,24 @@ async function refreshStatus() {
   try {
     const s = await apiFetch('/status');
     if (s.profile) profile.textContent = s.profile.name;
-    const min = s.token_expires_in_minutes;
-    if (s.session_status === 'ok' || s.token_status === 'ok' || s.token_status === 'browser-session') {
-      dot.className = s.session_status === 'needs_attention' ? 'warn' : 'ok';
-      const pollStr = s.last_poll_at
-        ? ' · polled ' + new Date(s.last_poll_at).toLocaleTimeString()
-        : '';
-      txt.textContent = s.watches_count + ' watch' + (s.watches_count !== 1 ? 'es' : '') + pollStr;
+    const sessionOk = s.session_status === 'ok' || s.token_status === 'ok' || s.token_status === 'browser-session';
+    const needsAttention = s.session_status === 'needs_attention';
+    if (sessionOk || needsAttention) {
+      dot.className = needsAttention ? 'warn' : 'ok';
+      const pollStr = s.last_poll_at ? ' · ' + friendlyPollTime(s.last_poll_at) : '';
+      const watchStr = s.watches_count + ' watch' + (s.watches_count !== 1 ? 'es' : '');
+      txt.textContent = (needsAttention ? 'Needs attention · ' : '') + watchStr + pollStr;
     } else {
-      dot.className = 'err';
-      txt.textContent = s.session_status || s.token_status;
+      const rawStatus = s.session_status || s.token_status || 'unknown';
+      const diffMin = s.last_poll_at ? (Date.now() - new Date(s.last_poll_at).getTime()) / 60000 : Infinity;
+      dot.className = diffMin > 90 ? 'stale' : 'err';
+      txt.textContent = rawStatus === 'no_session' ? 'Disney session expired — re-seed on VPS'
+        : rawStatus === 'unknown' ? 'Status unknown'
+        : 'Worker issue: ' + rawStatus.replace(/_/g, ' ');
     }
   } catch(e) {
     dot.className = 'err';
-    txt.textContent = 'Error: ' + e.message;
+    txt.textContent = 'Cannot reach server';
   }
 }
 
@@ -646,7 +678,7 @@ function renderGrid(list) {
           (r.experience_type ? '<span class="badge">'+esc(r.experience_type)+'</span>' : '') + wb +
         '</div>' +
       '</div>' +
-      '<button class="card-btn" data-id="'+esc(r.facility_id)+'" data-slug="'+esc(r.slug)+'" data-name="'+esc(r.name)+'">Browse Availability</button>' +
+      '<button class="card-btn" data-id="'+esc(r.facility_id)+'" data-slug="'+esc(r.slug)+'" data-name="'+esc(r.name)+'">Check Calendar</button>' +
     '</div>';
   }).join('');
 
@@ -687,7 +719,45 @@ async function loadWatches() {
   }
 }
 
-// renderWatches is redefined below
+function renderWatches(watches) {
+  const grid = document.getElementById('watches-grid');
+  const empty = document.getElementById('watches-empty');
+  const countEl = document.getElementById('watch-count');
+  countEl.textContent = watches.length ? '(' + watches.length + ')' : '';
+  if (!watches.length) {
+    grid.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  // Group by restaurant + criteria for compact display
+  const groups = [];
+  const groupMap = {};
+  watches.forEach(function(w) {
+    const key = [w.facility_id, w.party_size, (w.meal_periods||['ALL']).join(','), w.time_from||'', w.time_to||''].join('|');
+    if (!groupMap[key]) {
+      groupMap[key] = { name: w.name, facility_id: w.facility_id, party_size: w.party_size,
+        meal_periods: w.meal_periods, time_from: w.time_from, time_to: w.time_to, entries: [] };
+      groups.push(groupMap[key]);
+    }
+    groupMap[key].entries.push({ date: w.date, watch_id: w.watch_id });
+  });
+  grid.innerHTML = groups.map(function(g) {
+    const criteria = watchCriteriaLabel(g);
+    const chips = g.entries.map(function(e) {
+      return '<span class="chip">' + esc(e.date) +
+        '<button type="button" data-watch-id="' + esc(e.watch_id) + '" title="Remove" aria-label="Remove watch for ' + esc(e.date) + '">&times;</button></span>';
+    }).join('');
+    return '<div class="watch-card">' +
+      '<div class="watch-name">' + esc(g.name) + '</div>' +
+      '<div class="watch-meta">Party of ' + esc(String(g.party_size)) + ' &middot; ' + esc(criteria) + '</div>' +
+      '<div class="watch-dates">' + chips + '</div>' +
+      '</div>';
+  }).join('');
+  grid.querySelectorAll('.chip button').forEach(function(btn) {
+    btn.addEventListener('click', function() { deleteWatch(btn.dataset.watchId); });
+  });
+}
 
 async function deleteWatch(watchId) {
   try {
@@ -916,7 +986,8 @@ document.getElementById('watch-form').addEventListener('submit', async function(
     const timeTo = document.getElementById('time-to').value || null;
     const mealChecks = document.querySelectorAll('#watch-form input[name=meal-period]:checked');
     const mealPeriods = Array.from(mealChecks).map(c => c.value);
-    if (!restaurantId || !datesText) throw new Error('Restaurant and dates are required.');
+    if (!restaurantId) throw new Error('Choose a restaurant first.');
+    if (!datesText) throw new Error('Add at least one date (YYYY-MM-DD).');
     if (timeFrom && timeTo && timeFrom > timeTo) throw new Error('Earliest time must be before latest time.');
     const dates = parseWatchDates(datesText);
     if (!dates.length) throw new Error('At least one date required.');
@@ -933,12 +1004,18 @@ document.getElementById('watch-form').addEventListener('submit', async function(
       time_to: timeTo
     };
     const result = await apiFetch('/watches', { method: 'POST', body: JSON.stringify(body) });
-    msg.textContent = 'Created ' + result.added.length + ' watch(es).';
+    const n = result.added.length;
+    msg.textContent = 'Watching ' + n + ' date' + (n !== 1 ? 's' : '') + ' — you\'ll get an SMS when a slot opens.';
     document.getElementById('watch-form').reset();
     document.getElementById('party-size').value = getPartySize();
     loadWatches();
     loadRestaurants();
     refreshStatus();
+    // Switch to watches tab so the new watch is visible
+    document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+    document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
+    document.querySelector('.tab-btn[data-tab="watches"]').classList.add('active');
+    document.getElementById('tab-watches').classList.add('active');
   } catch(e) {
     msg.className = 'err';
     msg.textContent = 'Error: ' + e.message;
