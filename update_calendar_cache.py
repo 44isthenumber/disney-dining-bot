@@ -4,7 +4,7 @@
 Production uses the same persistent Playwright browser profile as the polling
 worker, so the cache updater can run on a VPS without a desktop Chrome tab.
 """
-from datetime import datetime
+from datetime import datetime, timezone
 
 from dotenv import load_dotenv
 
@@ -24,7 +24,7 @@ def update_cache():
         print("[cache] Watch list empty.")
         return
 
-    now = datetime.utcnow().isoformat() + "Z"
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat() + "Z"
 
     for r in restaurants:
         fid = r["facility_id"]

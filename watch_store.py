@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import os
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional
 
 import yaml
@@ -23,7 +23,7 @@ DEFAULT_OWNER_ID = os.environ.get("DEFAULT_OWNER_ID", "craig")
 
 
 def _utc_now() -> str:
-    return datetime.utcnow().isoformat() + "Z"
+    return datetime.now(timezone.utc).replace(tzinfo=None).isoformat() + "Z"
 
 
 def _parse_users() -> Dict[str, dict]:

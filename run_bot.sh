@@ -8,7 +8,11 @@ cd "$PROJECT"
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] === poll start ==="
 
-python3 "$PROJECT/update_calendar_cache.py"
+if [[ "${RUN_CALENDAR_CACHE:-0}" == "1" ]]; then
+  python3 "$PROJECT/update_calendar_cache.py"
+else
+  echo "[cache] Skipping calendar cache refresh. Set RUN_CALENDAR_CACHE=1 to enable."
+fi
 python3 "$PROJECT/disney_bot.py" --once
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] === poll done ==="

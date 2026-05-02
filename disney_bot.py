@@ -9,7 +9,7 @@ import argparse
 import json
 import sys
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dataclasses import replace
 from typing import Dict, List, Optional
 
@@ -54,7 +54,7 @@ def _load_seen() -> Dict[str, str]:
 
 
 def _utc_now() -> datetime:
-    return datetime.utcnow()
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 def _save_seen(seen: Dict[str, str]) -> None:
