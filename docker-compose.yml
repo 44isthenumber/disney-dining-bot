@@ -1,0 +1,10 @@
+services:
+  worker:
+    build: .
+    env_file: .env
+    volumes:
+      - disney-browser-profile:/data/browser-profile
+    restart: "no"
+
+volumes:
+  disney-browser-profile:

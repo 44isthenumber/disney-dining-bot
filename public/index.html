@@ -200,10 +200,11 @@
   #login-box .login-icon { font-size: 48px; margin-bottom: 10px; }
   #login-box h2 { font-size: 22px; font-weight: 700; color: #1a1a2e; margin-bottom: 4px; }
   #login-box p { font-size: 13px; color: #888; margin-bottom: 24px; }
-  #login-box input[type=password] {
+  #login-box input[type=password], #login-box select {
     width: 100%; padding: 11px 14px; border: 1.5px solid #ddd; border-radius: 8px;
     font-size: 15px; margin-bottom: 12px; outline: none;
     transition: border-color .15s;
+    background: #fff;
   }
   #login-box input[type=password]:focus { border-color: var(--blue); }
   #login-btn {
@@ -222,6 +223,7 @@
     transition: border-color .15s, color .15s;
   }
   #logout-btn:hover { border-color: #aaa; color: #fff; }
+  #profile-label { font-size: 12px; color: #bbb; }
 </style>
 </head>
 <body>
@@ -232,6 +234,7 @@
     <div class="login-icon">🏰</div>
     <h2>Magic Table Finder</h2>
     <p>Disney dining availability tracker</p>
+    <select id="login-profile"></select>
     <input type="password" id="login-pwd" placeholder="Password" autocomplete="current-password" />
     <button id="login-btn">Sign in</button>
     <div id="login-error"></div>
@@ -261,6 +264,7 @@
     </select>
   </div>
   <div class="hdr-sep"></div>
+  <span id="profile-label"></span>
   <button id="logout-btn">Lock</button>
   <div id="hdr-status">
     <div id="status-dot"></div>
@@ -332,6 +336,7 @@ function esc(s) {
 }
 
 function getSecret() { return localStorage.getItem('disneyApiSecret') || ''; }
+function getUserId() { return localStorage.getItem('disneyUserId') || 'craig'; }
 function getTripStart() { return localStorage.getItem('disneyTripStart') || ''; }
 function getTripEnd() { return localStorage.getItem('disneyTripEnd') || ''; }
 function getPartySize() { return parseInt(document.getElementById('global-party').value) || 2; }
@@ -342,6 +347,7 @@ async function apiFetch(path, opts) {
     headers: Object.assign({
       'Content-Type': 'application/json',
       'X-API-Secret': getSecret(),
+      'X-User-Id': getUserId(),
     }, opts.headers || {})
   }));
   if (res.status === 401) { showLogin(); throw new Error('401 Unauthorized'); }
@@ -362,6 +368,21 @@ function hideLogin() {
   document.getElementById('login-overlay').classList.add('hidden');
 }
 
+async function loadProfiles() {
+  const select = document.getElementById('login-profile');
+  try {
+    const res = await fetch('/_api/profiles');
+    const data = res.ok ? await res.json() : { profiles: [] };
+    const profiles = data.profiles && data.profiles.length ? data.profiles : [{ id: 'craig', name: 'Craig' }];
+    select.innerHTML = profiles.map(function(p) {
+      return '<option value="'+esc(p.id)+'">'+esc(p.name)+'</option>';
+    }).join('');
+    select.value = getUserId();
+  } catch(e) {
+    select.innerHTML = '<option value="craig">Craig</option>';
+  }
+}
+
 document.getElementById('login-btn').addEventListener('click', attemptLogin);
 document.getElementById('login-pwd').addEventListener('keydown', function(e) {
   if (e.key === 'Enter') attemptLogin();
@@ -369,16 +390,18 @@ document.getElementById('login-pwd').addEventListener('keydown', function(e) {
 
 async function attemptLogin() {
   const pwd = document.getElementById('login-pwd').value.trim();
+  const userId = document.getElementById('login-profile').value || 'craig';
   const btn = document.getElementById('login-btn');
   const err = document.getElementById('login-error');
   if (!pwd) return;
   btn.disabled = true; btn.textContent = 'Signing in…'; err.textContent = '';
   try {
     const res = await fetch('/_api/status', {
-      headers: { 'X-API-Secret': pwd }
+      headers: { 'X-API-Secret': pwd, 'X-User-Id': userId }
     });
     if (res.ok) {
       localStorage.setItem('disneyApiSecret', pwd);
+      localStorage.setItem('disneyUserId', userId);
       hideLogin();
       refreshStatus();
       loadRestaurants();
@@ -394,6 +417,7 @@ async function attemptLogin() {
 
 document.getElementById('logout-btn').addEventListener('click', function() {
   localStorage.removeItem('disneyApiSecret');
+  localStorage.removeItem('disneyUserId');
   showLogin();
 });
 
@@ -412,6 +436,8 @@ document.getElementById('logout-btn').addEventListener('click', function() {
   teEl.addEventListener('input', function() { localStorage.setItem('disneyTripEnd', this.value); });
   pyEl.addEventListener('change', function() { localStorage.setItem('disneyPartySize', this.value); });
 
+  loadProfiles();
+
   // Show login if no secret stored, otherwise validate silently
   if (!getSecret()) {
     showLogin();
@@ -423,18 +449,20 @@ document.getElementById('logout-btn').addEventListener('click', function() {
 async function refreshStatus() {
   const dot = document.getElementById('status-dot');
   const txt = document.getElementById('status-text');
+  const profile = document.getElementById('profile-label');
   try {
     const s = await apiFetch('/status');
+    if (s.profile) profile.textContent = s.profile.name;
     const min = s.token_expires_in_minutes;
-    if (s.token_status === 'ok' && min > 0) {
-      dot.className = min < 60 ? 'warn' : 'ok';
+    if (s.session_status === 'ok' || s.token_status === 'ok' || s.token_status === 'browser-session') {
+      dot.className = s.session_status === 'needs_attention' ? 'warn' : 'ok';
       const pollStr = s.last_poll_at
         ? ' · polled ' + new Date(s.last_poll_at).toLocaleTimeString()
         : '';
-      txt.textContent = 'Token ~' + min + 'm · ' + s.watches_count + ' watch' + (s.watches_count !== 1 ? 'es' : '') + pollStr;
+      txt.textContent = s.watches_count + ' watch' + (s.watches_count !== 1 ? 'es' : '') + pollStr;
     } else {
       dot.className = 'err';
-      txt.textContent = 'Token ' + s.token_status;
+      txt.textContent = s.session_status || s.token_status;
     }
   } catch(e) {
     dot.className = 'err';
@@ -594,7 +622,7 @@ async function deleteWatch(watchId) {
 
 var cal = {
   facilityId: null, slug: null, name: null, partySize: 2,
-  available: new Set(), watched: new Set(),
+  available: new Set(), watched: new Set(), watchIds: {},
   year: 0, month: 0, pending: false,
 };
 
@@ -611,7 +639,7 @@ function closeModal() { document.getElementById('modal-overlay').classList.remov
 
 async function openModal(facilityId, slug, name, partySize) {
   cal.facilityId = facilityId; cal.slug = slug; cal.name = name; cal.partySize = partySize;
-  cal.available = new Set(); cal.watched = new Set(); cal.pending = false;
+  cal.available = new Set(); cal.watched = new Set(); cal.watchIds = {}; cal.pending = false;
   document.getElementById('modal-title').textContent = name;
   document.getElementById('modal-sub').textContent = 'Party of ' + partySize + ' · Loading…';
   document.getElementById('modal-msg').textContent = '';
@@ -628,11 +656,12 @@ async function openModal(facilityId, slug, name, partySize) {
       apiFetch('/watches')
     ]);
     cal.available = new Set(calData.available_dates || []);
-    cal.watched = new Set(
-      (watchData.watches || [])
-        .filter(function(w) { return w.facility_id === facilityId && w.party_size === partySize; })
-        .map(function(w) { return w.date; })
-    );
+    (watchData.watches || [])
+      .filter(function(w) { return w.facility_id === facilityId && w.party_size === partySize; })
+      .forEach(function(w) {
+        cal.watched.add(w.date);
+        cal.watchIds[w.date] = w.watch_id;
+      });
     document.getElementById('modal-sub').textContent =
       'Party of ' + partySize + ' · ' + cal.available.size + ' dates with availability';
   } catch(e) {
@@ -710,7 +739,7 @@ async function calAddWatch(dates) {
   cal.pending = true;
   document.getElementById('modal-msg').textContent = 'Adding…';
   try {
-    await apiFetch('/watches', {
+    var result = await apiFetch('/watches', {
       method: 'POST',
       body: JSON.stringify({
         facility_id: cal.facilityId, name: cal.name, slug: cal.slug,
@@ -718,6 +747,12 @@ async function calAddWatch(dates) {
       })
     });
     dates.forEach(function(d) { cal.watched.add(d); });
+    if (result && result.added) {
+      result.added.forEach(function(id) {
+        var parts = id.split('__');
+        cal.watchIds[parts[parts.length - 1]] = id;
+      });
+    }
     document.getElementById('modal-msg').textContent = 'Watching ' + dates.length + ' date(s) ✓';
     loadRestaurants();
     renderCalendar();
@@ -729,8 +764,9 @@ async function calRemoveWatch(date) {
   cal.pending = true;
   document.getElementById('modal-msg').textContent = 'Removing…';
   try {
-    await apiFetch('/watches/' + cal.facilityId + '__' + cal.partySize + '__' + date, { method: 'DELETE' });
+    await apiFetch('/watches/' + encodeURIComponent(cal.watchIds[date] || (getUserId() + '__' + cal.facilityId + '__' + cal.partySize + '__' + date)), { method: 'DELETE' });
     cal.watched.delete(date);
+    delete cal.watchIds[date];
     document.getElementById('modal-msg').textContent = 'Removed ' + date;
     loadRestaurants();
     renderCalendar();

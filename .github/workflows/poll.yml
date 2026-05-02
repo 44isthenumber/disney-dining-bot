@@ -1,8 +1,6 @@
 name: Disney Dining Bot Poll
 
 on:
-  schedule:
-    - cron: '*/10 * * * *'
   workflow_dispatch:
 
 jobs:
@@ -14,31 +12,17 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install -r requirements.txt
-      - name: Update calendar cache
+      - name: Explain worker deployment
+        run: |
+          echo "Production polling now runs on the VPS Playwright worker."
+          echo "GitHub Actions cannot maintain the persistent Disney browser session."
+
+      - name: Validate Python imports
         env:
-          DISNEY_ACCESS_TOKEN: ${{ secrets.DISNEY_ACCESS_TOKEN }}
-          DISNEY_SWID: ${{ secrets.DISNEY_SWID }}
-          DISNEY_AKACD: ${{ secrets.DISNEY_AKACD }}
-          DISNEY_ABCK: ${{ secrets.DISNEY_ABCK }}
-          DISNEY_BM_SZ: ${{ secrets.DISNEY_BM_SZ }}
           GITHUB_GIST_ID: ${{ secrets.GH_GIST_ID }}
           GITHUB_TOKEN: ${{ secrets.GIST_TOKEN }}
           TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
           TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
           TWILIO_FROM: ${{ secrets.TWILIO_FROM }}
           TWILIO_TO: ${{ secrets.TWILIO_TO }}
-        run: python update_calendar_cache.py
-      - name: Poll for availability
-        env:
-          DISNEY_ACCESS_TOKEN: ${{ secrets.DISNEY_ACCESS_TOKEN }}
-          DISNEY_SWID: ${{ secrets.DISNEY_SWID }}
-          DISNEY_AKACD: ${{ secrets.DISNEY_AKACD }}
-          DISNEY_ABCK: ${{ secrets.DISNEY_ABCK }}
-          DISNEY_BM_SZ: ${{ secrets.DISNEY_BM_SZ }}
-          GITHUB_GIST_ID: ${{ secrets.GH_GIST_ID }}
-          GITHUB_TOKEN: ${{ secrets.GIST_TOKEN }}
-          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
-          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
-          TWILIO_FROM: ${{ secrets.TWILIO_FROM }}
-          TWILIO_TO: ${{ secrets.TWILIO_TO }}
-        run: python disney_bot.py --once
+        run: python -m py_compile disney_bot.py monitor.py notify.py storage.py update_calendar_cache.py watch_store.py seed_disney_session.py

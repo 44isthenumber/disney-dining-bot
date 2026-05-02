@@ -16,7 +16,7 @@ jobs:
           node-version: '20'
 
       - name: Install function dependencies
-        run: cd netlify/functions && npm install
+        run: cp public/restaurants.json netlify/functions/ && cd netlify/functions && npm install
 
       - name: Deploy to Netlify
         env:

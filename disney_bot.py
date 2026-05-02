@@ -1,9 +1,8 @@
-"""
-Disney dining reservation monitor — main entry point.
+"""Self-hosted Disney dining monitor worker.
 
 Usage:
     python disney_bot.py           # start polling loop
-    python disney_bot.py --once    # single poll then exit (good for testing)
+    python disney_bot.py --once    # single poll then exit
 """
 
 import argparse
@@ -11,15 +10,16 @@ import json
 import sys
 import time
 from datetime import datetime, timedelta
-from typing import Dict, List, Set
+from dataclasses import replace
+from typing import Dict, List, Optional
 
 import schedule
 import yaml
 from dotenv import load_dotenv
 
 import storage
-from auth import get_valid_token
-from monitor import Slot, check_restaurant, check_slots_via_chrome
+import watch_store
+from monitor import Slot, check_slots_for_restaurant
 from notify import send_sms
 
 load_dotenv()
@@ -33,43 +33,98 @@ def load_config() -> dict:
 
 
 # ── dedup / cooldown ───────────────────────────────────────────────────────
-# Track (facility_id, date, time, party_size) → last-alerted timestamp.
-# Re-alert after alert_cooldown_minutes so you don't miss a slot that keeps
-# opening and closing.
 
-_seen: Dict[tuple, datetime] = {}
+def _slot_key(slot: Slot) -> str:
+    return "__".join([
+        slot.watch_id or slot.owner_id or "unknown",
+        slot.facility_id,
+        slot.date,
+        slot.time,
+        str(slot.party_size),
+    ])
+
+
+def _load_seen() -> Dict[str, str]:
+    data = storage.read_json("seen_slots.json") or {}
+    if isinstance(data, dict) and isinstance(data.get("slots"), dict):
+        return data["slots"]
+    if isinstance(data, dict):
+        return data
+    return {}
+
+
+def _save_seen(seen: Dict[str, str]) -> None:
+    storage.write_json("seen_slots.json", {
+        "schema_version": 1,
+        "updated_at": datetime.utcnow().isoformat() + "Z",
+        "slots": seen,
+    })
 
 
 def filter_new(slots: List[Slot], cooldown_minutes: int) -> List[Slot]:
     now = datetime.now()
+    seen = _load_seen()
     new = []
     for s in slots:
-        key = (s.facility_id, s.date, s.time, s.party_size)
-        last = _seen.get(key)
+        key = _slot_key(s)
+        last_raw = seen.get(key)
+        last = None
+        if last_raw:
+            try:
+                last = datetime.fromisoformat(last_raw.replace("Z", "+00:00")).replace(tzinfo=None)
+            except ValueError:
+                last = None
         if last is None or (now - last) > timedelta(minutes=cooldown_minutes):
             new.append(s)
-            _seen[key] = now
+            seen[key] = now.isoformat() + "Z"
+    _save_seen(seen)
     return new
 
 
 # ── poll ───────────────────────────────────────────────────────────────────
 
-def poll(config: dict) -> None:
+def _matching_owner_slots(slots: List[Slot], watches: List[dict]) -> List[Slot]:
+    matched: List[Slot] = []
+    for slot in slots:
+        for watch in watches:
+            if slot.facility_id != watch["facility_id"]:
+                continue
+            if slot.date != watch["date"]:
+                continue
+            if slot.party_size != int(watch.get("party_size", 2)):
+                continue
+            matched.append(replace(
+                slot,
+                owner_id=watch["owner_id"],
+                watch_id=watch["watch_id"],
+                recipient_phone=watch.get("recipient_phone", ""),
+                slug=watch.get("slug") or slot.slug,
+            ))
+    return matched
+
+
+def poll(config: Optional[dict] = None) -> None:
+    config = config or load_config()
+    watches = watch_store.load_watches()
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"\n[{ts}] Polling {len(config['restaurants'])} restaurant(s) …")
+    grouped = watch_store.grouped_restaurant_requests(watches)
+    print(f"\n[{ts}] Polling {len(watches)} watch(es) across {len(grouped)} restaurant request(s) …")
 
     all_slots: List[Slot] = []
-    for restaurant in config["restaurants"]:
+    errors = []
+    for restaurant in grouped:
         name = restaurant.get("name", "?")
         try:
-            slots = check_slots_via_chrome(restaurant)
-            all_slots.extend(slots)
-            if slots:
-                print(f"[bot] {name}: {len(slots)} slot(s) found.")
+            slots = check_slots_for_restaurant(restaurant)
+            owner_slots = _matching_owner_slots(slots, restaurant.get("watches", []))
+            all_slots.extend(owner_slots)
+            if owner_slots:
+                print(f"[bot] {name}: {len(owner_slots)} owner-matched slot alert candidate(s).")
             else:
                 print(f"[bot] {name}: no availability.")
         except Exception as e:
-            print(f"[bot] Chrome check failed for {name}: {e}")
+            errors.append({"restaurant": name, "error": str(e)})
+            print(f"[bot] Check failed for {name}: {e}")
 
     cooldown = config.get("alert_cooldown_minutes", 60)
     new_slots = filter_new(all_slots, cooldown)
@@ -79,9 +134,17 @@ def poll(config: dict) -> None:
     else:
         print("[bot] No new slots to alert on.")
 
+    now_utc = datetime.utcnow().isoformat() + "Z"
+    previous_state = storage.read_json("bot_state.json") or {}
     storage.write_json("bot_state.json", {
-        "last_poll_at": datetime.utcnow().isoformat() + "Z",
+        "last_poll_at": now_utc,
+        "last_successful_poll_at": now_utc if not errors else previous_state.get("last_successful_poll_at"),
         "slots_found_last_poll": len(new_slots),
+        "watch_count": len(watches),
+        "restaurant_request_count": len(grouped),
+        "last_errors": errors,
+        "session_status": "needs_attention" if errors else "ok",
+        "last_sms_sent_at": now_utc if new_slots else previous_state.get("last_sms_sent_at"),
     })
 
 
@@ -96,7 +159,7 @@ def main() -> None:
     args = parser.parse_args()
 
     config = load_config()
-    interval = config.get("polling_interval_minutes", 10)
+    interval = int(config.get("polling_interval_minutes", 10))
 
     if args.once:
         poll(config)

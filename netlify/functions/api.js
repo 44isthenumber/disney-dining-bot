@@ -19,6 +19,7 @@ const fs = require("fs");
 const GIST_ID = process.env.GITHUB_GIST_ID || "";
 const GH_TOKEN = process.env.GITHUB_TOKEN || "";
 const API_SECRET = (process.env.API_SECRET || "").trim();
+const DEFAULT_OWNER_ID = process.env.DEFAULT_OWNER_ID || "craig";
 
 // ── http helper ───────────────────────────────────────────────────────────────
 
@@ -259,8 +260,113 @@ function watchId(facilityId, partySize, date) {
 
 function parseWatchId(wid) {
   const parts = wid.split("__");
-  if (parts.length !== 3) return null;
-  return { facilityId: parts[0], partySize: parseInt(parts[1], 10), date: parts[2] };
+  if (parts.length === 4) return { ownerId: parts[0], facilityId: parts[1], partySize: parseInt(parts[2], 10), date: parts[3] };
+  if (parts.length === 3) return { ownerId: DEFAULT_OWNER_ID, facilityId: parts[0], partySize: parseInt(parts[1], 10), date: parts[2] };
+  return null;
+}
+
+function parseUsers() {
+  const raw = process.env.WATCH_USERS || process.env.DISNEY_USERS || "";
+  if (raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw);
+      const users = {};
+      for (const [id, value] of Object.entries(parsed)) {
+        users[id] = {
+          id,
+          name: value.name || id,
+          password: value.password || "",
+          phone: value.phone || "",
+        };
+      }
+      if (Object.keys(users).length) return users;
+    } catch {}
+  }
+  return {
+    [DEFAULT_OWNER_ID]: {
+      id: DEFAULT_OWNER_ID,
+      name: process.env.DEFAULT_OWNER_NAME || "Craig",
+      password: API_SECRET,
+      phone: process.env.TWILIO_TO || "",
+    },
+  };
+}
+
+function publicProfiles() {
+  const users = parseUsers();
+  return Object.values(users).map((u) => ({ id: u.id, name: u.name, has_phone: !!u.phone }));
+}
+
+function currentUser(event) {
+  const users = parseUsers();
+  const requested = event.headers["x-user-id"] || event.headers["X-User-Id"] || DEFAULT_OWNER_ID;
+  return users[requested] || users[DEFAULT_OWNER_ID] || Object.values(users)[0];
+}
+
+function watchRecordId(ownerId, facilityId, partySize, date) {
+  return `${ownerId}__${facilityId}__${partySize}__${date}`;
+}
+
+function normalizeWatch(raw, userFallback = null) {
+  const ownerId = raw.owner_id || raw.ownerId || (userFallback && userFallback.id) || DEFAULT_OWNER_ID;
+  const partySize = parseInt(raw.party_size || raw.partySize || 2, 10);
+  const date = raw.date;
+  const profile = parseUsers()[ownerId] || {};
+  return {
+    watch_id: raw.watch_id || raw.watchId || watchRecordId(ownerId, raw.facility_id, partySize, date),
+    owner_id: ownerId,
+    facility_id: raw.facility_id,
+    name: raw.name || raw.restaurant_name || raw.facility_id,
+    slug: raw.slug || raw.facility_id,
+    party_size: partySize,
+    meal_periods: raw.meal_periods || ["ALL"],
+    date,
+    time_from: raw.time_from || null,
+    time_to: raw.time_to || null,
+    recipient_phone: raw.recipient_phone || profile.phone || "",
+    created_at: raw.created_at || new Date().toISOString(),
+  };
+}
+
+async function loadWatches() {
+  const stored = await readJson("watches.json");
+  if (stored && Array.isArray(stored.watches)) {
+    return stored.watches.filter((w) => w.facility_id && w.date).map((w) => normalizeWatch(w));
+  }
+  if (Array.isArray(stored)) {
+    return stored.filter((w) => w.facility_id && w.date).map((w) => normalizeWatch(w));
+  }
+
+  // Backward-compatible migration from config.yaml.
+  const cfg = await loadConfig();
+  const watches = [];
+  for (const entry of cfg.restaurants || []) {
+    for (const d of entry.dates || []) {
+      watches.push(normalizeWatch({
+        owner_id: DEFAULT_OWNER_ID,
+        facility_id: entry.facility_id,
+        name: entry.name,
+        slug: entry.slug,
+        party_size: entry.party_size || 2,
+        meal_periods: entry.meal_periods || ["ALL"],
+        date: d,
+      }));
+    }
+  }
+  return watches;
+}
+
+async function saveWatches(watches) {
+  await writeText("watches.json", JSON.stringify({
+    schema_version: 1,
+    updated_at: new Date().toISOString(),
+    watches: watches.map((w) => normalizeWatch(w)),
+  }, null, 2));
+}
+
+function publicWatch(watch) {
+  const { recipient_phone, ...safe } = watch;
+  return safe;
 }
 
 // ── JWT expiry ────────────────────────────────────────────────────────────────
@@ -278,14 +384,16 @@ function jwtExp(token) {
 // ── auth ──────────────────────────────────────────────────────────────────────
 
 function checkSecret(event) {
-  if (!API_SECRET) return null;
   if (event.httpMethod === "OPTIONS") return null;
+  if (event.path && event.path.replace(/^\/.netlify\/functions\/api/, "").replace(/^\/_api/, "") === "/profiles") return null;
+  const user = currentUser(event);
   const secret =
     event.headers["x-api-secret"] ||
     event.headers["X-Api-Secret"] ||
     event.headers["X-API-Secret"] ||
     "";
-  if (secret !== API_SECRET) return response(401, { detail: "Invalid API secret" });
+  const expected = user && user.password ? user.password : API_SECRET;
+  if (expected && secret !== expected) return response(401, { detail: "Invalid API secret" });
   return null;
 }
 
@@ -297,7 +405,7 @@ function response(status, body, extraHeaders = {}) {
     headers: {
       "Content-Type": "application/json",
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Headers": "Content-Type, X-API-Secret",
+      "Access-Control-Allow-Headers": "Content-Type, X-API-Secret, X-User-Id",
       "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
       ...extraHeaders,
     },
@@ -307,24 +415,9 @@ function response(status, body, extraHeaders = {}) {
 
 // ── endpoint handlers ─────────────────────────────────────────────────────────
 
-async function handleStatus() {
-  let tokenStatus = "ok";
+async function handleStatus(user) {
+  let tokenStatus = "browser-session";
   let tokenExpiresInMinutes = null;
-
-  try {
-    const tokens = await readJson("tokens.json");
-    if (tokens && tokens.access_token) {
-      const exp = jwtExp(tokens.access_token);
-      if (exp) {
-        tokenExpiresInMinutes = Math.floor((exp - Date.now() / 1000) / 60);
-        if (tokenExpiresInMinutes < 0) tokenStatus = "expired";
-      }
-    } else {
-      tokenStatus = "missing";
-    }
-  } catch (e) {
-    tokenStatus = `error: ${e.message}`;
-  }
 
   const botState = (await readJson("bot_state.json")) || {};
 
@@ -333,23 +426,26 @@ async function handleStatus() {
     restaurantsIndexed = require("./restaurants.json").count || 0;
   } catch {}
 
-  const cfg = await loadConfig();
-  const watchesCount = (cfg.restaurants || []).reduce(
-    (s, r) => s + (r.dates || []).length,
-    0
-  );
+  const watches = await loadWatches();
+  const userWatches = watches.filter((w) => w.owner_id === user.id);
 
   return response(200, {
+    profile: { id: user.id, name: user.name, has_phone: !!user.phone },
     token_status: tokenStatus,
     token_expires_in_minutes: tokenExpiresInMinutes,
     last_poll_at: botState.last_poll_at || null,
+    last_successful_poll_at: botState.last_successful_poll_at || null,
+    last_sms_sent_at: botState.last_sms_sent_at || null,
+    session_status: botState.session_status || "unknown",
+    last_errors: botState.last_errors || [],
     slots_found_last_poll: botState.slots_found_last_poll || null,
-    watches_count: watchesCount,
+    watches_count: userWatches.length,
+    total_watches_count: watches.length,
     restaurants_indexed: restaurantsIndexed,
   });
 }
 
-async function handleRestaurants(event) {
+async function handleRestaurants(event, user) {
   let data;
   try {
     // require() is traced by zip-it-and-ship-it so this file gets bundled.
@@ -374,17 +470,19 @@ async function handleRestaurants(event) {
     results = results.filter((r) => (r.cuisine || "").toLowerCase().includes(cu));
   }
 
-  const cfg = await loadConfig();
   const watched = {};
-  for (const entry of cfg.restaurants || []) {
-    watched[entry.facility_id] = {
-      party_size: entry.party_size || 2,
-      dates: entry.dates || [],
-    };
+  const watches = (await loadWatches()).filter((w) => w.owner_id === user.id);
+  for (const entry of watches) {
+    const key = `${entry.facility_id}__${entry.party_size}`;
+    if (!watched[key]) watched[key] = { party_size: entry.party_size || 2, dates: [] };
+    watched[key].dates.push(entry.date);
   }
 
   for (const r of results) {
-    const w = watched[r.facility_id];
+    const matching = Object.entries(watched)
+      .filter(([key]) => key.startsWith(`${r.facility_id}__`))
+      .map(([, value]) => value);
+    const w = matching[0];
     r.watched_dates = w ? w.dates : [];
     r.watched_party_size = w ? w.party_size : null;
   }
@@ -404,28 +502,14 @@ async function handleCalendar(facilityId) {
   return response(200, { facility_id: facilityId, available_dates: [], cached_at: null });
 }
 
-async function handleGetWatches() {
-  const cfg = await loadConfig();
-  const watches = [];
-  for (const entry of cfg.restaurants || []) {
-    const fid = entry.facility_id;
-    const ps = parseInt(entry.party_size || 2, 10);
-    for (const d of entry.dates || []) {
-      watches.push({
-        watch_id: watchId(fid, ps, d),
-        facility_id: fid,
-        name: entry.name || fid,
-        slug: entry.slug || fid,
-        party_size: ps,
-        meal_periods: entry.meal_periods || ["ALL"],
-        date: d,
-      });
-    }
-  }
-  return response(200, { watches });
+async function handleGetWatches(user) {
+  const watches = (await loadWatches())
+    .filter((w) => w.owner_id === user.id)
+    .map(publicWatch);
+  return response(200, { owner_id: user.id, watches });
 }
 
-async function handlePostWatch(event) {
+async function handlePostWatch(event, user) {
   let body;
   try {
     body = JSON.parse(event.body || "{}");
@@ -433,54 +517,40 @@ async function handlePostWatch(event) {
     return response(400, { detail: "Invalid JSON body" });
   }
 
-  const { facility_id, name, slug, party_size = 2, meal_periods = ["ALL"], dates = [] } = body;
+  const { facility_id, name, slug, party_size = 2, meal_periods = ["ALL"], dates = [], time_from = null, time_to = null } = body;
   if (!facility_id || !dates.length) {
     return response(422, { detail: "facility_id and dates are required" });
   }
 
-  const cfg = await loadConfig();
-  const restaurants = cfg.restaurants || (cfg.restaurants = []);
-  const existing = restaurants.find(
-    (r) => r.facility_id === facility_id && parseInt(r.party_size || 2, 10) === party_size
-  );
-
-  if (existing) {
-    const merged = new Set([...(existing.dates || []), ...dates]);
-    existing.dates = [...merged].sort();
-    existing.meal_periods = meal_periods;
-    existing.name = name;
-    existing.slug = slug;
-  } else {
-    restaurants.push({
+  const watches = await loadWatches();
+  const byId = new Map(watches.map((w) => [w.watch_id, w]));
+  for (const date of [...new Set(dates)].sort()) {
+    const wid = watchRecordId(user.id, facility_id, party_size, date);
+    byId.set(wid, normalizeWatch({
+      watch_id: wid,
+      owner_id: user.id,
       facility_id,
       name: name || facility_id,
       slug: slug || facility_id,
       party_size,
       meal_periods,
-      dates: [...new Set(dates)].sort(),
-    });
+      date,
+      time_from,
+      time_to,
+      recipient_phone: user.phone || "",
+    }, user));
   }
-
-  await saveConfig(cfg);
+  await saveWatches([...byId.values()]);
   return response(201, {
-    added: dates.map((d) => watchId(facility_id, party_size, d)),
+    added: dates.map((d) => watchRecordId(user.id, facility_id, party_size, d)),
   });
 }
 
-async function handleDeleteWatch(watchIdStr) {
+async function handleDeleteWatch(watchIdStr, user) {
   const parsed = parseWatchId(watchIdStr);
   if (!parsed) return response(400, { detail: "Invalid watch_id format" });
-  const { facilityId, partySize, date } = parsed;
-
-  const cfg = await loadConfig();
-  for (const entry of cfg.restaurants || []) {
-    if (entry.facility_id === facilityId && parseInt(entry.party_size || 2, 10) === partySize) {
-      entry.dates = (entry.dates || []).filter((d) => d !== date);
-      break;
-    }
-  }
-  cfg.restaurants = (cfg.restaurants || []).filter((r) => (r.dates || []).length > 0);
-  await saveConfig(cfg);
+  const watches = await loadWatches();
+  await saveWatches(watches.filter((w) => !(w.watch_id === watchIdStr && w.owner_id === user.id)));
   return { statusCode: 204, headers: { "Access-Control-Allow-Origin": "*" }, body: "" };
 }
 
@@ -491,7 +561,7 @@ exports.handler = async function (event) {
   if (event.httpMethod === "OPTIONS") {
     return response(204, "", {
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Headers": "Content-Type, X-API-Secret",
+      "Access-Control-Allow-Headers": "Content-Type, X-API-Secret, X-User-Id",
       "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
     });
   }
@@ -506,17 +576,19 @@ exports.handler = async function (event) {
   if (!p.startsWith("/")) p = "/" + p;
 
   const method = event.httpMethod;
+  const user = currentUser(event);
 
   try {
-    if (method === "GET" && p === "/status") return await handleStatus();
-    if (method === "GET" && p === "/restaurants") return await handleRestaurants(event);
+    if (method === "GET" && p === "/profiles") return response(200, { profiles: publicProfiles() });
+    if (method === "GET" && p === "/status") return await handleStatus(user);
+    if (method === "GET" && p === "/restaurants") return await handleRestaurants(event, user);
     if (method === "GET" && p.startsWith("/calendar/")) {
       return await handleCalendar(p.slice("/calendar/".length));
     }
-    if (method === "GET" && p === "/watches") return await handleGetWatches();
-    if (method === "POST" && p === "/watches") return await handlePostWatch(event);
+    if (method === "GET" && p === "/watches") return await handleGetWatches(user);
+    if (method === "POST" && p === "/watches") return await handlePostWatch(event, user);
     if (method === "DELETE" && p.startsWith("/watches/")) {
-      return await handleDeleteWatch(decodeURIComponent(p.slice("/watches/".length)));
+      return await handleDeleteWatch(decodeURIComponent(p.slice("/watches/".length)), user);
     }
 
     return response(404, { detail: `Not found: ${method} ${p}` });

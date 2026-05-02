@@ -1,0 +1,13 @@
+[Unit]
+Description=Magic Table Finder Disney dining worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/disney-dining-bot
+Environment=PROJECT_DIR=/opt/disney-dining-bot
+Environment=PATH=/opt/disney-dining-bot/.venv/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/bin/bash /opt/disney-dining-bot/run_bot.sh
+User=disneybot
+Group=disneybot
