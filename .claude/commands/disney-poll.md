@@ -1,10 +1,16 @@
 # /disney-poll — Check Disney Dining Availability
 
-Check current Disney dining availability for all watched restaurants using the live browser. Results are shown immediately. Works independently of the LaunchAgent.
+Check current Disney dining availability for all watched restaurants using the live browser. Results are shown immediately. This is an ad hoc diagnostic, not the production worker.
 
 ## Steps
 
-1. **Read the watch list** — fetch `https://magictablefinder.com/_api/watches` using the `mcp__Claude_in_Chrome` tools with header `X-API-Secret: P2ssw0Rd_pass1ord`. Parse the JSON to get restaurant name, facility_id, slug, party_size, meal_periods, and dates for each watch entry.
+0. **Preflight**
+   - Read `CLAUDE.md` first for current production architecture and alert semantics.
+   - Confirm the browser/MCP tools are available and a Disney tab can be controlled.
+   - Confirm the API secret source without printing it. Never paste secrets into the transcript.
+   - This command is readonly: do not mutate `open_slots.json`, `seen_slots.json`, watches, or Twilio.
+
+1. **Read the watch list** — fetch `https://magictablefinder.com/_api/watches` using the configured API secret from the local environment or a user-provided value. Never hard-code or print the secret. Include `X-User-Id` for the profile being checked. Parse the JSON to get restaurant name, facility_id, slug, party_size, meal_periods, time window, and dates for each watch entry.
 
 2. **For each watched restaurant:**
    a. Navigate the Disney Chrome tab to `https://disneyworld.disney.go.com/dine-res/restaurant/{slug}` using `mcp__Claude_in_Chrome__navigate`
@@ -15,10 +21,9 @@ Check current Disney dining availability for all watched restaurants using the l
       ```
       If empty, get it from the `TPR-WDW-LBJS.WEB-PROD.token` cookie by running:
       ```javascript
-      // The page itself sets this when loaded — check page state
       document.cookie
       ```
-      Fall back to running `python3 -c "import browser_cookie3, base64, json, re, time; ..."` via Bash to extract from Chrome's cookie store (see auth.py `_get_token_from_chrome()` logic).
+      Fall back to running `python3 -c "import browser_cookie3, base64, json, re, time; ..."` via Bash to extract from Chrome's cookie store (see `monitor.py` token parsing helpers).
    
    d. Fetch availability for the watched dates using `mcp__Claude_in_Chrome__javascript_tool`:
       ```javascript
@@ -39,7 +44,7 @@ Check current Disney dining availability for all watched restaurants using the l
    
    e. Wait 3 seconds then read `window._pollResult`.
    
-   f. Parse slots from `data.restaurants` — for each date in watched dates, for each meal period, extract available times from `offersByAccessibility[*].offers[*]`. Filter to matching `meal_periods` if specified.
+   f. Parse slots from `data.restaurants` — for each date in watched dates, for each meal period, extract available times from `offersByAccessibility[*].offers[*]`. Filter to matching `meal_periods` and the watch's `time_from` / `time_to` window if specified.
 
 3. **Display results** in a clear table:
    ```
@@ -52,10 +57,12 @@ Check current Disney dining availability for all watched restaurants using the l
 
 4. **If slots are found**, ask the user:
    - "Want me to open the booking page for [restaurant] on [date]?"
-   - If yes, navigate Chrome to the restaurant's booking URL: `https://disneyworld.disney.go.com/dine-res/book/table-service/details/{facility_id}/?date={date}&partySize={party_size}`
+   - If yes, navigate Chrome to the restaurant's booking URL: `https://disneyworld.disney.go.com/dine-res/book/table-service/details/{facility_id}/?date={date}&partySize={party_size}&time={HH:MM}&offerId={offerId}` when `offerId` is available. `offerId` may be ephemeral, so treat it as a best-effort deep link.
 
 ## Notes
-- Chrome must be open with a `disneyworld.disney.go.com` tab
-- "Allow JavaScript from Apple Events" must be enabled in Chrome (`View → Developer → Allow JavaScript from Apple Events`)
+- The production worker runs on the VPS under Xvfb + persistent Playwright, not the old Mac LaunchAgent.
+- Chrome must be open with a `disneyworld.disney.go.com` tab for this ad hoc local command.
+- "Allow JavaScript from Apple Events" must be enabled in Chrome (`View → Developer → Allow JavaScript from Apple Events`) for AppleScript-based local checks.
 - The navigate-per-restaurant approach is required — making multiple API calls from one page gets Akamai 428 errors
-- Token is valid for 24hrs and auto-refreshes from Chrome's cookie store
+- Token is valid for about 24 hours and auto-refreshes from the browser cookie store when the profile is logged in.
+- Do not mutate `open_slots.json` or send Twilio messages from this diagnostic command.

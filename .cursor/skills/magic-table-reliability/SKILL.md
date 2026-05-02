@@ -26,13 +26,18 @@ Keep Magic Table Finder boringly reliable: watches are polled remotely, alerts g
 - Future dates outside Disney's booking window are skipped without marking the session unhealthy.
 - Notification failures are caught, logged, and reflected in `bot_state.json`.
 - `last_sms_sent_at` only advances after a successful send.
-- `seen_slots.json` is updated only after successful notification delivery.
+- `open_slots.json` is the primary new-opening baseline. Continuously open slots must stay quiet; disappeared-and-reopened slots should alert.
+- `seen_slots.json` is alert history/audit only and is updated only after successful notification delivery.
+- Stable alert identity excludes Disney `offerId`; include `offerId` in booking links but not dedupe keys.
+- Failed restaurant polls preserve that restaurant's previous `open_slots.json` baseline so the next successful poll does not spam old openings.
+- Partial notification failures are visible in `bot_state.json`, and failed recipient slots stay eligible to retry.
 - The VPS timer is the only production poller; the old Mac LaunchAgent stays disabled.
 
 ## Validation Commands
 
 ```bash
 node --check netlify/functions/api.js
+PYTHONPYCACHEPREFIX=.pycache python3 -m unittest tests.test_alert_semantics
 PYTHONPYCACHEPREFIX=.pycache python3 -m py_compile disney_bot.py monitor.py notify.py watch_store.py update_calendar_cache.py seed_disney_session.py
 ```
 
@@ -48,6 +53,8 @@ Production smoke checks:
 
 - Commit only reviewed, validated changes.
 - Push `cursor/self-hosted-mousewatcher`.
+- Push `HEAD:main` for website/API changes so Netlify deploys production.
 - Sync VPS to the pushed commit for worker changes.
 - Trigger Netlify deploy for website/API changes.
 - Smoke-test production after deploy.
+- Pause the VPS timer before validating risky alert-state changes; re-enable it only after a quiet/manual poll or deliberate baseline.

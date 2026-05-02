@@ -5,24 +5,32 @@ Self-hosted MouseWatcher-style service for Walt Disney World dining. A web UI at
 
 Built and maintained by Craig Owen for personal use (Craig + wife).
 
+## Product Promise
+
+The product promise is narrow and important:
+
+> Craig and Jessica can create precise Disney dining watches from a simple UI, and the system only alerts the right person when a genuinely new matching opening appears.
+
+Do not regress this into a generic availability dashboard. Alerts are for **newly opened matching reservation times**, not summaries of every currently available time.
+
 ---
 
 ## Architecture
 
 ```
 VPS systemd timer (every 10 min)
-    ├── update_calendar_cache.py  → Playwright Chrome profile → Disney API → Gist
-    └── disney_bot.py --once      → Playwright Chrome profile → Disney API → owner-specific SMS alert
+    └── disney_bot.py --once      → Xvfb + persistent Playwright profile → Disney API → owner-specific WhatsApp/SMS alert
 
 GitHub Gist (state store — ID: 7e8d8f873715971f8989a25a2f22c089)
     ├── watches.json       — owner-scoped watch records
     ├── config.yaml        — legacy grouped watch list, read only for migration/fallback
     ├── bot_state.json     — last poll timestamp + health state
-    ├── seen_slots.json    — persisted alert deduplication state
+    ├── open_slots.json    — previous poll's open-slot baseline for new-opening detection
+    ├── seen_slots.json    — audit/history of successfully notified slots
     └── calendar_{fid}.json  — pre-cached available dates per restaurant
 
 Netlify (magictablefinder.com, site ID: b1f7efc5-da94-4159-ade0-568de33ed24f)
-    ├── public/index.html — SPA frontend (profile login + restaurant browser + calendar)
+    ├── public/index.html — SPA frontend (profile login + create-watch form + date picker)
     └── netlify/functions/api.js — Node.js Lambda, reads/writes Gist
 ```
 
@@ -40,7 +48,13 @@ Disney's CDN (Akamai) blocks Python HTTP requests with HTTP 428. The `_abck` coo
 
 **Key constraint:** only the first API call after a fresh page load is reliable. Navigate to each restaurant page before fetching its data.
 
-**Session requirement:** the VPS Playwright profile must be logged into Disney. If Disney expires or challenges the session, run `DISNEY_HEADLESS=false python3 seed_disney_session.py` on the VPS and log in again.
+**Session requirement:** the VPS Playwright profile must be logged into Disney. If Disney expires or challenges the session, run `DISNEY_HEADLESS=false xvfb-run -a python3 seed_disney_session.py` on the VPS and log in again.
+
+On the headless VPS, Playwright must run under `xvfb-run -a` unless it is explicitly headless. The systemd service handles this. Manual live polls should use:
+
+```bash
+xvfb-run -a python3 disney_bot.py --once
+```
 
 ---
 
@@ -51,12 +65,15 @@ Disney's CDN (Akamai) blocks Python HTTP requests with HTTP 428. The `_abck` coo
 | `disney_bot.py` | Main polling loop; reads owner-scoped watches, deduplicates, sends SMS |
 | `watch_store.py` | Owner/profile-aware watch storage; migrates legacy `config.yaml` |
 | `monitor.py` | Disney API integration; `check_slots_via_playwright()` uses hosted Chrome |
+| `auth.py` | Legacy Disney token helpers; useful for token parsing reference, but production polling uses Playwright/browser cookies in `monitor.py` |
 | `update_calendar_cache.py` | Caches available date ranges per restaurant to Gist |
 | `storage.py` | Gist/local file abstraction |
 | `notify.py` | Twilio SMS formatting and owner-specific delivery |
 | `netlify/functions/api.js` | REST endpoints for status, profiles, restaurants, calendars, watches |
 | `public/index.html` | Frontend SPA |
 | `seed_disney_session.py` | Opens the VPS Playwright profile for manual Disney login |
+| `scripts/smoke_test_api.py` | Safe production API smoke test; creates/deletes fake future watches |
+| `tests/test_alert_semantics.py` | Unit tests for new-opening alert behavior |
 | `deploy/` | systemd service/timer templates for the VPS worker |
 
 ---
@@ -66,16 +83,27 @@ Disney's CDN (Akamai) blocks Python HTTP requests with HTTP 428. The `_abck` coo
 ```bash
 cd ~/Documents/disney-dining-bot
 
-python3 -m playwright install chromium
+# Local syntax/tests:
+node --check netlify/functions/api.js
+PYTHONPYCACHEPREFIX=.pycache python3 -m unittest tests.test_alert_semantics
+PYTHONPYCACHEPREFIX=.pycache python3 -m py_compile disney_bot.py monitor.py notify.py watch_store.py update_calendar_cache.py seed_disney_session.py
+
+# Safe live API smoke test. Uses a fake future watch and cleans it up:
+python3 scripts/smoke_test_api.py --user-id craig
+python3 scripts/smoke_test_api.py --user-id Jessica
+```
+
+On the VPS:
+
+```bash
+cd /opt/disney-dining-bot
+. .venv/bin/activate
 
 # Seed or repair Disney login session:
-DISNEY_HEADLESS=false python3 seed_disney_session.py
+DISNEY_HEADLESS=false xvfb-run -a python3 seed_disney_session.py
 
-# Test the calendar cache update:
-python3 update_calendar_cache.py
-
-# Test a full poll:
-python3 disney_bot.py --once
+# Test a full worker poll:
+xvfb-run -a python3 disney_bot.py --once
 ```
 
 ---
@@ -89,38 +117,104 @@ WATCH_USERS — JSON mapping user IDs to {name,password,phone}
 API_SECRET — legacy shared login fallback
 GITHUB_TOKEN — PAT for Gist read/write
 GITHUB_GIST_ID — 7e8d8f873715971f8989a25a2f22c089
-TWILIO_* — SMS credentials
+TWILIO_* — SMS/WhatsApp credentials
 DISNEY_BROWSER_PROFILE_DIR — persistent Playwright profile path
 DISNEY_HEADLESS — true for normal worker, false for manual login seeding
 ```
+
+Phone numbers may be configured as standard E.164 SMS (`+1...`) or WhatsApp (`whatsapp:+1...`). Craig and Jessica currently use WhatsApp via Twilio sandbox/WhatsApp sender. Never print full phone numbers, tokens, passwords, or `.env` contents.
+
+Security note: an old slash-command example previously contained the live legacy `API_SECRET`. Treat that secret as exposed in git history and rotate it in Netlify, the VPS `.env`, and any local `.env` before relying on it for real access control. Prefer per-user `WATCH_USERS[*].password` over the legacy shared `API_SECRET`.
+
+## Alert Semantics
+
+This is the most important behavior to preserve.
+
+- A watch belongs to exactly one owner (`owner_id`), and alerts route only to that owner's configured phone.
+- `monitor.py` returns every currently open matching Disney slot.
+- `disney_bot.py` compares current open slots to `open_slots.json`, the previous poll's open-slot snapshot.
+- Alert only when a stable visible slot is open now but was absent in the previous poll.
+- Stable slot identity is: `watch_id`, `facility_id`, `date`, `time`, `meal_period`, `party_size`.
+- Do **not** include `offer_id` in the dedupe key. Disney may rotate `offerId` for the same visible time. Including it caused false duplicate alerts.
+- `offer_id` is still included in the booking URL when available because it may help deep-link to the specific offer.
+- Continuously open slots must stay quiet.
+- A slot that disappears and later reappears should alert again.
+- If a restaurant poll fails, preserve that restaurant's previous baseline so the next successful poll does not spam old openings.
+- If notification delivery fails for a recipient, keep those slots out of the baseline so they retry, and record the error in `bot_state.json`.
+- `seen_slots.json` is an audit/history of successfully sent notifications, not the primary dedupe mechanism.
+
+Alert copy should list only newly opened slots. Do not group a new slot back into a full list of all open times.
+
+## Frontend UX Principles
+
+- Create Watch is the primary workflow.
+- Date selection is calendar-first on mobile: prominent `Choose Dates`, selected chips, explicit `Done`, manual date typing behind `Enter dates manually`.
+- Manual date input is a fallback/power-user path. Do not make users type `YYYY-MM-DD` as the default mobile flow.
+- Keep restaurant, party size, dates, meal periods, and time window visible before submit.
+- Preserve owner/profile clarity. Craig and Jessica should never wonder whose phone gets the alert.
+- Do not expose phone numbers, Gist IDs, tokens, passwords, or internal Disney IDs in the UI.
 
 ---
 
 ## Deployment
 
 ```bash
-# Deploy frontend + Netlify function:
-git add -A && git commit -m "..." && git push
+# Deploy frontend + Netlify function. main triggers Netlify:
+git add <files>
+git commit -m "..."
+git push origin cursor/self-hosted-mousewatcher
+git push origin HEAD:main
 
-# VPS worker:
-sudo cp deploy/disney-dining-bot.* /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now disney-dining-bot.timer
+# VPS worker sync after worker-code changes:
+ssh -i "$HOME/.ssh/disney_dining_vps" root@107.170.35.91 \
+  'cd /opt/disney-dining-bot && git pull --ff-only origin cursor/self-hosted-mousewatcher && systemctl is-active disney-dining-bot.timer'
 ```
+
+For alert-semantic changes, pause the timer before risky validation, seed/baseline carefully, then re-enable:
+
+```bash
+systemctl stop disney-dining-bot.timer
+# run tests, sync code, and baseline current open slots if needed
+systemctl start disney-dining-bot.timer
+```
+
+Never force-push `main`. Never reset or delete Gist state unless explicitly requested and you understand the alert consequences.
 
 ---
 
 ## Health Checks
 
-1. `journalctl -u disney-dining-bot.service -n 100` — look for successful Playwright polls.
+1. `journalctl -u disney-dining-bot.service -n 100` — look for successful Playwright polls and no notification errors.
 2. `curl -H "X-User-Id: craig" -H "X-API-Secret: <password>" https://magictablefinder.com/_api/status` — check `session_status`, `last_poll_at`, and `last_errors`.
-3. Check Gist directly: `https://gist.github.com/7e8d8f873715971f8989a25a2f22c089`
+3. `python3 scripts/smoke_test_api.py --user-id craig` and `--user-id Jessica` — verifies profiles, owner scoping, create/delete cleanup.
+4. Check Gist directly only when necessary: `https://gist.github.com/7e8d8f873715971f8989a25a2f22c089`
 
 ---
 
 ## Known Issues / Gotchas
 
-- **Disney session expired:** run `DISNEY_HEADLESS=false python3 seed_disney_session.py` on the VPS and log in.
+- **Disney session expired:** run `DISNEY_HEADLESS=false xvfb-run -a python3 seed_disney_session.py` on the VPS and log in.
 - **428 errors:** re-seed the VPS browser session and verify `DISNEY_BROWSER_PROFILE_DIR` persists across worker runs.
+- **Missing X server / Playwright headed error:** run manual worker commands under `xvfb-run -a` on the VPS.
 - **Worker not running:** `systemctl status disney-dining-bot.timer`.
 - **Gist rate limit/conflict:** rare. Wait a few minutes; the 10-minute polling interval should avoid this normally.
+- **Unexpected alert spam:** inspect `open_slots.json` and `bot_state.json`; do not clear state casually. Verify `_slot_key()` still excludes ephemeral `offer_id`.
+- **Twilio spend spike:** check Twilio usage categories. A2P/phone-number setup fees can dwarf actual WhatsApp/SMS traffic.
+
+## Agent Operating Model
+
+When multiple agents are available:
+
+- Primary architect/release owner: define product promise, specs, final code review, commits, deploys, production safety.
+- Goose/Qwen coder: bounded implementation/test tickets only. Give exact files, exact behavior, tests, and stop conditions. Do not let it deploy or mutate production.
+- Claude/Sonnet reviewer: design and reliability review, edge-case pressure testing, UX critique.
+- QA/ops checks: smoke tests, VPS timer state, bot health, Twilio usage, no leftover fake watches.
+
+For meaningful changes:
+
+1. Write a short spec and acceptance criteria.
+2. Implement narrowly.
+3. Run local syntax/unit checks.
+4. Get senior review for subtle/risky work.
+5. Smoke-test production.
+6. Commit, deploy, verify health.

@@ -46,7 +46,7 @@ When asked to improve UX:
 A UX change is not done until these are true:
 
 - Profile selector clearly shows Craig and Jessica.
-- Watch creation can be completed without using the calendar.
+- Watch creation can be completed with the calendar-first date picker, with manual date entry available as a secondary option.
 - Watch creation supports restaurant, party size, one or more dates, meal period, and optional time window.
 - Created watches appear under the correct owner.
 - Watches can be deleted, including generated `watch_...` IDs.
@@ -54,6 +54,7 @@ A UX change is not done until these are true:
 - Errors explain the problem and the next action.
 - The status area distinguishes healthy, needs attention, and stale/unknown states.
 - The UI remains usable on a phone-sized viewport.
+- Mobile date picking has an obvious open action and an obvious `Done`/close action.
 
 ## Copy Standards
 
@@ -61,6 +62,9 @@ Use copy like:
 
 - "Create Watch"
 - "Alert me when this opens"
+- "Choose Dates"
+- "Done"
+- "Enter dates manually"
 - "Any meal"
 - "Earliest time"
 - "Latest time"
@@ -70,7 +74,7 @@ Use copy like:
 
 Avoid copy like:
 
-- "grey dates"
+- "grey dates" without explaining what action to take
 - "scrape"
 - "config"
 - "facility ID"
@@ -92,6 +96,7 @@ Run or request these checks before calling a UX change done:
 
 ```bash
 node --check netlify/functions/api.js
+PYTHONPYCACHEPREFIX=.pycache python3 -m unittest tests.test_alert_semantics
 PYTHONPYCACHEPREFIX=.pycache python3 -m py_compile disney_bot.py monitor.py notify.py watch_store.py update_calendar_cache.py seed_disney_session.py
 ```
 

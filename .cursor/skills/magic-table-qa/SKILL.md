@@ -31,17 +31,26 @@ Prefer safe fake future dates like `2099-01-01` for create/delete smoke tests, a
 - Deleting generated IDs works.
 - Status shows `ok` for both users when the worker is healthy.
 - Restaurant search returns expected matches.
+- Create Watch date selection works on mobile with the calendar-first flow: `Choose Dates`, selected chips, `Done`, and collapsed manual entry.
+- Alerts are not full availability summaries; they identify newly opened matching slots only.
 
 ## Safety Rules
 
 - Never print secrets, full phone numbers, tokens, or `.env` contents.
 - Never leave fake watches behind.
 - Do not send real SMS unless explicitly asked.
+- Do not clear `open_slots.json` or `seen_slots.json` unless the task explicitly involves alert-state repair.
 - If a test creates production data and cleanup fails, report the watch ID immediately.
 
 ## Useful Smoke Test Shape
 
 Use the live API with `X-API-Secret` and `X-User-Id`; create a fake future watch; verify it appears; delete it; verify it is gone.
+
+Local regression checks:
+
+```bash
+PYTHONPYCACHEPREFIX=.pycache python3 -m unittest tests.test_alert_semantics
+```
 
 Report:
 
