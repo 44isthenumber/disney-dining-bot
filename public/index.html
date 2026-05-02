@@ -544,10 +544,14 @@ document.getElementById('logout-btn').addEventListener('click', function() {
   tsEl.value = getTripStart();
   teEl.value = getTripEnd();
   pyEl.value = localStorage.getItem('disneyPartySize') || '2';
+  document.getElementById('party-size').value = pyEl.value;
 
   tsEl.addEventListener('input', function() { localStorage.setItem('disneyTripStart', this.value); });
   teEl.addEventListener('input', function() { localStorage.setItem('disneyTripEnd', this.value); });
-  pyEl.addEventListener('change', function() { localStorage.setItem('disneyPartySize', this.value); });
+  pyEl.addEventListener('change', function() {
+    localStorage.setItem('disneyPartySize', this.value);
+    document.getElementById('party-size').value = this.value;
+  });
 
   loadProfiles();
 
@@ -607,6 +611,7 @@ async function loadRestaurants() {
   try {
     const data = await apiFetch('/restaurants');
     allRestaurants = data.restaurants || [];
+    populateRestaurantSelect(allRestaurants);
     renderGrid(allRestaurants);
   } catch(e) {
     document.getElementById('rest-loading').textContent = 'Failed: ' + e.message;
@@ -881,38 +886,41 @@ async function watchAllGrey() {
 
 // ── Create Watch Form ────────────────────────────────────────────────────────
 
-async function populateRestaurantSelect() {
+function populateRestaurantSelect(restaurants) {
   const select = document.getElementById('restaurant-select');
-  select.innerHTML = '<option value="">Loading...</option>';
-  try {
-    const data = await apiFetch('/restaurants');
-    const restaurants = data.restaurants || [];
-    select.innerHTML = '<option value="">Select a restaurant...</option>' + restaurants.map(function(r) {
-      return '<option value="' + esc(r.facility_id) + '">' + esc(r.name) + '</option>';
-    }).join('');
-  } catch(e) {
-    select.innerHTML = '<option value="">Error loading restaurants</option>';
-  }
+  const selected = select.value;
+  const options = (restaurants || []).map(function(r) {
+    return '<option value="' + esc(r.facility_id) + '">' + esc(r.name) + '</option>';
+  }).join('');
+  select.innerHTML = '<option value="">Select a restaurant...</option>' + options;
+  if (selected) select.value = selected;
+}
+
+function parseWatchDates(raw) {
+  const dates = raw.split(/[\s,]+/).map(function(d) { return d.trim(); }).filter(Boolean);
+  const invalid = dates.filter(function(d) { return !/^\d{4}-\d{2}-\d{2}$/.test(d); });
+  if (invalid.length) throw new Error('Use YYYY-MM-DD dates. Invalid: ' + invalid.join(', '));
+  return Array.from(new Set(dates)).sort();
 }
 
 document.getElementById('watch-form').addEventListener('submit', async function(e) {
   e.preventDefault();
   const btn = document.getElementById('create-btn');
   const msg = document.getElementById('create-msg');
-  btn.disabled = true; btn.textContent = 'Creating…'; msg.textContent = '';
+  btn.disabled = true; btn.textContent = 'Creating…'; msg.textContent = ''; msg.className = '';
   try {
     const restaurantId = document.getElementById('restaurant-select').value;
     const partySize = parseInt(document.getElementById('party-size').value);
     const datesText = document.getElementById('dates').value.trim();
     const timeFrom = document.getElementById('time-from').value || null;
     const timeTo = document.getElementById('time-to').value || null;
-    const mealChecks = document.querySelectorAll('#watch-form input[type=checkbox]:checked');
+    const mealChecks = document.querySelectorAll('#watch-form input[name=meal-period]:checked');
     const mealPeriods = Array.from(mealChecks).map(c => c.value);
     if (!restaurantId || !datesText) throw new Error('Restaurant and dates are required.');
-    const dates = datesText.split(',').map(d => d.trim()).filter(d => d);
+    if (timeFrom && timeTo && timeFrom > timeTo) throw new Error('Earliest time must be before latest time.');
+    const dates = parseWatchDates(datesText);
     if (!dates.length) throw new Error('At least one date required.');
-    const restaurants = (await apiFetch('/restaurants')).restaurants || [];
-    const restaurant = restaurants.find(r => r.facility_id === restaurantId);
+    const restaurant = allRestaurants.find(r => r.facility_id === restaurantId);
     if (!restaurant) throw new Error('Restaurant not found.');
     const body = {
       facility_id: restaurantId,
@@ -926,43 +934,22 @@ document.getElementById('watch-form').addEventListener('submit', async function(
     };
     const result = await apiFetch('/watches', { method: 'POST', body: JSON.stringify(body) });
     msg.textContent = 'Created ' + result.added.length + ' watch(es).';
-    loadWatches(); // refresh watches list
-    // reset form
     document.getElementById('watch-form').reset();
+    document.getElementById('party-size').value = getPartySize();
+    loadWatches();
+    loadRestaurants();
+    refreshStatus();
   } catch(e) {
+    msg.className = 'err';
     msg.textContent = 'Error: ' + e.message;
   } finally {
     btn.disabled = false; btn.textContent = 'Create Watch';
   }
 });
 
-// Enhance watches display
-function renderWatches(watches) {
-  var grid = document.getElementById('watches-grid');
-  var count = document.getElementById('watch-count');
-  if (watches.length) {
-    count.textContent = '(' + watches.length + ')';
-    grid.innerHTML = watches.map(function(w) {
-      var meals = (w.meal_periods || []).filter(m => m !== 'ALL').join(', ') || 'Any meal';
-      var timeWindow = w.time_from || w.time_to ? ' · ' + (w.time_from || 'Any') + '-' + (w.time_to || 'Any') : '';
-      return '<div class="watch-card" style="border: 1px solid var(--border); padding: 10px; margin: 5px; border-radius: 4px;">' +
-        '<strong>' + esc(w.name) + '</strong> on ' + esc(w.date) + ' for ' + w.party_size + ' people<br>' +
-        '<small>' + meals + timeWindow + '</small> ' +
-        '<button onclick="deleteWatch(\'' + esc(w.watch_id) + '\')" style="float:right;">Remove</button>' +
-        '</div>';
-    }).join('');
-  } else {
-    count.textContent = '';
-    grid.innerHTML = '';
-  }
-  document.getElementById('watches-empty').style.display = watches.length ? 'none' : 'block';
-}
-
-// Call populate after login
 function onLogin() {
   refreshStatus();
   loadRestaurants();
-  populateRestaurantSelect();
   loadWatches();
 }
 </script>
