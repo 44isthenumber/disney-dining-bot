@@ -134,18 +134,32 @@
     margin-bottom: 20px; padding: 20px 22px; border: 1px solid #c3d4f7;
     border-radius: 12px; background: #fff;
     box-shadow: 0 2px 14px rgba(26,86,219,.09);
-    border-top: 3px solid var(--blue); overflow: hidden;
+    border-top: 3px solid var(--blue); overflow: visible;
   }
   #create-watch h2 { font-size: 18px; margin-bottom: 4px; }
   #create-watch .hint { color: var(--muted); font-size: 13px; margin-bottom: 14px; }
-  .create-grid { display: grid; grid-template-columns: minmax(220px, 2fr) 90px minmax(220px, 1.3fr); gap: 12px; align-items: end; }
+  .create-grid {
+    display: grid;
+    grid-template-columns: minmax(260px, 1.4fr) 120px minmax(320px, .95fr);
+    grid-template-areas:
+      "restaurant party dates"
+      "meal meal dates"
+      "timefrom timeto dates";
+    gap: 14px 18px;
+    align-items: start;
+  }
   .create-field { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--muted); }
   .create-field select, .create-field input, .create-field textarea {
     padding: 8px 10px; border: 1px solid var(--border); border-radius: 7px;
     background: #fff; color: var(--text); font-size: 14px;
   }
   .create-field textarea { min-height: 42px; resize: vertical; }
-  .date-field { min-width: 260px; }
+  .restaurant-field { grid-area: restaurant; }
+  .party-field { grid-area: party; }
+  .meal-field { grid-area: meal; }
+  .time-from-field { grid-area: timefrom; }
+  .time-to-field { grid-area: timeto; }
+  .date-field { grid-area: dates; min-width: 0; align-self: start; position: relative; }
   .date-input-row { display: none; gap: 8px; align-items: stretch; }
   .date-field.manual-open .date-input-row { display: flex; }
   .date-input-row textarea { flex: 1; min-height: 72px; }
@@ -172,8 +186,9 @@
     font-size: 14px; line-height: 1; padding: 0;
   }
   #date-picker-panel {
-    display: none; margin-top: 8px; padding: 12px; border: 1px solid var(--border);
-    border-radius: 10px; background: #fafcff;
+    display: none; position: absolute; top: calc(100% + 8px); left: 0; right: 0;
+    z-index: 20; padding: 12px; border: 1px solid var(--border);
+    border-radius: 10px; background: #fafcff; box-shadow: 0 14px 32px rgba(26,86,219,.16);
   }
   #date-picker-panel.open { display: block; }
   .mini-month-nav { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
@@ -184,7 +199,8 @@
   #date-picker-month { flex: 1; text-align: center; font-weight: 600; font-size: 13px; color: var(--text); }
   #date-picker-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
   #date-picker-grid .day {
-    border: 0; width: 100%; padding: 0; box-sizing: border-box;
+    border: 0; width: 100%; height: 32px; aspect-ratio: auto; padding: 0; box-sizing: border-box;
+    border-radius: 999px;
     background: transparent; font-family: inherit;
   }
   #date-picker-grid .day.selected { background: var(--blue); color: #fff; font-weight: 700; cursor: pointer; }
@@ -281,21 +297,31 @@
   }
   .watch-form small { color: var(--muted); font-size: 11px; }
 
-  @media (max-width: 600px) {
+  @media (max-width: 860px) {
     header { gap: 6px; padding: 10px 14px; }
     .hdr-sep { display: none; }
     .hdr-field[data-collapse-mobile] { display: none; }
     main { padding: 12px; }
-    #create-watch { padding: 16px; }
+    #create-watch { padding: 16px; overflow: hidden; }
     #rest-grid { grid-template-columns: repeat(auto-fill, minmax(150px,1fr)); }
-    .create-grid { grid-template-columns: 1fr; }
+    .create-grid {
+      grid-template-columns: 1fr;
+      grid-template-areas:
+        "restaurant"
+        "party"
+        "dates"
+        "meal"
+        "timefrom"
+        "timeto";
+    }
     .date-input-row { flex-direction: column; }
     #date-picker-panel {
+      position: static; box-shadow: none; margin-top: 8px;
       margin-left: -8px; margin-right: -8px; padding: 10px;
       max-height: min(68vh, 560px); overflow-y: auto;
     }
     #date-picker-grid { gap: 5px; }
-    #date-picker-grid .day { min-height: 38px; font-size: 13px; }
+    #date-picker-grid .day { height: 38px; font-size: 13px; }
     #date-picker-help { font-size: 12px; }
     .create-actions { flex-direction: column; align-items: stretch; }
     #create-btn { width: 100%; padding: 13px; font-size: 15px; }
@@ -406,12 +432,12 @@
     <p class="hint">You'll get an SMS when a matching table opens. The calendar is optional — just fill in the criteria below.</p>
     <form id="watch-form">
       <div class="create-grid">
-        <label class="create-field">Restaurant
+        <label class="create-field restaurant-field">Restaurant
           <select id="restaurant-select" required>
             <option value="">Select a restaurant...</option>
           </select>
         </label>
-        <label class="create-field">Party
+        <label class="create-field party-field">Party
           <input type="number" id="party-size" min="1" max="20" value="2" required>
         </label>
         <div class="create-field date-field">Dates
@@ -436,7 +462,7 @@
           </div>
           <small style="font-size:11px;color:var(--muted)">Choose one or more dates to watch.</small>
         </div>
-        <div class="create-field">
+        <div class="create-field meal-field">
           <span>Meal Period</span>
           <div class="meal-options">
             <label><input type="checkbox" name="meal-period" value="BREAKFAST"> Breakfast</label>
@@ -445,10 +471,10 @@
           </div>
           <small>Leave unchecked for any meal.</small>
         </div>
-        <label class="create-field">Earliest Time
+        <label class="create-field time-from-field">Earliest Time
           <input type="time" id="time-from">
         </label>
-        <label class="create-field">Latest Time
+        <label class="create-field time-to-field">Latest Time
           <input type="time" id="time-to">
         </label>
       </div>
