@@ -147,9 +147,15 @@ def poll(config: Optional[dict] = None) -> None:
 
     cooldown = config.get("alert_cooldown_minutes", 60)
     new_slots = filter_new(all_slots, cooldown)
+    sms_sent = False
     if new_slots:
         print(f"[bot] Sending alert for {len(new_slots)} new slot(s).")
-        if send_sms(new_slots):
+        try:
+            sms_sent = send_sms(new_slots)
+        except Exception as e:
+            errors.append({"restaurant": "notification", "error": str(e)})
+            print(f"[bot] Notification failed: {e}")
+        if sms_sent:
             mark_seen(new_slots)
     else:
         print("[bot] No new slots to alert on.")
@@ -164,7 +170,7 @@ def poll(config: Optional[dict] = None) -> None:
         "restaurant_request_count": len(grouped),
         "last_errors": errors,
         "session_status": "needs_attention" if errors else "ok",
-        "last_sms_sent_at": now_utc if new_slots else previous_state.get("last_sms_sent_at"),
+        "last_sms_sent_at": now_utc if sms_sent else previous_state.get("last_sms_sent_at"),
     })
 
 

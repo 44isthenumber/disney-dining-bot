@@ -12,6 +12,7 @@ from monitor import Slot
 load_dotenv()
 
 BOOK_BASE = "https://disneyworld.disney.go.com/dine-res/book/table-service/details"
+MAX_MESSAGE_LENGTH = 1500
 
 
 def _format_message(slots: List[Slot]) -> str:
@@ -63,6 +64,13 @@ def send_sms(slots: List[Slot]) -> bool:
 
     for to_number, recipient_slots in by_recipient.items():
         body = _format_message(recipient_slots)
-        message = client.messages.create(body=body, from_=from_number, to=to_number)
-        print(f"[notify] SMS sent to {to_number} ({len(recipient_slots)} slot(s)). SID: {message.sid}")
+        if len(body) > MAX_MESSAGE_LENGTH:
+            body = body[: MAX_MESSAGE_LENGTH - 3] + "..."
+            print(f"[notify] Alert for {to_number} truncated to {MAX_MESSAGE_LENGTH} characters.")
+        try:
+            message = client.messages.create(body=body, from_=from_number, to=to_number)
+            print(f"[notify] SMS sent to {to_number} ({len(recipient_slots)} slot(s)). SID: {message.sid}")
+        except Exception as exc:
+            print(f"[notify] SMS failed for {to_number}: {exc}")
+            return False
     return True
