@@ -22,8 +22,9 @@ import subprocess
 import time
 import uuid
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time as datetime_time, timedelta
 from typing import List, Optional
+from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 
@@ -31,6 +32,26 @@ load_dotenv()
 
 BASE = "https://disneyworld.disney.go.com/dine-res/api"
 STABLE_CONV_ID = str(uuid.uuid4())
+
+
+def _max_bookable_date() -> date:
+    """Disney opens the next 60th booking day at 6 AM Eastern."""
+    tz = ZoneInfo(os.environ.get("DISNEY_BOOKING_TIMEZONE", "America/New_York"))
+    now = datetime.now(tz)
+    window_days = int(os.environ.get("DISNEY_BOOKING_WINDOW_DAYS", "60"))
+    opening_hour = int(os.environ.get("DISNEY_BOOKING_OPEN_HOUR", "6"))
+    if now.time() < datetime_time(opening_hour, 0):
+        window_days -= 1
+    return now.date() + timedelta(days=window_days)
+
+
+def _filter_bookable_dates(dates: List[str], name: str) -> List[str]:
+    max_date = _max_bookable_date()
+    bookable = [d for d in dates if date.fromisoformat(d) <= max_date]
+    skipped = len(dates) - len(bookable)
+    if skipped:
+        print(f"[monitor] {name}: skipping {skipped} date(s) outside Disney's current booking window.")
+    return bookable
 
 
 def _normalize_hhmm(value: Optional[str]) -> Optional[str]:
@@ -461,6 +482,10 @@ def check_slots_via_playwright(restaurant: dict) -> List[Slot]:
     dates = _expand_dates(restaurant.get("dates"), restaurant.get("date_start"), restaurant.get("date_end"))
     if not dates:
         print(f"[monitor] {name}: no dates configured, skipping.")
+        return []
+    dates = _filter_bookable_dates(dates, name)
+    if not dates:
+        print(f"[monitor] {name}: no configured dates are bookable yet.")
         return []
 
     start, end = min(dates), max(dates)
