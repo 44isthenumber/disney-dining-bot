@@ -150,6 +150,7 @@
   }
   .create-field { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--muted); }
   .create-field select, .create-field input, .create-field textarea {
+    width: 100%; min-width: 0;
     padding: 8px 10px; border: 1px solid var(--border); border-radius: 7px;
     background: #fff; color: var(--text); font-size: 14px;
   }
@@ -164,7 +165,8 @@
   .date-field.manual-open .date-input-row { display: flex; }
   .date-input-row textarea { flex: 1; min-height: 72px; }
   #toggle-date-picker {
-    width: 100%; padding: 13px 14px; border: 0; border-radius: 9px;
+    display: block; width: 100%; max-width: 100%; min-width: 0;
+    padding: 13px 14px; border: 0; border-radius: 9px;
     background: var(--blue); color: #fff; font-size: 15px; font-weight: 700;
     cursor: pointer; text-align: center; box-shadow: 0 2px 8px rgba(26,86,219,.18);
   }
@@ -298,12 +300,14 @@
   .watch-form small { color: var(--muted); font-size: 11px; }
 
   @media (max-width: 860px) {
+    html, body { max-width: 100%; overflow-x: hidden; }
     body.date-picker-modal-open { overflow: hidden; }
     header { gap: 6px; padding: 10px 14px; }
     .hdr-sep { display: none; }
     .hdr-field[data-collapse-mobile] { display: none; }
     main { padding: 12px; }
-    #create-watch { padding: 16px; overflow: hidden; }
+    #create-watch { width: 100%; max-width: 100%; padding: 16px; overflow: hidden; }
+    .create-field { min-width: 0; }
     #rest-grid { grid-template-columns: repeat(auto-fill, minmax(150px,1fr)); }
     .create-grid {
       grid-template-columns: 1fr;
