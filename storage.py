@@ -55,12 +55,19 @@ def read_text(filename: str, default: str = "") -> str:
 
 def write_text(filename: str, content: str) -> None:
     if _use_gist():
-        r = _req.patch(
-            f"https://api.github.com/gists/{_gist_id()}",
-            headers=_headers(),
-            json={"files": {filename: {"content": content}}},
-            timeout=10,
-        )
+        import time
+        for attempt in range(3):
+            r = _req.patch(
+                f"https://api.github.com/gists/{_gist_id()}",
+                headers=_headers(),
+                json={"files": {filename: {"content": content}}},
+                timeout=10,
+            )
+            if r.status_code == 409:
+                time.sleep(2 + attempt * 2)
+                continue
+            r.raise_for_status()
+            return
         r.raise_for_status()
     else:
         (_ROOT / filename).write_text(content)

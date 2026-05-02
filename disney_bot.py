@@ -11,25 +11,25 @@ import json
 import sys
 import time
 from datetime import datetime, timedelta
-from pathlib import Path
 from typing import Dict, List, Set
 
 import schedule
 import yaml
 from dotenv import load_dotenv
 
+import storage
 from auth import get_valid_token
-from monitor import Slot, check_restaurant
+from monitor import Slot, check_restaurant, check_slots_via_chrome
 from notify import send_sms
 
 load_dotenv()
 
-CONFIG_FILE = "config.yaml"
-
 
 def load_config() -> dict:
-    with open(CONFIG_FILE) as f:
-        return yaml.safe_load(f)
+    text = storage.read_text("config.yaml", "")
+    if not text:
+        return {"restaurants": []}
+    return yaml.safe_load(text) or {"restaurants": []}
 
 
 # ── dedup / cooldown ───────────────────────────────────────────────────────
@@ -58,23 +58,18 @@ def poll(config: dict) -> None:
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"\n[{ts}] Polling {len(config['restaurants'])} restaurant(s) …")
 
-    try:
-        token = get_valid_token()
-    except Exception as e:
-        print(f"[bot] Could not obtain token: {e}")
-        return
-
     all_slots: List[Slot] = []
     for restaurant in config["restaurants"]:
+        name = restaurant.get("name", "?")
         try:
-            slots = check_restaurant(restaurant, token)
+            slots = check_slots_via_chrome(restaurant)
             all_slots.extend(slots)
             if slots:
-                print(f"[bot] {restaurant['name']}: {len(slots)} slot(s) found.")
+                print(f"[bot] {name}: {len(slots)} slot(s) found.")
             else:
-                print(f"[bot] {restaurant['name']}: no availability.")
+                print(f"[bot] {name}: no availability.")
         except Exception as e:
-            print(f"[bot] Error checking {restaurant.get('name', '?')}: {e}")
+            print(f"[bot] Chrome check failed for {name}: {e}")
 
     cooldown = config.get("alert_cooldown_minutes", 60)
     new_slots = filter_new(all_slots, cooldown)
@@ -84,10 +79,10 @@ def poll(config: dict) -> None:
     else:
         print("[bot] No new slots to alert on.")
 
-    Path("bot_state.json").write_text(json.dumps({
+    storage.write_json("bot_state.json", {
         "last_poll_at": datetime.utcnow().isoformat() + "Z",
         "slots_found_last_poll": len(new_slots),
-    }))
+    })
 
 
 # ── entry point ────────────────────────────────────────────────────────────
