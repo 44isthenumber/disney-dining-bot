@@ -134,7 +134,7 @@
     margin-bottom: 20px; padding: 20px 22px; border: 1px solid #c3d4f7;
     border-radius: 12px; background: #fff;
     box-shadow: 0 2px 14px rgba(26,86,219,.09);
-    border-top: 3px solid var(--blue);
+    border-top: 3px solid var(--blue); overflow: hidden;
   }
   #create-watch h2 { font-size: 18px; margin-bottom: 4px; }
   #create-watch .hint { color: var(--muted); font-size: 13px; margin-bottom: 14px; }
@@ -146,14 +146,19 @@
   }
   .create-field textarea { min-height: 42px; resize: vertical; }
   .date-field { min-width: 260px; }
-  .date-input-row { display: flex; gap: 8px; align-items: stretch; }
-  .date-input-row textarea { flex: 1; }
+  .date-input-row { display: none; gap: 8px; align-items: stretch; }
+  .date-field.manual-open .date-input-row { display: flex; }
+  .date-input-row textarea { flex: 1; min-height: 72px; }
   #toggle-date-picker {
-    padding: 8px 11px; border: 1px solid var(--border); border-radius: 7px;
-    background: #f8faff; color: var(--blue); font-size: 13px; font-weight: 600;
-    cursor: pointer; white-space: nowrap;
+    width: 100%; padding: 13px 14px; border: 0; border-radius: 9px;
+    background: var(--blue); color: #fff; font-size: 15px; font-weight: 700;
+    cursor: pointer; text-align: center; box-shadow: 0 2px 8px rgba(26,86,219,.18);
   }
-  #toggle-date-picker:hover { border-color: var(--blue); background: #eef4ff; }
+  #toggle-date-picker:hover { background: var(--blue-dark); }
+  .manual-toggle {
+    border: 0; background: none; color: var(--blue); cursor: pointer;
+    font-size: 12px; font-weight: 600; align-self: flex-start; padding: 0;
+  }
   #selected-date-chips {
     display: flex; flex-wrap: wrap; gap: 6px; min-height: 24px; margin-top: 2px;
   }
@@ -185,6 +190,18 @@
   #date-picker-grid .day.selected { background: var(--blue); color: #fff; font-weight: 700; cursor: pointer; }
   #date-picker-grid .day.selected:hover { background: var(--blue-dark); transform: scale(1.08); }
   #date-picker-help { margin-top: 8px; font-size: 11px; color: var(--muted); }
+  .date-picker-actions {
+    display: flex; gap: 8px; align-items: center; margin-top: 10px;
+    position: sticky; bottom: 0; background: #fafcff; padding-top: 8px;
+  }
+  #date-picker-done {
+    flex: 1; border: 0; border-radius: 8px; background: var(--blue); color: #fff;
+    padding: 10px 12px; font-weight: 700; cursor: pointer;
+  }
+  #date-picker-clear {
+    border: 1px solid var(--border); border-radius: 8px; background: #fff; color: #555;
+    padding: 10px 12px; cursor: pointer;
+  }
   .meal-options { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 0; }
   .meal-options label { color: var(--text); font-size: 13px; display: inline-flex; align-items: center; gap: 4px; }
   .create-actions { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
@@ -273,7 +290,13 @@
     #rest-grid { grid-template-columns: repeat(auto-fill, minmax(150px,1fr)); }
     .create-grid { grid-template-columns: 1fr; }
     .date-input-row { flex-direction: column; }
-    #toggle-date-picker { width: 100%; }
+    #date-picker-panel {
+      margin-left: -8px; margin-right: -8px; padding: 10px;
+      max-height: min(68vh, 560px); overflow-y: auto;
+    }
+    #date-picker-grid { gap: 5px; }
+    #date-picker-grid .day { min-height: 38px; font-size: 13px; }
+    #date-picker-help { font-size: 12px; }
     .create-actions { flex-direction: column; align-items: stretch; }
     #create-btn { width: 100%; padding: 13px; font-size: 15px; }
     #create-msg { text-align: center; }
@@ -392,11 +415,12 @@
           <input type="number" id="party-size" min="1" max="20" value="2" required>
         </label>
         <div class="create-field date-field">Dates
-          <div class="date-input-row">
-            <textarea id="dates" placeholder="2026-06-01&#10;2026-06-02" required></textarea>
-            <button type="button" id="toggle-date-picker" aria-expanded="false" aria-controls="date-picker-panel">Pick Dates</button>
-          </div>
+          <button type="button" id="toggle-date-picker" aria-expanded="false" aria-controls="date-picker-panel">Choose Dates</button>
           <div id="selected-date-chips" aria-live="polite"></div>
+          <button type="button" class="manual-toggle" id="toggle-manual-dates">Enter dates manually</button>
+          <div class="date-input-row">
+            <textarea id="dates" placeholder="2026-06-01&#10;2026-06-02"></textarea>
+          </div>
           <div id="date-picker-panel">
             <div class="mini-month-nav">
               <button type="button" id="date-prev-month">‹</button>
@@ -405,8 +429,12 @@
             </div>
             <div id="date-picker-grid"></div>
             <div id="date-picker-help">Tap dates to add or remove them. Grey dates are watchable; blue dates are selected.</div>
+            <div class="date-picker-actions">
+              <button type="button" id="date-picker-clear">Clear</button>
+              <button type="button" id="date-picker-done">Done</button>
+            </div>
           </div>
-          <small style="font-size:11px;color:var(--muted)">Tap dates on the calendar, or type one per line.</small>
+          <small style="font-size:11px;color:var(--muted)">Choose one or more dates to watch.</small>
         </div>
         <div class="create-field">
           <span>Meal Period</span>
@@ -1065,11 +1093,18 @@ function writeSelectedDatesToText() {
   renderSelectedDateChips();
 }
 
+function selectedDateSummary() {
+  var n = createDatePicker.selected.size;
+  return n ? 'Choose Dates (' + n + ' selected)' : 'Choose Dates';
+}
+
 function renderSelectedDateChips() {
   var chips = document.getElementById('selected-date-chips');
+  var toggle = document.getElementById('toggle-date-picker');
   var dates = Array.from(createDatePicker.selected).sort();
+  toggle.textContent = selectedDateSummary();
   if (!dates.length) {
-    chips.innerHTML = '<span style="font-size:12px;color:#999">No dates selected yet.</span>';
+    chips.innerHTML = '<span style="font-size:12px;color:#999">No dates selected yet. Tap Choose Dates.</span>';
     return;
   }
   chips.innerHTML = dates.map(function(d) {
@@ -1141,9 +1176,28 @@ document.getElementById('toggle-date-picker').addEventListener('click', function
   panel.classList.toggle('open');
   this.setAttribute('aria-expanded', panel.classList.contains('open') ? 'true' : 'false');
   renderCreateDatePicker();
+  if (panel.classList.contains('open')) {
+    setTimeout(function() { panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 50);
+  }
+});
+document.getElementById('toggle-manual-dates').addEventListener('click', function() {
+  var field = document.querySelector('.date-field');
+  field.classList.toggle('manual-open');
+  this.textContent = field.classList.contains('manual-open') ? 'Hide manual entry' : 'Enter dates manually';
 });
 document.getElementById('date-prev-month').addEventListener('click', function() { shiftCreateDateMonth(-1); });
 document.getElementById('date-next-month').addEventListener('click', function() { shiftCreateDateMonth(1); });
+document.getElementById('date-picker-done').addEventListener('click', function() {
+  var panel = document.getElementById('date-picker-panel');
+  panel.classList.remove('open');
+  document.getElementById('toggle-date-picker').setAttribute('aria-expanded', 'false');
+  document.getElementById('toggle-date-picker').scrollIntoView({ behavior: 'smooth', block: 'center' });
+});
+document.getElementById('date-picker-clear').addEventListener('click', function() {
+  createDatePicker.selected = new Set();
+  writeSelectedDatesToText();
+  renderCreateDatePicker();
+});
 document.getElementById('dates').addEventListener('input', function() {
   syncDatePickerFromText();
   renderCreateDatePicker();
@@ -1187,6 +1241,10 @@ document.getElementById('watch-form').addEventListener('submit', async function(
     createDatePicker.selected = new Set();
     renderSelectedDateChips();
     renderCreateDatePicker();
+    document.getElementById('date-picker-panel').classList.remove('open');
+    document.getElementById('toggle-date-picker').setAttribute('aria-expanded', 'false');
+    document.querySelector('.date-field').classList.remove('manual-open');
+    document.getElementById('toggle-manual-dates').textContent = 'Enter dates manually';
     loadWatches();
     loadRestaurants();
     refreshStatus();
