@@ -176,6 +176,18 @@
   }
   #bulk-btn:hover { background: #e0e7ff; border-color: var(--blue); color: var(--blue); }
   #modal-msg { font-size: 11px; color: var(--muted); text-align: center; min-height: 16px; }
+  .watch-form {
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px; margin: 12px 0; background: #fafafa;
+  }
+  .watch-form-title { font-weight: 600; font-size: 13px; margin-bottom: 8px; }
+  .watch-form-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+  .watch-form label { font-size: 11px; color: var(--muted); display: flex; flex-direction: column; gap: 3px; }
+  .watch-form select, .watch-form input {
+    padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px;
+    background: #fff; font-size: 13px;
+  }
+  .watch-form small { color: var(--muted); font-size: 11px; }
 
   @media (max-width: 600px) {
     header { gap: 6px; }
@@ -322,8 +334,28 @@
       <span id="month-label"></span>
       <button id="next-month">›</button>
     </div>
+    <div class="watch-form">
+      <div class="watch-form-title">Alert Criteria</div>
+      <div class="watch-form-row">
+        <label>Meal
+          <select id="watch-meal">
+            <option value="ALL">Any meal</option>
+            <option value="BREAKFAST">Breakfast</option>
+            <option value="LUNCH">Lunch</option>
+            <option value="DINNER" selected>Dinner</option>
+          </select>
+        </label>
+        <label>Earliest
+          <input type="time" id="watch-time-from" value="17:00" />
+        </label>
+        <label>Latest
+          <input type="time" id="watch-time-to" value="21:00" />
+        </label>
+      </div>
+      <small>Click a date below to watch only openings matching this meal and time window.</small>
+    </div>
     <div id="cal-grid"></div>
-    <button id="bulk-btn">Watch all unavailable dates this month</button>
+    <button id="bulk-btn">Watch all unavailable dates this month with these criteria</button>
     <div id="modal-msg"></div>
   </div>
 </div>
@@ -340,6 +372,23 @@ function getUserId() { return localStorage.getItem('disneyUserId') || 'craig'; }
 function getTripStart() { return localStorage.getItem('disneyTripStart') || ''; }
 function getTripEnd() { return localStorage.getItem('disneyTripEnd') || ''; }
 function getPartySize() { return parseInt(document.getElementById('global-party').value) || 2; }
+
+function fmtTime(t) {
+  if (!t) return '';
+  var parts = t.split(':');
+  var h = parseInt(parts[0], 10), m = parts[1] || '00';
+  var ampm = h >= 12 ? 'PM' : 'AM';
+  var hr = h % 12 || 12;
+  return hr + ':' + m + ' ' + ampm;
+}
+
+function watchCriteriaLabel(w) {
+  var meals = (w.meal_periods || ['ALL']).filter(function(m) { return m !== 'ALL'; }).join(', ') || 'Any meal';
+  var window = w.time_from || w.time_to
+    ? ' · ' + (w.time_from ? fmtTime(w.time_from) : 'Any') + '-' + (w.time_to ? fmtTime(w.time_to) : 'Any')
+    : '';
+  return meals + window;
+}
 
 async function apiFetch(path, opts) {
   opts = opts || {};
@@ -581,11 +630,11 @@ function renderWatches(watches) {
   empty.style.display = 'none'; grid.style.display = 'grid';
   count.textContent = '(' + watches.length + ')';
 
-  // Group by facility + party size
+  // Group by facility + party size + criteria
   const groups = {};
   watches.forEach(function(w) {
-    const k = w.facility_id + '__' + w.party_size;
-    if (!groups[k]) groups[k] = { name: w.name, party_size: w.party_size, meal_periods: w.meal_periods, dates: [] };
+    const k = [w.facility_id, w.party_size, (w.meal_periods||['ALL']).join(','), w.time_from||'', w.time_to||''].join('__');
+    if (!groups[k]) groups[k] = { name: w.name, party_size: w.party_size, criteria: watchCriteriaLabel(w), dates: [] };
     groups[k].dates.push({ date: w.date, watch_id: w.watch_id });
   });
 
@@ -596,10 +645,9 @@ function renderWatches(watches) {
       return '<span class="chip">' + esc(d.date) +
         '<button data-id="'+esc(d.watch_id)+'" title="Remove">&times;</button></span>';
     }).join('');
-    const meals = (g.meal_periods||[]).filter(function(m) { return m!=='ALL'; }).join(', ');
     return '<div class="watch-card">' +
       '<div class="watch-name">' + esc(g.name) + '</div>' +
-      '<div class="watch-meta">Party of ' + g.party_size + (meals ? ' · '+esc(meals) : '') + '</div>' +
+      '<div class="watch-meta">Party of ' + g.party_size + ' · ' + esc(g.criteria) + '</div>' +
       '<div class="watch-dates">' + chips + '</div>' +
     '</div>';
   }).join('');
@@ -622,7 +670,7 @@ async function deleteWatch(watchId) {
 
 var cal = {
   facilityId: null, slug: null, name: null, partySize: 2,
-  available: new Set(), watched: new Set(), watchIds: {},
+  available: new Set(), watched: new Set(), watchIds: {}, watchesByDate: {},
   year: 0, month: 0, pending: false,
 };
 
@@ -639,7 +687,7 @@ function closeModal() { document.getElementById('modal-overlay').classList.remov
 
 async function openModal(facilityId, slug, name, partySize) {
   cal.facilityId = facilityId; cal.slug = slug; cal.name = name; cal.partySize = partySize;
-  cal.available = new Set(); cal.watched = new Set(); cal.watchIds = {}; cal.pending = false;
+  cal.available = new Set(); cal.watched = new Set(); cal.watchIds = {}; cal.watchesByDate = {}; cal.pending = false;
   document.getElementById('modal-title').textContent = name;
   document.getElementById('modal-sub').textContent = 'Party of ' + partySize + ' · Loading…';
   document.getElementById('modal-msg').textContent = '';
@@ -660,6 +708,8 @@ async function openModal(facilityId, slug, name, partySize) {
       .filter(function(w) { return w.facility_id === facilityId && w.party_size === partySize; })
       .forEach(function(w) {
         cal.watched.add(w.date);
+        if (!cal.watchesByDate[w.date]) cal.watchesByDate[w.date] = [];
+        cal.watchesByDate[w.date].push(w);
         cal.watchIds[w.date] = w.watch_id;
       });
     document.getElementById('modal-sub').textContent =
@@ -738,22 +788,31 @@ function renderCalendar() {
 async function calAddWatch(dates) {
   cal.pending = true;
   document.getElementById('modal-msg').textContent = 'Adding…';
+  var meal = document.getElementById('watch-meal').value || 'ALL';
+  var timeFrom = document.getElementById('watch-time-from').value || null;
+  var timeTo = document.getElementById('watch-time-to').value || null;
   try {
     var result = await apiFetch('/watches', {
       method: 'POST',
       body: JSON.stringify({
         facility_id: cal.facilityId, name: cal.name, slug: cal.slug,
-        party_size: cal.partySize, meal_periods: ['ALL'], dates: dates,
+        party_size: cal.partySize,
+        meal_periods: meal === 'ALL' ? ['ALL'] : [meal],
+        time_from: timeFrom,
+        time_to: timeTo,
+        dates: dates,
       })
     });
     dates.forEach(function(d) { cal.watched.add(d); });
     if (result && result.added) {
-      result.added.forEach(function(id) {
-        var parts = id.split('__');
-        cal.watchIds[parts[parts.length - 1]] = id;
+      result.added.forEach(function(id, idx) {
+        var d = dates[idx] || dates[0];
+        cal.watchIds[d] = id;
+        if (!cal.watchesByDate[d]) cal.watchesByDate[d] = [];
+        cal.watchesByDate[d].push({ watch_id: id, date: d });
       });
     }
-    document.getElementById('modal-msg').textContent = 'Watching ' + dates.length + ' date(s) ✓';
+    document.getElementById('modal-msg').textContent = 'Watching ' + dates.length + ' date(s): ' + watchCriteriaLabel({ meal_periods: meal === 'ALL' ? ['ALL'] : [meal], time_from: timeFrom, time_to: timeTo });
     loadRestaurants();
     renderCalendar();
   } catch(e) { document.getElementById('modal-msg').textContent = 'Error: ' + e.message; }
@@ -761,12 +820,24 @@ async function calAddWatch(dates) {
 }
 
 async function calRemoveWatch(date) {
+  var dateWatches = cal.watchesByDate[date] || [];
+  var watchId = cal.watchIds[date];
+  if (dateWatches.length > 1) {
+    var choices = dateWatches.map(function(w, i) {
+      return (i + 1) + '. ' + watchCriteriaLabel(w);
+    }).join('\n');
+    var choice = prompt('Which watch should be removed?\n' + choices, '1');
+    var idx = parseInt(choice, 10) - 1;
+    if (idx < 0 || idx >= dateWatches.length) return;
+    watchId = dateWatches[idx].watch_id;
+  }
   cal.pending = true;
   document.getElementById('modal-msg').textContent = 'Removing…';
   try {
-    await apiFetch('/watches/' + encodeURIComponent(cal.watchIds[date] || (getUserId() + '__' + cal.facilityId + '__' + cal.partySize + '__' + date)), { method: 'DELETE' });
+    await apiFetch('/watches/' + encodeURIComponent(watchId), { method: 'DELETE' });
     cal.watched.delete(date);
     delete cal.watchIds[date];
+    delete cal.watchesByDate[date];
     document.getElementById('modal-msg').textContent = 'Removed ' + date;
     loadRestaurants();
     renderCalendar();

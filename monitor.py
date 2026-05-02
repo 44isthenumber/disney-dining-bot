@@ -22,7 +22,7 @@ import subprocess
 import time
 import uuid
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import List, Optional
 
 from dotenv import load_dotenv
@@ -31,6 +31,29 @@ load_dotenv()
 
 BASE = "https://disneyworld.disney.go.com/dine-res/api"
 STABLE_CONV_ID = str(uuid.uuid4())
+
+
+def _normalize_hhmm(value: Optional[str]) -> Optional[str]:
+    if not value:
+        return None
+    value = value.strip()
+    for fmt in ("%H:%M", "%I:%M %p", "%I:%M%p"):
+        try:
+            return datetime.strptime(value.upper(), fmt).strftime("%H:%M")
+        except ValueError:
+            pass
+    return value
+
+
+def _time_in_window(offer_time: str, time_from: Optional[str], time_to: Optional[str]) -> bool:
+    offer_time = _normalize_hhmm(offer_time) or offer_time
+    time_from = _normalize_hhmm(time_from)
+    time_to = _normalize_hhmm(time_to)
+    if time_from and offer_time < time_from:
+        return False
+    if time_to and offer_time > time_to:
+        return False
+    return True
 
 
 @dataclass
@@ -288,9 +311,7 @@ def get_slots(
                     label = offer.get("label", offer_time)
                     offer_id = offer.get("offerId", "")
 
-                    if time_from and offer_time < time_from:
-                        continue
-                    if time_to and offer_time > time_to:
+                    if not _time_in_window(offer_time, time_from, time_to):
                         continue
 
                     slots.append(Slot(
@@ -401,9 +422,7 @@ def _parse_availability_response(
             for access_group in mp.get("offersByAccessibility", []):
                 for offer in access_group.get("offers", []):
                     offer_time = offer.get("time", "")[:5]
-                    if time_from and offer_time < time_from:
-                        continue
-                    if time_to and offer_time > time_to:
+                    if not _time_in_window(offer_time, time_from, time_to):
                         continue
                     slots.append(Slot(
                         restaurant_name=restaurant_name,
@@ -673,9 +692,7 @@ window._slotsResult = null;
                     offer_time = offer.get("time", "")[:5]
                     label = offer.get("label", offer_time)
                     offer_id = offer.get("offerId", "")
-                    if time_from and offer_time < time_from:
-                        continue
-                    if time_to and offer_time > time_to:
+                    if not _time_in_window(offer_time, time_from, time_to):
                         continue
                     slots.append(Slot(
                         restaurant_name=name,

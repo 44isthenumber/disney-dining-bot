@@ -13,6 +13,7 @@
 const https = require("https");
 const path = require("path");
 const fs = require("fs");
+const crypto = require("crypto");
 
 // ── env ───────────────────────────────────────────────────────────────────────
 
@@ -307,13 +308,17 @@ function watchRecordId(ownerId, facilityId, partySize, date) {
   return `${ownerId}__${facilityId}__${partySize}__${date}`;
 }
 
+function newWatchId() {
+  return `watch_${crypto.randomBytes(8).toString("hex")}`;
+}
+
 function normalizeWatch(raw, userFallback = null) {
   const ownerId = raw.owner_id || raw.ownerId || (userFallback && userFallback.id) || DEFAULT_OWNER_ID;
   const partySize = parseInt(raw.party_size || raw.partySize || 2, 10);
   const date = raw.date;
   const profile = parseUsers()[ownerId] || {};
   return {
-    watch_id: raw.watch_id || raw.watchId || watchRecordId(ownerId, raw.facility_id, partySize, date),
+    watch_id: raw.watch_id || raw.watchId || newWatchId(),
     owner_id: ownerId,
     facility_id: raw.facility_id,
     name: raw.name || raw.restaurant_name || raw.facility_id,
@@ -524,8 +529,9 @@ async function handlePostWatch(event, user) {
 
   const watches = await loadWatches();
   const byId = new Map(watches.map((w) => [w.watch_id, w]));
+  const added = [];
   for (const date of [...new Set(dates)].sort()) {
-    const wid = watchRecordId(user.id, facility_id, party_size, date);
+    const wid = newWatchId();
     byId.set(wid, normalizeWatch({
       watch_id: wid,
       owner_id: user.id,
@@ -539,11 +545,10 @@ async function handlePostWatch(event, user) {
       time_to,
       recipient_phone: user.phone || "",
     }, user));
+    added.push(wid);
   }
   await saveWatches([...byId.values()]);
-  return response(201, {
-    added: dates.map((d) => watchRecordId(user.id, facility_id, party_size, d)),
-  });
+  return response(201, { added });
 }
 
 async function handleDeleteWatch(watchIdStr, user) {

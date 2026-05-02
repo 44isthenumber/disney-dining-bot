@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import uuid
 from datetime import datetime
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -85,6 +86,10 @@ def watch_id(owner_id: str, facility_id: str, party_size: int, date: str) -> str
     return f"{owner_id}__{facility_id}__{int(party_size)}__{date}"
 
 
+def new_watch_id() -> str:
+    return f"watch_{uuid.uuid4().hex[:16]}"
+
+
 def parse_watch_id(value: str) -> Optional[dict]:
     parts = value.split("__")
     if len(parts) != 4:
@@ -108,7 +113,7 @@ def _normalize_watch(raw: dict) -> dict:
     party_size = int(raw.get("party_size", 2))
     date = str(raw["date"])
     normalized = {
-        "watch_id": raw.get("watch_id") or watch_id(owner_id, facility_id, party_size, date),
+        "watch_id": raw.get("watch_id") or raw.get("watchId") or new_watch_id(),
         "owner_id": owner_id,
         "facility_id": facility_id,
         "name": raw.get("name") or raw.get("restaurant_name") or facility_id,
@@ -187,7 +192,7 @@ def add_watches(
     by_id = {w["watch_id"]: w for w in watches}
     added: List[str] = []
     for date in sorted(set(dates)):
-        wid = watch_id(owner_id, facility_id, party_size, date)
+        wid = new_watch_id()
         by_id[wid] = _normalize_watch({
             "watch_id": wid,
             "owner_id": owner_id,

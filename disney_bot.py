@@ -53,16 +53,20 @@ def _load_seen() -> Dict[str, str]:
     return {}
 
 
+def _utc_now() -> datetime:
+    return datetime.utcnow()
+
+
 def _save_seen(seen: Dict[str, str]) -> None:
     storage.write_json("seen_slots.json", {
         "schema_version": 1,
-        "updated_at": datetime.utcnow().isoformat() + "Z",
+        "updated_at": _utc_now().isoformat() + "Z",
         "slots": seen,
     })
 
 
 def filter_new(slots: List[Slot], cooldown_minutes: int) -> List[Slot]:
-    now = datetime.now()
+    now = _utc_now()
     seen = _load_seen()
     new = []
     for s in slots:
@@ -76,9 +80,17 @@ def filter_new(slots: List[Slot], cooldown_minutes: int) -> List[Slot]:
                 last = None
         if last is None or (now - last) > timedelta(minutes=cooldown_minutes):
             new.append(s)
-            seen[key] = now.isoformat() + "Z"
-    _save_seen(seen)
     return new
+
+
+def mark_seen(slots: List[Slot]) -> None:
+    if not slots:
+        return
+    seen = _load_seen()
+    now = _utc_now().isoformat() + "Z"
+    for slot in slots:
+        seen[_slot_key(slot)] = now
+    _save_seen(seen)
 
 
 # ── poll ───────────────────────────────────────────────────────────────────
@@ -92,6 +104,13 @@ def _matching_owner_slots(slots: List[Slot], watches: List[dict]) -> List[Slot]:
             if slot.date != watch["date"]:
                 continue
             if slot.party_size != int(watch.get("party_size", 2)):
+                continue
+            target_meals = {m.upper() for m in (watch.get("meal_periods") or ["ALL"])}
+            if "ALL" not in target_meals and slot.meal_period.upper() not in target_meals:
+                continue
+            if watch.get("time_from") and slot.time < watch["time_from"]:
+                continue
+            if watch.get("time_to") and slot.time > watch["time_to"]:
                 continue
             matched.append(replace(
                 slot,
@@ -130,11 +149,12 @@ def poll(config: Optional[dict] = None) -> None:
     new_slots = filter_new(all_slots, cooldown)
     if new_slots:
         print(f"[bot] Sending alert for {len(new_slots)} new slot(s).")
-        send_sms(new_slots)
+        if send_sms(new_slots):
+            mark_seen(new_slots)
     else:
         print("[bot] No new slots to alert on.")
 
-    now_utc = datetime.utcnow().isoformat() + "Z"
+    now_utc = _utc_now().isoformat() + "Z"
     previous_state = storage.read_json("bot_state.json") or {}
     storage.write_json("bot_state.json", {
         "last_poll_at": now_utc,
