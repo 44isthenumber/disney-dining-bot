@@ -145,6 +145,46 @@
     background: #fff; color: var(--text); font-size: 14px;
   }
   .create-field textarea { min-height: 42px; resize: vertical; }
+  .date-field { min-width: 260px; }
+  .date-input-row { display: flex; gap: 8px; align-items: stretch; }
+  .date-input-row textarea { flex: 1; }
+  #toggle-date-picker {
+    padding: 8px 11px; border: 1px solid var(--border); border-radius: 7px;
+    background: #f8faff; color: var(--blue); font-size: 13px; font-weight: 600;
+    cursor: pointer; white-space: nowrap;
+  }
+  #toggle-date-picker:hover { border-color: var(--blue); background: #eef4ff; }
+  #selected-date-chips {
+    display: flex; flex-wrap: wrap; gap: 6px; min-height: 24px; margin-top: 2px;
+  }
+  #selected-date-chips .date-chip {
+    display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px;
+    border-radius: 20px; background: #e8f0fe; color: var(--blue);
+    font-size: 12px; font-weight: 500;
+  }
+  #selected-date-chips button {
+    border: 0; background: none; color: var(--blue); cursor: pointer;
+    font-size: 14px; line-height: 1; padding: 0;
+  }
+  #date-picker-panel {
+    display: none; margin-top: 8px; padding: 12px; border: 1px solid var(--border);
+    border-radius: 10px; background: #fafcff;
+  }
+  #date-picker-panel.open { display: block; }
+  .mini-month-nav { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .mini-month-nav button {
+    border: 1px solid var(--border); background: #fff; border-radius: 6px;
+    padding: 4px 9px; cursor: pointer; color: #555;
+  }
+  #date-picker-month { flex: 1; text-align: center; font-weight: 600; font-size: 13px; color: var(--text); }
+  #date-picker-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+  #date-picker-grid .day {
+    border: 0; width: 100%; padding: 0; box-sizing: border-box;
+    background: transparent; font-family: inherit;
+  }
+  #date-picker-grid .day.selected { background: var(--blue); color: #fff; font-weight: 700; cursor: pointer; }
+  #date-picker-grid .day.selected:hover { background: var(--blue-dark); transform: scale(1.08); }
+  #date-picker-help { margin-top: 8px; font-size: 11px; color: var(--muted); }
   .meal-options { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 0; }
   .meal-options label { color: var(--text); font-size: 13px; display: inline-flex; align-items: center; gap: 4px; }
   .create-actions { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
@@ -232,6 +272,8 @@
     #create-watch { padding: 16px; }
     #rest-grid { grid-template-columns: repeat(auto-fill, minmax(150px,1fr)); }
     .create-grid { grid-template-columns: 1fr; }
+    .date-input-row { flex-direction: column; }
+    #toggle-date-picker { width: 100%; }
     .create-actions { flex-direction: column; align-items: stretch; }
     #create-btn { width: 100%; padding: 13px; font-size: 15px; }
     #create-msg { text-align: center; }
@@ -349,10 +391,23 @@
         <label class="create-field">Party
           <input type="number" id="party-size" min="1" max="20" value="2" required>
         </label>
-        <label class="create-field">Dates
-          <textarea id="dates" placeholder="2026-06-01&#10;2026-06-02" required></textarea>
-          <small style="font-size:11px;color:var(--muted)">One per line or comma-separated &middot; YYYY-MM-DD</small>
-        </label>
+        <div class="create-field date-field">Dates
+          <div class="date-input-row">
+            <textarea id="dates" placeholder="2026-06-01&#10;2026-06-02" required></textarea>
+            <button type="button" id="toggle-date-picker" aria-expanded="false" aria-controls="date-picker-panel">Pick Dates</button>
+          </div>
+          <div id="selected-date-chips" aria-live="polite"></div>
+          <div id="date-picker-panel">
+            <div class="mini-month-nav">
+              <button type="button" id="date-prev-month">‹</button>
+              <span id="date-picker-month"></span>
+              <button type="button" id="date-next-month">›</button>
+            </div>
+            <div id="date-picker-grid"></div>
+            <div id="date-picker-help">Tap dates to add or remove them. Grey dates are watchable; blue dates are selected.</div>
+          </div>
+          <small style="font-size:11px;color:var(--muted)">Tap dates on the calendar, or type one per line.</small>
+        </div>
         <div class="create-field">
           <span>Meal Period</span>
           <div class="meal-options">
@@ -979,11 +1034,120 @@ function populateRestaurantSelect(restaurants) {
 }
 
 function parseWatchDates(raw) {
-  const dates = raw.split(/[\s,]+/).map(function(d) { return d.trim(); }).filter(Boolean);
-  const invalid = dates.filter(function(d) { return !/^\d{4}-\d{2}-\d{2}$/.test(d); });
-  if (invalid.length) throw new Error('Use YYYY-MM-DD dates. Invalid: ' + invalid.join(', '));
+  const dates = validTypedDates(raw);
   return Array.from(new Set(dates)).sort();
 }
+
+var createDatePicker = { year: 0, month: 0, selected: new Set() };
+
+function validTypedDates(raw) {
+  return raw.split(/[\s,]+/)
+    .map(function(d) { return d.trim(); })
+    .filter(function(d) { return /^\d{4}-\d{2}-\d{2}$/.test(d); });
+}
+
+function initCreateDatePicker() {
+  var ts = getTripStart();
+  var base = ts ? new Date(ts + 'T00:00:00') : new Date();
+  createDatePicker.year = base.getFullYear();
+  createDatePicker.month = base.getMonth();
+  syncDatePickerFromText();
+  renderCreateDatePicker();
+}
+
+function syncDatePickerFromText() {
+  createDatePicker.selected = new Set(validTypedDates(document.getElementById('dates').value));
+  renderSelectedDateChips();
+}
+
+function writeSelectedDatesToText() {
+  document.getElementById('dates').value = Array.from(createDatePicker.selected).sort().join('\n');
+  renderSelectedDateChips();
+}
+
+function renderSelectedDateChips() {
+  var chips = document.getElementById('selected-date-chips');
+  var dates = Array.from(createDatePicker.selected).sort();
+  if (!dates.length) {
+    chips.innerHTML = '<span style="font-size:12px;color:#999">No dates selected yet.</span>';
+    return;
+  }
+  chips.innerHTML = dates.map(function(d) {
+    var label = new Date(d + 'T00:00:00').toLocaleDateString([], { month: 'short', day: 'numeric' });
+    return '<span class="date-chip">' + esc(label) +
+      '<button type="button" data-date="' + esc(d) + '" aria-label="Remove ' + esc(d) + '">×</button></span>';
+  }).join('');
+  chips.querySelectorAll('button[data-date]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      createDatePicker.selected.delete(btn.dataset.date);
+      writeSelectedDatesToText();
+      renderCreateDatePicker();
+    });
+  });
+}
+
+function shiftCreateDateMonth(delta) {
+  createDatePicker.month += delta;
+  if (createDatePicker.month < 0) { createDatePicker.month = 11; createDatePicker.year--; }
+  if (createDatePicker.month > 11) { createDatePicker.month = 0; createDatePicker.year++; }
+  renderCreateDatePicker();
+}
+
+function renderCreateDatePicker() {
+  var y = createDatePicker.year, m = createDatePicker.month;
+  var today = new Date(); today.setHours(0,0,0,0);
+  document.getElementById('date-picker-month').textContent =
+    new Date(y, m, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
+
+  var dows = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+  var html = dows.map(function(d) { return '<div class="dow">'+d+'</div>'; }).join('');
+  var firstDow = new Date(y, m, 1).getDay();
+  for (var i = 0; i < firstDow; i++) html += '<div class="day empty"></div>';
+  var daysInMonth = new Date(y, m+1, 0).getDate();
+  for (var day = 1; day <= daysInMonth; day++) {
+    var iso = isoDate(y, m, day);
+    var date = new Date(y, m, day);
+    var isPast = date < today;
+    var inTrip = tripIncludes(date);
+    var selected = createDatePicker.selected.has(iso);
+    var cls = 'day';
+    if (isPast) cls += ' past';
+    else if (!inTrip) cls += ' outside';
+    else if (selected) cls += ' selected';
+    else cls += ' watchable';
+    if (date.getTime() === today.getTime()) cls += ' today';
+    var disabled = isPast || !inTrip;
+    var title = disabled ? '' : selected ? 'Remove ' + iso : 'Add ' + iso;
+    html += '<button type="button" class="' + cls + '" data-date="' + iso + '" title="' + title + '"' +
+      (disabled ? ' disabled' : '') + '>' + day + '</button>';
+  }
+
+  var grid = document.getElementById('date-picker-grid');
+  grid.innerHTML = html;
+  grid.querySelectorAll('button.day[data-date]:not(:disabled)').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var d = btn.dataset.date;
+      if (createDatePicker.selected.has(d)) createDatePicker.selected.delete(d);
+      else createDatePicker.selected.add(d);
+      writeSelectedDatesToText();
+      renderCreateDatePicker();
+    });
+  });
+}
+
+document.getElementById('toggle-date-picker').addEventListener('click', function() {
+  var panel = document.getElementById('date-picker-panel');
+  syncDatePickerFromText();
+  panel.classList.toggle('open');
+  this.setAttribute('aria-expanded', panel.classList.contains('open') ? 'true' : 'false');
+  renderCreateDatePicker();
+});
+document.getElementById('date-prev-month').addEventListener('click', function() { shiftCreateDateMonth(-1); });
+document.getElementById('date-next-month').addEventListener('click', function() { shiftCreateDateMonth(1); });
+document.getElementById('dates').addEventListener('input', function() {
+  syncDatePickerFromText();
+  renderCreateDatePicker();
+});
 
 document.getElementById('watch-form').addEventListener('submit', async function(e) {
   e.preventDefault();
@@ -1020,6 +1184,9 @@ document.getElementById('watch-form').addEventListener('submit', async function(
     msg.textContent = 'Watching ' + n + ' date' + (n !== 1 ? 's' : '') + ' — you\'ll get an SMS when a slot opens.';
     document.getElementById('watch-form').reset();
     document.getElementById('party-size').value = getPartySize();
+    createDatePicker.selected = new Set();
+    renderSelectedDateChips();
+    renderCreateDatePicker();
     loadWatches();
     loadRestaurants();
     refreshStatus();
@@ -1035,6 +1202,8 @@ document.getElementById('watch-form').addEventListener('submit', async function(
     btn.disabled = false; btn.textContent = 'Create Watch';
   }
 });
+
+initCreateDatePicker();
 
 function onLogin() {
   refreshStatus();
