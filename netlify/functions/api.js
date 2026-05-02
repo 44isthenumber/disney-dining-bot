@@ -539,27 +539,108 @@ async function handlePostWatch(event, user) {
     return response(400, { detail: "Invalid JSON body" });
   }
 
-  const { facility_id, name, slug, party_size = 2, meal_periods = ["ALL"], dates = [], time_from = null, time_to = null } = body;
-  if (!facility_id || !dates.length) {
-    return response(422, { detail: "facility_id and dates are required" });
+  const {
+    facility_id,
+    name,
+    slug,
+    party_size = 2,
+    meal_periods = ["ALL"],
+    dates = [],
+    time_from = null,
+    time_to = null,
+  } = body;
+
+  const errors = [];
+  const facilityId = typeof facility_id === "string" ? facility_id.trim() : String(facility_id || "").trim();
+  const rawPartySize = typeof party_size === "string" ? party_size.trim() : party_size;
+  const partySize = Number(rawPartySize);
+  let normalizedDates = [];
+  let normalizedMealPeriods = ["ALL"];
+  const timeFrom = typeof time_from === "string" && time_from.trim() ? time_from.trim() : null;
+  const timeTo = typeof time_to === "string" && time_to.trim() ? time_to.trim() : null;
+
+  if (!facilityId) {
+    errors.push("Choose a restaurant first.");
+  }
+
+  if (!Number.isInteger(partySize) || partySize < 1 || partySize > 20) {
+    errors.push("Party size must be a whole number between 1 and 20.");
+  }
+
+  if (!Array.isArray(dates) || dates.length === 0) {
+    errors.push("Add at least one date.");
+  } else {
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    for (const rawDate of dates) {
+      const date = typeof rawDate === "string" ? rawDate.trim() : String(rawDate || "").trim();
+      if (!dateRegex.test(date)) {
+        errors.push(`Use YYYY-MM-DD dates. Invalid date: ${date || "(blank)"}.`);
+        break;
+      }
+      const [year, month, day] = date.split("-").map(Number);
+      const parsed = new Date(Date.UTC(year, month - 1, day));
+      if (
+        parsed.getUTCFullYear() !== year ||
+        parsed.getUTCMonth() !== month - 1 ||
+        parsed.getUTCDate() !== day
+      ) {
+        errors.push(`That date is not valid: ${date}.`);
+        break;
+      }
+      normalizedDates.push(date);
+    }
+    normalizedDates = [...new Set(normalizedDates)].sort();
+  }
+
+  const validMealPeriods = ["ALL", "BREAKFAST", "LUNCH", "DINNER"];
+  if (meal_periods && !Array.isArray(meal_periods)) {
+    errors.push("Meal periods must be a list.");
+  } else {
+    normalizedMealPeriods = meal_periods && meal_periods.length > 0
+      ? meal_periods.map((period) => String(period || "").trim().toUpperCase()).filter(Boolean)
+      : ["ALL"];
+    for (const period of normalizedMealPeriods) {
+      if (!validMealPeriods.includes(period)) {
+        errors.push("Meal period must be Any meal, Breakfast, Lunch, or Dinner.");
+        break;
+      }
+    }
+    if (normalizedMealPeriods.includes("ALL") && normalizedMealPeriods.length > 1) {
+      errors.push("Choose either Any meal or specific meal periods.");
+    }
+  }
+
+  const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
+  if (timeFrom && !timeRegex.test(timeFrom)) {
+    errors.push("Earliest time must be HH:MM.");
+  }
+  if (timeTo && !timeRegex.test(timeTo)) {
+    errors.push("Latest time must be HH:MM.");
+  }
+  if (timeFrom && timeTo && timeFrom > timeTo) {
+    errors.push("Earliest time must be before latest time.");
+  }
+
+  if (errors.length > 0) {
+    return response(422, { detail: errors.join(" ") });
   }
 
   const watches = await loadWatches();
   const byId = new Map(watches.map((w) => [w.watch_id, w]));
   const added = [];
-  for (const date of [...new Set(dates)].sort()) {
+  for (const date of normalizedDates) {
     const wid = newWatchId();
     byId.set(wid, normalizeWatch({
       watch_id: wid,
       owner_id: user.id,
-      facility_id,
-      name: name || facility_id,
-      slug: slug || facility_id,
-      party_size,
-      meal_periods,
+      facility_id: facilityId,
+      name: name || facilityId,
+      slug: slug || facilityId,
+      party_size: partySize,
+      meal_periods: normalizedMealPeriods,
       date,
-      time_from,
-      time_to,
+      time_from: timeFrom,
+      time_to: timeTo,
       recipient_phone: user.phone || "",
     }, user));
     added.push(wid);

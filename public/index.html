@@ -484,9 +484,21 @@ async function apiFetch(path, opts) {
       'X-User-Id': getUserId(),
     }, opts.headers || {})
   }));
-  if (res.status === 401) { showLogin(); throw new Error('401 Unauthorized'); }
-  if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
-  return res.status === 204 ? null : res.json();
+  if (res.status === 204) return null;
+  var data = null;
+  var text = await res.text();
+  if (text) {
+    try { data = JSON.parse(text); } catch(e) { data = { detail: text }; }
+  }
+  if (res.status === 401) {
+    showLogin();
+    throw new Error((data && (data.detail || data.error)) || 'Invalid password');
+  }
+  if (!res.ok) {
+    var detail = data && (data.detail || data.error || (Array.isArray(data.details) && data.details.join(' ')));
+    throw new Error(detail || (res.status + ' ' + res.statusText));
+  }
+  return data;
 }
 
 // ── Login ────────────────────────────────────────────────────────────────────
