@@ -9,7 +9,7 @@ import argparse
 import json
 import sys
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from dataclasses import replace
 from typing import Dict, List, Optional
 
@@ -23,6 +23,8 @@ from monitor import Slot, check_slots_for_restaurant
 from notify import send_sms
 
 load_dotenv()
+
+OPEN_SLOTS_FILE = "open_slots.json"
 
 
 def load_config() -> dict:
@@ -40,7 +42,17 @@ def _slot_key(slot: Slot) -> str:
         slot.facility_id,
         slot.date,
         slot.time,
+        slot.meal_period.upper(),
         str(slot.party_size),
+        slot.offer_id or "",
+    ])
+
+
+def _watch_open_prefix(watch: dict) -> str:
+    return "__".join([
+        str(watch.get("watch_id") or watch.get("owner_id") or "unknown"),
+        str(watch.get("facility_id") or ""),
+        "",
     ])
 
 
@@ -65,22 +77,58 @@ def _save_seen(seen: Dict[str, str]) -> None:
     })
 
 
-def filter_new(slots: List[Slot], cooldown_minutes: int) -> List[Slot]:
-    now = _utc_now()
-    seen = _load_seen()
+def _load_open_keys() -> Optional[set]:
+    data = storage.read_json(OPEN_SLOTS_FILE)
+    if not isinstance(data, dict):
+        return None
+    slots = data.get("slots")
+    if not isinstance(slots, list):
+        return None
+    return {str(slot) for slot in slots}
+
+
+def _save_open_keys(keys: set) -> None:
+    storage.write_json(OPEN_SLOTS_FILE, {
+        "schema_version": 1,
+        "updated_at": _utc_now().isoformat() + "Z",
+        "slots": sorted(keys),
+    })
+
+
+def filter_new(slots: List[Slot], previous_open_keys: Optional[set] = None) -> List[Slot]:
+    """Return exact slots that opened since the previous poll.
+
+    If there is no previous open-slot snapshot, baseline the current state
+    without alerting. That prevents a deploy/restart from sending every slot
+    Disney already had open.
+    """
+    if previous_open_keys is None:
+        previous_open_keys = _load_open_keys()
+    if previous_open_keys is None:
+        return []
+
     new = []
     for s in slots:
-        key = _slot_key(s)
-        last_raw = seen.get(key)
-        last = None
-        if last_raw:
-            try:
-                last = datetime.fromisoformat(last_raw.replace("Z", "+00:00")).replace(tzinfo=None)
-            except ValueError:
-                last = None
-        if last is None or (now - last) > timedelta(minutes=cooldown_minutes):
+        if _slot_key(s) not in previous_open_keys:
             new.append(s)
     return new
+
+
+def _next_open_keys(
+    current_open_keys: set,
+    previous_open_keys: Optional[set],
+    new_slots: List[Slot],
+    sent_slots: List[Slot],
+    failed_open_prefixes: List[str],
+) -> set:
+    sent_keys = {_slot_key(slot) for slot in sent_slots}
+    new_keys = {_slot_key(slot) for slot in new_slots}
+    next_open_keys = current_open_keys - (new_keys - sent_keys)
+    if previous_open_keys and failed_open_prefixes:
+        for key in previous_open_keys:
+            if any(key.startswith(prefix) for prefix in failed_open_prefixes):
+                next_open_keys.add(key)
+    return next_open_keys
 
 
 def mark_seen(slots: List[Slot]) -> None:
@@ -131,6 +179,7 @@ def poll(config: Optional[dict] = None) -> None:
 
     all_slots: List[Slot] = []
     errors = []
+    failed_open_prefixes = []
     for restaurant in grouped:
         name = restaurant.get("name", "?")
         try:
@@ -143,22 +192,40 @@ def poll(config: Optional[dict] = None) -> None:
                 print(f"[bot] {name}: no availability.")
         except Exception as e:
             errors.append({"restaurant": name, "error": str(e)})
+            failed_open_prefixes.extend(_watch_open_prefix(watch) for watch in restaurant.get("watches", []))
             print(f"[bot] Check failed for {name}: {e}")
 
-    cooldown = config.get("alert_cooldown_minutes", 60)
-    new_slots = filter_new(all_slots, cooldown)
+    previous_open_keys = _load_open_keys()
+    current_open_keys = {_slot_key(slot) for slot in all_slots}
+    new_slots = filter_new(all_slots, previous_open_keys)
     sms_sent = False
+    sent_slots: List[Slot] = []
     if new_slots:
         print(f"[bot] Sending alert for {len(new_slots)} new slot(s).")
         try:
-            sms_sent = send_sms(new_slots)
+            send_result = send_sms(new_slots)
+            sent_slots = send_result.sent_slots
+            sms_sent = bool(sent_slots)
+            for error in send_result.errors:
+                errors.append({"restaurant": "notification", "error": error})
         except Exception as e:
             errors.append({"restaurant": "notification", "error": str(e)})
             print(f"[bot] Notification failed: {e}")
         if sms_sent:
-            mark_seen(new_slots)
+            mark_seen(sent_slots)
     else:
-        print("[bot] No new slots to alert on.")
+        if previous_open_keys is None and current_open_keys:
+            print(f"[bot] Baselined {len(current_open_keys)} currently open slot(s); future changes will alert.")
+        else:
+            print("[bot] No newly opened slots to alert on.")
+
+    _save_open_keys(_next_open_keys(
+        current_open_keys,
+        previous_open_keys,
+        new_slots,
+        sent_slots,
+        failed_open_prefixes,
+    ))
 
     now_utc = _utc_now().isoformat() + "Z"
     previous_state = storage.read_json("bot_state.json") or {}
