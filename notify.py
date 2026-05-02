@@ -35,9 +35,9 @@ def _format_message(slots: List[Slot]) -> str:
     return "\n".join(lines)
 
 
-def send_sms(slots: List[Slot]) -> None:
+def send_sms(slots: List[Slot]) -> bool:
     if not slots:
-        return
+        return True
 
     account_sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
     auth_token = os.environ.get("TWILIO_AUTH_TOKEN", "")
@@ -46,7 +46,7 @@ def send_sms(slots: List[Slot]) -> None:
     if not all([account_sid, auth_token, from_number]):
         print("[notify] Twilio credentials not set — printing alert instead:")
         print(_format_message(slots))
-        return
+        return False
 
     client = Client(account_sid, auth_token)
     by_recipient = defaultdict(list)
@@ -59,9 +59,10 @@ def send_sms(slots: List[Slot]) -> None:
     if not by_recipient:
         print("[notify] No recipient phone configured — printing alert instead:")
         print(_format_message(slots))
-        return
+        return False
 
     for to_number, recipient_slots in by_recipient.items():
         body = _format_message(recipient_slots)
         message = client.messages.create(body=body, from_=from_number, to=to_number)
         print(f"[notify] SMS sent to {to_number} ({len(recipient_slots)} slot(s)). SID: {message.sid}")
+    return True
