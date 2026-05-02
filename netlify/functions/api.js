@@ -283,14 +283,31 @@ function parseUsers() {
       if (Object.keys(users).length) return users;
     } catch {}
   }
-  return {
-    [DEFAULT_OWNER_ID]: {
-      id: DEFAULT_OWNER_ID,
-      name: process.env.DEFAULT_OWNER_NAME || "Craig",
-      password: API_SECRET,
-      phone: process.env.TWILIO_TO || "",
-    },
-  };
+  // Fallback when WATCH_USERS absent: expose public profiles without phones
+  const fallbackRaw = process.env.FALLBACK_USERS || '{"craig":{"name":"Craig"},"Jessica":{"name":"Jessica"}}';
+  try {
+    const parsed = JSON.parse(fallbackRaw);
+    const users = {};
+    for (const [id, value] of Object.entries(parsed)) {
+      users[id] = {
+        id,
+        name: value.name || id,
+        password: API_SECRET,
+        phone: "",  // no phone numbers in fallback
+      };
+    }
+    return users;
+  } catch {
+    // Ultimate fallback
+    return {
+      [DEFAULT_OWNER_ID]: {
+        id: DEFAULT_OWNER_ID,
+        name: process.env.DEFAULT_OWNER_NAME || "Craig",
+        password: API_SECRET,
+        phone: "",
+      },
+    };
+  }
 }
 
 function publicProfiles() {

@@ -36,6 +36,7 @@ DISNEY_HEADLESS=true
 ```
 
 Netlify needs the same `WATCH_USERS`, `GITHUB_GIST_ID`, `GITHUB_TOKEN`, and legacy `API_SECRET` fallback if you keep it.
+If WATCH_USERS is not set in Netlify, it will use FALLBACK_USERS (default: craig and Jessica profiles without phones) for public profile exposure.
 
 ## 3. Seed Disney Session
 
