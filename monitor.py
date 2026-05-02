@@ -533,6 +533,9 @@ def check_slots_via_playwright(restaurant: dict) -> List[Slot]:
         finally:
             context.close()
 
+    if result.get("status") == 404:
+        print(f"[monitor] {name}: no availability returned by Disney.")
+        return []
     if result.get("status") != 200:
         raise RuntimeError(f"[monitor] {name}: HTTP {result.get('status')} from availability API {result.get('error', '')}")
     slots = _parse_availability_response(
