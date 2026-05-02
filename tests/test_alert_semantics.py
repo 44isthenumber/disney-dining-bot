@@ -26,7 +26,12 @@ def make_slot(**overrides):
 class AlertSemanticsTest(unittest.TestCase):
     def test_filter_new_baselines_first_snapshot_without_alerting(self):
         slot = make_slot()
-        self.assertEqual(disney_bot.filter_new([slot], previous_open_keys=None), [])
+        original_load_open_keys = disney_bot._load_open_keys
+        try:
+            disney_bot._load_open_keys = lambda: None
+            self.assertEqual(disney_bot.filter_new([slot], previous_open_keys=None), [])
+        finally:
+            disney_bot._load_open_keys = original_load_open_keys
 
     def test_filter_new_does_not_realert_still_open_slot(self):
         slot = make_slot()
@@ -57,12 +62,12 @@ class AlertSemanticsTest(unittest.TestCase):
             [reopened_slot],
         )
 
-    def test_offer_id_is_part_of_exact_slot_identity(self):
+    def test_offer_id_is_not_part_of_stable_slot_identity(self):
         old_offer = make_slot(time="19:50", label="07:50 PM", offer_id="offer-a")
         new_offer = make_slot(time="19:50", label="07:50 PM", offer_id="offer-b")
         self.assertEqual(
             disney_bot.filter_new([new_offer], previous_open_keys={disney_bot._slot_key(old_offer)}),
-            [new_offer],
+            [],
         )
 
     def test_failed_restaurant_poll_preserves_previous_open_keys(self):

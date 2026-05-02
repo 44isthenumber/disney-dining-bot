@@ -44,7 +44,6 @@ def _slot_key(slot: Slot) -> str:
         slot.time,
         slot.meal_period.upper(),
         str(slot.party_size),
-        slot.offer_id or "",
     ])
 
 
