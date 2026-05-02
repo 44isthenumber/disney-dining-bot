@@ -443,7 +443,7 @@ async function handleStatus(user) {
     last_sms_sent_at: botState.last_sms_sent_at || null,
     session_status: botState.session_status || "unknown",
     last_errors: botState.last_errors || [],
-    slots_found_last_poll: botState.slots_found_last_poll || null,
+    slots_found_last_poll: botState.slots_found_last_poll ?? null,
     watches_count: userWatches.length,
     total_watches_count: watches.length,
     restaurants_indexed: restaurantsIndexed,
