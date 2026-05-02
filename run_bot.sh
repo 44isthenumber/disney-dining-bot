@@ -6,12 +6,6 @@ set -euo pipefail
 PROJECT="${PROJECT_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 cd "$PROJECT"
 
-# Load .env
-set -a
-# shellcheck disable=SC1091
-[ -f "$PROJECT/.env" ] && source "$PROJECT/.env"
-set +a
-
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] === poll start ==="
 
 python3 "$PROJECT/update_calendar_cache.py"

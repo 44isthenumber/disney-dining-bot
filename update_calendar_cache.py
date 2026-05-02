@@ -6,9 +6,13 @@ worker, so the cache updater can run on a VPS without a desktop Chrome tab.
 """
 from datetime import datetime
 
+from dotenv import load_dotenv
+
 import storage
 import watch_store
 from monitor import get_calendar_days_via_playwright
+
+load_dotenv()
 
 
 # ── Main ───────────────────────────────────────────────────────────────────
