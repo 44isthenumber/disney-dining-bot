@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Disney Dining Bot</title>
+<title>Magic Table Finder</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
@@ -183,13 +183,64 @@
     main { padding: 12px; }
     #rest-grid { grid-template-columns: repeat(auto-fill, minmax(160px,1fr)); }
   }
+
+  /* ── Login overlay ─── */
+  #login-overlay {
+    position: fixed; inset: 0; z-index: 99999;
+    background: #1a1a2e;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #login-overlay.hidden { display: none; }
+  #login-box {
+    background: #fff; border-radius: 16px; padding: 40px 36px;
+    width: 340px; max-width: 92vw;
+    box-shadow: 0 24px 64px rgba(0,0,0,.5);
+    text-align: center;
+  }
+  #login-box .login-icon { font-size: 48px; margin-bottom: 10px; }
+  #login-box h2 { font-size: 22px; font-weight: 700; color: #1a1a2e; margin-bottom: 4px; }
+  #login-box p { font-size: 13px; color: #888; margin-bottom: 24px; }
+  #login-box input[type=password] {
+    width: 100%; padding: 11px 14px; border: 1.5px solid #ddd; border-radius: 8px;
+    font-size: 15px; margin-bottom: 12px; outline: none;
+    transition: border-color .15s;
+  }
+  #login-box input[type=password]:focus { border-color: var(--blue); }
+  #login-btn {
+    width: 100%; padding: 11px; background: var(--blue); color: #fff;
+    border: none; border-radius: 8px; font-size: 15px; font-weight: 600;
+    cursor: pointer; transition: background .15s;
+  }
+  #login-btn:hover { background: var(--blue-dark); }
+  #login-btn:disabled { background: #aaa; cursor: default; }
+  #login-error { color: #e53e3e; font-size: 13px; margin-top: 10px; min-height: 18px; }
+
+  /* ── Logout button in header ─── */
+  #logout-btn {
+    background: none; border: 1px solid #555; color: #aaa;
+    padding: 3px 10px; border-radius: 5px; font-size: 11px; cursor: pointer;
+    transition: border-color .15s, color .15s;
+  }
+  #logout-btn:hover { border-color: #aaa; color: #fff; }
 </style>
 </head>
 <body>
 
+<!-- ── Login overlay ─────────────────────────────────────────────── -->
+<div id="login-overlay">
+  <div id="login-box">
+    <div class="login-icon">🏰</div>
+    <h2>Magic Table Finder</h2>
+    <p>Disney dining availability tracker</p>
+    <input type="password" id="login-pwd" placeholder="Password" autocomplete="current-password" />
+    <button id="login-btn">Sign in</button>
+    <div id="login-error"></div>
+  </div>
+</div>
+
 <!-- ── Header ──────────────────────────────────────────────────────── -->
 <header>
-  <h1>🏰 Disney Dining Bot</h1>
+  <h1>🏰 Magic Table Finder</h1>
   <div class="hdr-sep"></div>
   <div class="hdr-field">
     <label>Trip</label>
@@ -210,10 +261,7 @@
     </select>
   </div>
   <div class="hdr-sep"></div>
-  <div class="hdr-field">
-    <label>Secret</label>
-    <input type="text" id="api-secret" placeholder="(API secret)" />
-  </div>
+  <button id="logout-btn">Lock</button>
   <div id="hdr-status">
     <div id="status-dot"></div>
     <span id="status-text">Connecting…</span>
@@ -296,27 +344,78 @@ async function apiFetch(path, opts) {
       'X-API-Secret': getSecret(),
     }, opts.headers || {})
   }));
+  if (res.status === 401) { showLogin(); throw new Error('401 Unauthorized'); }
   if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
   return res.status === 204 ? null : res.json();
 }
 
+// ── Login ────────────────────────────────────────────────────────────────────
+
+function showLogin() {
+  document.getElementById('login-overlay').classList.remove('hidden');
+  document.getElementById('login-pwd').value = '';
+  document.getElementById('login-error').textContent = '';
+  setTimeout(function() { document.getElementById('login-pwd').focus(); }, 50);
+}
+
+function hideLogin() {
+  document.getElementById('login-overlay').classList.add('hidden');
+}
+
+document.getElementById('login-btn').addEventListener('click', attemptLogin);
+document.getElementById('login-pwd').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') attemptLogin();
+});
+
+async function attemptLogin() {
+  const pwd = document.getElementById('login-pwd').value.trim();
+  const btn = document.getElementById('login-btn');
+  const err = document.getElementById('login-error');
+  if (!pwd) return;
+  btn.disabled = true; btn.textContent = 'Signing in…'; err.textContent = '';
+  try {
+    const res = await fetch('/_api/status', {
+      headers: { 'X-API-Secret': pwd }
+    });
+    if (res.ok) {
+      localStorage.setItem('disneyApiSecret', pwd);
+      hideLogin();
+      refreshStatus();
+      loadRestaurants();
+    } else {
+      err.textContent = 'Incorrect password.';
+      document.getElementById('login-pwd').focus();
+    }
+  } catch(e) {
+    err.textContent = 'Connection error — try again.';
+  }
+  btn.disabled = false; btn.textContent = 'Sign in';
+}
+
+document.getElementById('logout-btn').addEventListener('click', function() {
+  localStorage.removeItem('disneyApiSecret');
+  showLogin();
+});
+
 // ── Config inputs ────────────────────────────────────────────────────────────
 
 (function initConfig() {
-  const secretEl = document.getElementById('api-secret');
   const tsEl = document.getElementById('trip-start');
   const teEl = document.getElementById('trip-end');
   const pyEl = document.getElementById('global-party');
 
-  secretEl.value = localStorage.getItem('disneyApiSecret') || '';
   tsEl.value = getTripStart();
   teEl.value = getTripEnd();
   pyEl.value = localStorage.getItem('disneyPartySize') || '2';
 
-  secretEl.addEventListener('input', function() { localStorage.setItem('disneyApiSecret', this.value); refreshStatus(); });
   tsEl.addEventListener('input', function() { localStorage.setItem('disneyTripStart', this.value); });
   teEl.addEventListener('input', function() { localStorage.setItem('disneyTripEnd', this.value); });
   pyEl.addEventListener('change', function() { localStorage.setItem('disneyPartySize', this.value); });
+
+  // Show login if no secret stored, otherwise validate silently
+  if (!getSecret()) {
+    showLogin();
+  }
 })();
 
 // ── Status ───────────────────────────────────────────────────────────────────
