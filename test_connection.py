@@ -9,7 +9,7 @@ Checks:
   5. (Optional) Twilio SMS test if credentials are present
 
 Usage:
-    cd ~/Documents/disney-dining-bot
+    cd ~/CursorProjects/disney-dining-bot
     cp .env.template .env        # fill in your values
     python test_connection.py
 """

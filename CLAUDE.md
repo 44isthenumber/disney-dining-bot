@@ -81,7 +81,7 @@ xvfb-run -a python3 disney_bot.py --once
 ## Running Manually
 
 ```bash
-cd ~/Documents/disney-dining-bot
+cd ~/CursorProjects/disney-dining-bot
 
 # Local syntax/tests:
 node --check netlify/functions/api.js

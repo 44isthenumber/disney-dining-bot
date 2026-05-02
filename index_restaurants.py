@@ -2,7 +2,7 @@
 One-off script: fetch all WDW dining facilities and write restaurants.json.
 
 Run:
-    cd ~/Documents/disney-dining-bot
+    cd ~/CursorProjects/disney-dining-bot
     python3 index_restaurants.py
 
 Re-run whenever the restaurant list changes (monthly is fine).
