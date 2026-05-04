@@ -391,6 +391,21 @@ function publicWatch(watch) {
   return safe;
 }
 
+function todayIsoInParkTime() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function isActiveWatch(watch, today = todayIsoInParkTime()) {
+  return typeof watch.date === "string" && watch.date >= today;
+}
+
 // ── JWT expiry ────────────────────────────────────────────────────────────────
 
 function jwtExp(token) {
@@ -449,7 +464,9 @@ async function handleStatus(user) {
   } catch {}
 
   const watches = await loadWatches();
-  const userWatches = watches.filter((w) => w.owner_id === user.id);
+  const activeWatches = watches.filter((w) => isActiveWatch(w));
+  const userWatches = activeWatches.filter((w) => w.owner_id === user.id);
+  const userExpiredWatches = watches.filter((w) => w.owner_id === user.id && !isActiveWatch(w));
 
   return response(200, {
     profile: { id: user.id, name: user.name, has_phone: !!user.phone },
@@ -462,7 +479,8 @@ async function handleStatus(user) {
     last_errors: botState.last_errors || [],
     slots_found_last_poll: botState.slots_found_last_poll ?? null,
     watches_count: userWatches.length,
-    total_watches_count: watches.length,
+    expired_watches_count: userExpiredWatches.length,
+    total_watches_count: activeWatches.length,
     restaurants_indexed: restaurantsIndexed,
   });
 }
@@ -493,7 +511,7 @@ async function handleRestaurants(event, user) {
   }
 
   const watched = {};
-  const watches = (await loadWatches()).filter((w) => w.owner_id === user.id);
+  const watches = (await loadWatches()).filter((w) => w.owner_id === user.id && isActiveWatch(w));
   for (const entry of watches) {
     const key = `${entry.facility_id}__${entry.party_size}`;
     if (!watched[key]) watched[key] = { party_size: entry.party_size || 2, dates: [] };
@@ -527,6 +545,7 @@ async function handleCalendar(facilityId) {
 async function handleGetWatches(user) {
   const watches = (await loadWatches())
     .filter((w) => w.owner_id === user.id)
+    .filter((w) => isActiveWatch(w))
     .map(publicWatch);
   return response(200, { owner_id: user.id, watches });
 }

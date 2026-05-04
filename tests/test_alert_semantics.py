@@ -1,6 +1,7 @@
 import unittest
 
 import disney_bot
+import watch_store
 from monitor import Slot
 from notify import _format_message, booking_url
 
@@ -127,6 +128,22 @@ class AlertSemanticsTest(unittest.TestCase):
         self.assertIn("partySize=2", url)
         self.assertIn("time=19%3A50", url)
         self.assertIn("offerId=abc+123", url)
+
+    def test_message_has_distinct_exact_booking_url_per_opening(self):
+        message = _format_message([
+            make_slot(time="19:50", label="07:50 PM", offer_id="offer-a"),
+            make_slot(time="20:55", label="08:55 PM", offer_id="offer-b"),
+        ])
+        self.assertEqual(message.count("Book exact slot:"), 2)
+        self.assertIn("time=19%3A50", message)
+        self.assertIn("offerId=offer-a", message)
+        self.assertIn("time=20%3A55", message)
+        self.assertIn("offerId=offer-b", message)
+
+    def test_watch_dates_expire_after_park_date_passes(self):
+        self.assertFalse(watch_store.is_active_watch({"date": "2026-05-03"}, today="2026-05-04"))
+        self.assertTrue(watch_store.is_active_watch({"date": "2026-05-04"}, today="2026-05-04"))
+        self.assertTrue(watch_store.is_active_watch({"date": "2026-05-05"}, today="2026-05-04"))
 
 
 if __name__ == "__main__":

@@ -12,6 +12,7 @@ import os
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional
+from zoneinfo import ZoneInfo
 
 import yaml
 
@@ -24,6 +25,15 @@ DEFAULT_OWNER_ID = os.environ.get("DEFAULT_OWNER_ID", "craig")
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).replace(tzinfo=None).isoformat() + "Z"
+
+
+def _today_iso_in_park_time() -> str:
+    return datetime.now(ZoneInfo("America/New_York")).date().isoformat()
+
+
+def is_active_watch(watch: dict, today: Optional[str] = None) -> bool:
+    today = today or _today_iso_in_park_time()
+    return str(watch.get("date") or "") >= today
 
 
 def _parse_users() -> Dict[str, dict]:
@@ -152,7 +162,7 @@ def _migrate_config_yaml() -> List[dict]:
     return migrated
 
 
-def load_watches(owner_id: Optional[str] = None) -> List[dict]:
+def load_watches(owner_id: Optional[str] = None, include_expired: bool = False) -> List[dict]:
     data = storage.read_json(WATCHES_FILE)
     if isinstance(data, dict):
         raw_watches = data.get("watches", [])
@@ -162,6 +172,9 @@ def load_watches(owner_id: Optional[str] = None) -> List[dict]:
         raw_watches = _migrate_config_yaml()
 
     watches = [_normalize_watch(w) for w in raw_watches if w.get("facility_id") and w.get("date")]
+    if not include_expired:
+        today = _today_iso_in_park_time()
+        watches = [w for w in watches if is_active_watch(w, today)]
     if owner_id:
         watches = [w for w in watches if w["owner_id"] == owner_id]
     return sorted(watches, key=lambda w: (w["owner_id"], w["name"], w["date"], w["party_size"]))
@@ -188,7 +201,7 @@ def add_watches(
     time_from: Optional[str] = None,
     time_to: Optional[str] = None,
 ) -> List[str]:
-    watches = load_watches()
+    watches = load_watches(include_expired=True)
     by_id = {w["watch_id"]: w for w in watches}
     added: List[str] = []
     for date in sorted(set(dates)):
@@ -211,7 +224,7 @@ def add_watches(
 
 
 def remove_watch(wid: str, owner_id: Optional[str] = None) -> bool:
-    watches = load_watches()
+    watches = load_watches(include_expired=True)
     remaining = []
     removed = False
     for watch in watches:

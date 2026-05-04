@@ -43,7 +43,7 @@ def _format_message(slots: List[Slot]) -> str:
         time_label = slot.label or slot.time
         lines.append(f"\nNew opening: {slot.restaurant_name}")
         lines.append(f"{slot.date} at {time_label} | Party of {slot.party_size} | {slot.meal_period}")
-        lines.append(f"Book this slot: {booking_url(slot)}")
+        lines.append(f"Book exact slot: {booking_url(slot)}")
 
     return "\n".join(lines)
 
