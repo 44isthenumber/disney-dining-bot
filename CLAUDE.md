@@ -194,6 +194,7 @@ Never force-push `main`. Never reset or delete Gist state unless explicitly requ
 ## Known Issues / Gotchas
 
 - **Disney session expired:** run `DISNEY_HEADLESS=false xvfb-run -a python3 seed_disney_session.py` on the VPS and log in.
+- **Dedicated Disney bot login:** optional `DISNEY_LOGIN_EMAIL` and `DISNEY_LOGIN_PASSWORD` may live only in the VPS `.env`. `seed_disney_session.py` can attempt that login and verify the Disney auth cookie, but it must pause for manual completion if Disney asks for MFA, CAPTCHA, passkey, or security checks.
 - **428 errors:** re-seed the VPS browser session and verify `DISNEY_BROWSER_PROFILE_DIR` persists across worker runs.
 - **Missing X server / Playwright headed error:** run manual worker commands under `xvfb-run -a` on the VPS.
 - **Worker not running:** `systemctl status disney-dining-bot.timer`.

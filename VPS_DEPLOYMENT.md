@@ -70,7 +70,27 @@ python3 scripts/smoke_test_api.py --user-id Jessica
 
 If `session_status` is `needs_attention`, run `seed_disney_session.py` again.
 
-## 6. Alert State Safety
+## 6. Dedicated Disney Login
+
+For a dedicated bot-only MyDisney account, store credentials only in the VPS
+`.env` file:
+
+```bash
+DISNEY_LOGIN_EMAIL=bot-account@example.com
+DISNEY_LOGIN_PASSWORD=change-me
+```
+
+Then run:
+
+```bash
+DISNEY_HEADLESS=false xvfb-run -a python3 seed_disney_session.py
+```
+
+The script attempts the login, navigates to a dining page, and verifies the
+Disney auth cookie. If Disney presents MFA, CAPTCHA, passkey, or security
+checks, complete that step manually in the opened browser and press Enter.
+
+## 7. Alert State Safety
 
 The worker alerts only for slots that are open now but were absent in the previous poll. That baseline lives in `open_slots.json`.
 
