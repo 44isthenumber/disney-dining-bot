@@ -52,6 +52,7 @@ A UX change is not done until these are true:
 - Watches can be deleted, including generated `watch_...` IDs.
 - Empty states tell the user what to do next.
 - Errors explain the problem and the next action.
+- All watch creation flows must require an explicit, unchecked SMS consent checkbox to comply with Twilio A2P 10DLC requirements.
 - The status area distinguishes healthy, needs attention, and stale/unknown states.
 - The UI remains usable on a phone-sized viewport.
 - Mobile date picking has an obvious open action and an obvious `Done`/close action.

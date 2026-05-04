@@ -73,22 +73,26 @@ If `session_status` is `needs_attention`, run `seed_disney_session.py` again.
 ## 6. Dedicated Disney Login
 
 For a dedicated bot-only MyDisney account, store credentials only in the VPS
-`.env` file:
+`.env` file. You can push them securely from macOS:
 
 ```bash
-DISNEY_LOGIN_EMAIL=bot-account@example.com
-DISNEY_LOGIN_PASSWORD=change-me
+pbpaste | python3 scripts/sync_disney_login_to_vps.py --password-stdin --run-seed-and-poll
 ```
 
-Then run:
+If Disney presents MFA, CAPTCHA, or passkey checks, automated login will fail. Push credentials without polling:
 
 ```bash
-DISNEY_HEADLESS=false xvfb-run -a python3 seed_disney_session.py
+pbpaste | python3 scripts/sync_disney_login_to_vps.py --password-stdin
+```
+
+Then SSH with a TTY and run the seeder so you can interact with the browser:
+
+```bash
+ssh -t -i ~/.ssh/disney_dining_vps root@107.170.35.91 'cd /opt/disney-dining-bot && . .venv/bin/activate && DISNEY_HEADLESS=false xvfb-run -a python3 seed_disney_session.py'
 ```
 
 The script attempts the login, navigates to a dining page, and verifies the
-Disney auth cookie. If Disney presents MFA, CAPTCHA, passkey, or security
-checks, complete that step manually in the opened browser and press Enter.
+Disney auth cookie via `_fill_first_any_frame`.
 
 ## 7. Alert State Safety
 

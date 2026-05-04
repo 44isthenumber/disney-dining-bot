@@ -32,6 +32,7 @@ Keep Magic Table Finder boringly reliable: watches are polled remotely, alerts g
 - Failed restaurant polls preserve that restaurant's previous `open_slots.json` baseline so the next successful poll does not spam old openings.
 - Partial notification failures are visible in `bot_state.json`, and failed recipient slots stay eligible to retry.
 - The VPS timer is the only production poller; the old Mac LaunchAgent stays disabled.
+- **Twilio A2P Compliance**: All alerts must append `Reply STOP to opt out. Reply HELP for help.` to avoid carrier blocking.
 
 ## Validation Commands
 

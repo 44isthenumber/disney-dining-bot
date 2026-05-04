@@ -73,6 +73,9 @@ xvfb-run -a python3 disney_bot.py --once
 | `public/index.html` | Frontend SPA |
 | `seed_disney_session.py` | Opens the VPS Playwright profile for manual Disney login |
 | `scripts/smoke_test_api.py` | Safe production API smoke test; creates/deletes fake future watches |
+| `scripts/sync_disney_login_to_vps.py` | Safely pushes Disney credentials to the VPS `.env` and seeds the session |
+| `public/privacy.html` | Public privacy policy required for Twilio A2P compliance |
+| `public/terms.html` | Public terms of service required for Twilio A2P compliance |
 | `tests/test_alert_semantics.py` | Unit tests for new-opening alert behavior |
 | `deploy/` | systemd service/timer templates for the VPS worker |
 
@@ -120,6 +123,8 @@ GITHUB_GIST_ID — 7e8d8f873715971f8989a25a2f22c089
 TWILIO_* — SMS/WhatsApp credentials
 DISNEY_BROWSER_PROFILE_DIR — persistent Playwright profile path
 DISNEY_HEADLESS — true for normal worker, false for manual login seeding
+DISNEY_LOGIN_EMAIL — dedicated Disney bot account email (VPS only)
+DISNEY_LOGIN_PASSWORD — dedicated Disney bot account password (VPS only)
 ```
 
 Phone numbers may be configured as standard E.164 SMS (`+1...`) or WhatsApp (`whatsapp:+1...`). Craig and Jessica currently use WhatsApp via Twilio sandbox/WhatsApp sender. Never print full phone numbers, tokens, passwords, or `.env` contents.
@@ -143,7 +148,7 @@ This is the most important behavior to preserve.
 - If notification delivery fails for a recipient, keep those slots out of the baseline so they retry, and record the error in `bot_state.json`.
 - `seen_slots.json` is an audit/history of successfully sent notifications, not the primary dedupe mechanism.
 
-Alert copy should list only newly opened slots. Do not group a new slot back into a full list of all open times.
+Alert copy should list only newly opened slots. Do not group a new slot back into a full list of all open times. All alerts must append `Reply STOP to opt out. Reply HELP for help.` to comply with Twilio A2P 10DLC requirements.
 
 ## Frontend UX Principles
 
@@ -153,6 +158,7 @@ Alert copy should list only newly opened slots. Do not group a new slot back int
 - Keep restaurant, party size, dates, meal periods, and time window visible before submit.
 - Preserve owner/profile clarity. Craig and Jessica should never wonder whose phone gets the alert.
 - Do not expose phone numbers, Gist IDs, tokens, passwords, or internal Disney IDs in the UI.
+- **Twilio A2P 10DLC Compliance:** The UI must block watch creation until the user explicitly checks an unchecked SMS consent checkbox. The public `/privacy.html` and `/terms.html` pages must remain available and explicitly state that mobile opt-in data and SMS consent are not shared or sold.
 
 ---
 
@@ -193,8 +199,8 @@ Never force-push `main`. Never reset or delete Gist state unless explicitly requ
 
 ## Known Issues / Gotchas
 
-- **Disney session expired:** run `DISNEY_HEADLESS=false xvfb-run -a python3 seed_disney_session.py` on the VPS and log in.
-- **Dedicated Disney bot login:** optional `DISNEY_LOGIN_EMAIL` and `DISNEY_LOGIN_PASSWORD` may live only in the VPS `.env`. `seed_disney_session.py` can attempt that login and verify the Disney auth cookie, but it must pause for manual completion if Disney asks for MFA, CAPTCHA, passkey, or security checks.
+- **Disney session expired:** push credentials from macOS via `pbpaste | python3 scripts/sync_disney_login_to_vps.py --password-stdin --run-seed-and-poll`. If manual MFA/CAPTCHA completion is required, omit `--run-seed-and-poll` and SSH in with a TTY to run `DISNEY_HEADLESS=false xvfb-run -a python3 seed_disney_session.py` so you can interact with the browser.
+- **Dedicated Disney bot login:** `DISNEY_LOGIN_EMAIL` and `DISNEY_LOGIN_PASSWORD` live only in the VPS `.env`. `seed_disney_session.py` attempts automated login and verifies the Disney auth cookie via `_fill_first_any_frame`.
 - **428 errors:** re-seed the VPS browser session and verify `DISNEY_BROWSER_PROFILE_DIR` persists across worker runs.
 - **Missing X server / Playwright headed error:** run manual worker commands under `xvfb-run -a` on the VPS.
 - **Worker not running:** `systemctl status disney-dining-bot.timer`.
