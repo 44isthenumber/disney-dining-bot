@@ -75,10 +75,13 @@ def merge_remote_env(host: str, key_path: str, email: str, password: str) -> Non
 
 def run_remote_shell(host: str, key_path: str, script: str) -> subprocess.CompletedProcess:
     import os
+    import shlex
 
     key_expanded = os.path.expanduser(key_path)
-    # Avoid bash -l: root login profiles sometimes run `set` / tracing and spam the terminal.
-    cmd = ssh_base(key_expanded, host) + ["bash", "--norc", "--noprofile", "-c", script]
+    # OpenSSH passes argv after the hostname as separate remote words (not shell-quoted).
+    # ssh host bash -c set -e; foo  runs bash with -c's argument literally "set", not "set -e; foo".
+    remote_one = "exec bash --norc --noprofile -c " + shlex.quote(script)
+    cmd = ssh_base(key_expanded, host) + [remote_one]
     return subprocess.run(cmd, capture_output=False)
 
 
