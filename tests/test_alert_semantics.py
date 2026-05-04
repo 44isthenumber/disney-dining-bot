@@ -134,6 +134,7 @@ class AlertSemanticsTest(unittest.TestCase):
         self.assertIn("New opening: 'Ohana", message)
         self.assertIn("2026-07-01 at 07:50 PM", message)
         self.assertIn("2026-07-01 at 08:55 PM", message)
+        self.assertIn("Reply STOP to opt out. Reply HELP for help.", message)
         self.assertNotIn("Times:", message)
 
     def test_booking_url_includes_offer_id_and_slot_criteria(self):

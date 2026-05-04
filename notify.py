@@ -45,6 +45,7 @@ def _format_message(slots: List[Slot]) -> str:
         lines.append(f"{slot.date} at {time_label} | Party of {slot.party_size} | {slot.meal_period}")
         lines.append(f"Book exact slot: {booking_url(slot)}")
 
+    lines.append("\nReply STOP to opt out. Reply HELP for help.")
     return "\n".join(lines)
 
 

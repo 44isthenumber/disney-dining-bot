@@ -223,6 +223,14 @@
   .meal-options { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 0; }
   .meal-options label { color: var(--text); font-size: 13px; display: inline-flex; align-items: center; gap: 4px; }
   .create-actions { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+  .sms-consent {
+    margin-top: 12px; padding: 11px 12px; border: 1px solid #dbe7ff;
+    border-radius: 10px; background: #f8fbff; color: var(--text);
+    font-size: 12px; line-height: 1.45;
+  }
+  .sms-consent label { display: flex; gap: 9px; align-items: flex-start; }
+  .sms-consent input { width: auto; margin-top: 3px; flex-shrink: 0; }
+  .sms-consent a { color: var(--blue); font-weight: 600; }
   #create-btn {
     padding: 11px 24px; background: var(--blue); color: #fff; border: 0;
     border-radius: 7px; font-size: 15px; font-weight: 600; cursor: pointer;
@@ -297,6 +305,12 @@
     padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px;
     background: #fff; font-size: 13px;
   }
+  .watch-form .modal-sms-consent {
+    display: flex; flex-direction: row; gap: 8px; align-items: flex-start;
+    margin-top: 8px; color: var(--text); font-size: 11px; line-height: 1.4;
+  }
+  .modal-sms-consent input { width: auto; margin-top: 2px; flex-shrink: 0; }
+  .modal-sms-consent a { color: var(--blue); font-weight: 600; }
   .watch-form small { color: var(--muted); font-size: 11px; }
 
   @media (max-width: 860px) {
@@ -336,6 +350,7 @@
     #date-picker-grid .day { height: clamp(34px, 9vw, 40px); font-size: 13px; }
     #date-picker-help { font-size: 12px; line-height: 1.35; }
     .date-picker-actions { padding-bottom: env(safe-area-inset-bottom); }
+    .sms-consent { font-size: 12px; }
     .create-actions { flex-direction: column; align-items: stretch; }
     #create-btn { width: 100%; padding: 13px; font-size: 15px; }
     #create-msg { text-align: center; }
@@ -491,6 +506,18 @@
           <input type="time" id="time-to">
         </label>
       </div>
+      <div class="sms-consent">
+        <label>
+          <input type="checkbox" id="sms-consent" required>
+          <span>
+            I agree to receive SMS alerts from Magic Table Finder when matching Disney dining reservation openings are found.
+            Message frequency varies based on my watch activity and reservation availability. Message and data rates may apply.
+            Reply STOP to opt out. Reply HELP for help.
+            See <a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a> and
+            <a href="/terms.html" target="_blank" rel="noopener">Terms</a>.
+          </span>
+        </label>
+      </div>
       <div class="create-actions">
         <button type="submit" id="create-btn">Create Watch</button>
         <div id="create-msg" role="status"></div>
@@ -559,6 +586,15 @@
           <input type="time" id="watch-time-to" value="21:00" />
         </label>
       </div>
+      <label class="modal-sms-consent">
+        <input type="checkbox" id="modal-sms-consent">
+        <span>
+          I agree to receive SMS alerts from Magic Table Finder for matching openings. Message frequency varies.
+          Msg & data rates may apply. Reply STOP to opt out. Reply HELP for help.
+          See <a href="/privacy.html" target="_blank" rel="noopener">Privacy</a> and
+          <a href="/terms.html" target="_blank" rel="noopener">Terms</a>.
+        </span>
+      </label>
       <small>Click a date below to watch only openings matching this meal and time window.</small>
     </div>
     <div id="cal-grid"></div>
@@ -926,6 +962,7 @@ async function openModal(facilityId, slug, name, partySize) {
   document.getElementById('modal-title').textContent = name;
   document.getElementById('modal-sub').textContent = 'Party of ' + partySize + ' · Loading…';
   document.getElementById('modal-msg').textContent = '';
+  document.getElementById('modal-sms-consent').checked = false;
   document.getElementById('modal-overlay').classList.add('open');
 
   // Start at trip start or today
@@ -1027,6 +1064,9 @@ async function calAddWatch(dates) {
   var timeFrom = document.getElementById('watch-time-from').value || null;
   var timeTo = document.getElementById('watch-time-to').value || null;
   try {
+    if (!document.getElementById('modal-sms-consent').checked) {
+      throw new Error('Please confirm SMS consent before creating a watch.');
+    }
     var result = await apiFetch('/watches', {
       method: 'POST',
       body: JSON.stringify({
@@ -1261,6 +1301,9 @@ document.getElementById('watch-form').addEventListener('submit', async function(
     const timeTo = document.getElementById('time-to').value || null;
     const mealChecks = document.querySelectorAll('#watch-form input[name=meal-period]:checked');
     const mealPeriods = Array.from(mealChecks).map(c => c.value);
+    if (!document.getElementById('sms-consent').checked) {
+      throw new Error('Please confirm SMS consent so we can send reservation alerts.');
+    }
     if (!restaurantId) throw new Error('Choose a restaurant first.');
     if (!datesText) throw new Error('Add at least one date (YYYY-MM-DD).');
     if (timeFrom && timeTo && timeFrom > timeTo) throw new Error('Earliest time must be before latest time.');
