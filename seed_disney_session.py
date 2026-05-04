@@ -11,6 +11,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+TOKEN_COOKIE_NAME = "TPR-WDW-LBJS.WEB-PROD.token"
+
 
 def main() -> None:
     from playwright.sync_api import sync_playwright
@@ -25,8 +27,15 @@ def main() -> None:
         page = context.pages[0] if context.pages else context.new_page()
         page.goto("https://disneyworld.disney.go.com/login", wait_until="domcontentloaded")
         print("Disney login browser is open.")
-        print("Log in, then press Enter here to close and save the browser profile.")
+        print("Log in, then press Enter here to verify and save the browser profile.")
         input()
+        page.goto("https://disneyworld.disney.go.com/dine-res/restaurant/space-220-lounge/", wait_until="domcontentloaded")
+        page.wait_for_timeout(3000)
+        cookies = context.cookies(["https://disneyworld.disney.go.com", "https://disney.go.com"])
+        if any(cookie.get("name") == TOKEN_COOKIE_NAME for cookie in cookies):
+            print("Disney auth cookie found. Browser profile is ready for the worker.")
+        else:
+            print("WARNING: Disney auth cookie was not found. The worker will still require login.")
         context.close()
 
 

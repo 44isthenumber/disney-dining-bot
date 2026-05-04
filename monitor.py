@@ -30,8 +30,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+import auth  # noqa: E402
+
 BASE = "https://disneyworld.disney.go.com/dine-res/api"
 STABLE_CONV_ID = str(uuid.uuid4())
+TOKEN_COOKIE_NAME = "TPR-WDW-LBJS.WEB-PROD.token"
 
 
 def _max_bookable_date() -> date:
@@ -93,41 +96,140 @@ class Slot:
     recipient_phone: str = ""
 
 
+class DisneyAuthRequired(RuntimeError):
+    """Raised when the browser profile has no refreshable Disney login state."""
+
+
+@dataclass
+class DisneyTokenState:
+    access_token: str = ""
+    refresh_token: str = ""
+    source: str = ""
+    expires_at: int = 0
+    error: str = ""
+
+
+def _strip_bearer(value: str) -> str:
+    value = (value or "").strip()
+    if value.upper().startswith("BEARER "):
+        return value[7:].strip()
+    return value
+
+
+def _token_exp(token: str) -> int:
+    try:
+        return auth._jwt_exp(_strip_bearer(token))
+    except Exception:
+        return 0
+
+
+def _raw_cookie_blob(value: str) -> str:
+    value = (value or "").strip()
+    return value.split("=", 1)[1] if value[:3].count("=") else value
+
+
+def _token_state_from_cookie_value(value: str) -> DisneyTokenState:
+    """Extract access/refresh tokens from Disney's encoded token cookie."""
+    raw = _raw_cookie_blob(value)
+    if not raw:
+        return DisneyTokenState(source="cookie", error="empty token cookie")
+
+    try:
+        data = auth._decode_token_blob(raw)
+    except Exception as exc:
+        # Keep a regex fallback for older/odd cookie blobs that decode to a string
+        # containing a JWT but not a clean JSON object.
+        try:
+            padding = (4 - len(raw) % 4) % 4
+            decoded = base64.b64decode(raw + "=" * padding).decode("latin-1")
+            matches = re.findall(r"eyJ[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+", decoded)
+            access = matches[0] if matches else ""
+            return DisneyTokenState(
+                access_token=access,
+                source="cookie",
+                expires_at=_token_exp(access),
+                error="" if access else f"token cookie decode failed: {type(exc).__name__}",
+            )
+        except Exception:
+            return DisneyTokenState(source="cookie", error=f"token cookie decode failed: {type(exc).__name__}")
+
+    access = (
+        data.get("access_token")
+        or data.get("accessToken")
+        or data.get("swid_token")
+        or data.get("swidToken")
+        or ""
+    )
+    refresh = (
+        data.get("refresh_token")
+        or data.get("refreshToken")
+        or ""
+    )
+    return DisneyTokenState(
+        access_token=_strip_bearer(access),
+        refresh_token=refresh,
+        source="cookie",
+        expires_at=_token_exp(access),
+        error="" if access else f"token cookie had no access token; keys={sorted(data.keys())}",
+    )
+
+
+def _token_state_from_saved_tokens() -> DisneyTokenState:
+    try:
+        tokens = auth.load_tokens()
+    except Exception as exc:
+        return DisneyTokenState(source="tokens.json", error=f"saved token load failed: {type(exc).__name__}")
+    access = _strip_bearer(tokens.get("access_token", ""))
+    return DisneyTokenState(
+        access_token=access,
+        refresh_token=tokens.get("refresh_token", ""),
+        source="tokens.json",
+        expires_at=_token_exp(access),
+        error="" if access else "saved token had no access token",
+    )
+
+
+def _bearer_from_token_state(state: DisneyTokenState) -> str:
+    """Return a BEARER token, refreshing and persisting when possible."""
+    if not state.access_token:
+        return ""
+
+    remaining = state.expires_at - time.time() if state.expires_at else 0
+    if remaining >= auth.REFRESH_AHEAD_SECS:
+        return f"BEARER {state.access_token}"
+
+    if state.refresh_token:
+        print(f"[auth] Disney {state.source} token expires in {int(remaining)}s — refreshing.")
+        refreshed = auth._do_refresh({
+            "access_token": state.access_token,
+            "refresh_token": state.refresh_token,
+        })
+        auth.save_tokens(refreshed)
+        print("[auth] Disney token refreshed and saved.")
+        return f"BEARER {_strip_bearer(refreshed['access_token'])}"
+
+    return ""
+
+
 def _get_token_from_chrome() -> str:
     """Extract live Disney access token from Chrome's cookie store."""
     try:
         import browser_cookie3
         cj = browser_cookie3.chrome(domain_name="disneyworld.disney.go.com")
         for c in cj:
-            if c.name == "TPR-WDW-LBJS.WEB-PROD.token":
-                raw = c.value.split("=", 1)[1] if c.value[:3].count("=") else c.value
-                padding = (4 - len(raw) % 4) % 4
-                decoded = base64.b64decode(raw + "=" * padding).decode("latin-1")
-                for jwt in re.findall(r"eyJ[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+", decoded):
-                    try:
-                        payload = json.loads(base64.b64decode(jwt.split(".")[1] + "=="))
-                        if 0 < payload.get("exp", 0) - time.time() < 86400:
-                            return f"BEARER {jwt}"
-                    except Exception:
-                        pass
+            if c.name == TOKEN_COOKIE_NAME:
+                token = _bearer_from_cookie_value(c.value)
+                if token:
+                    return token
     except Exception:
         pass
-    return f"BEARER {os.environ.get('DISNEY_ACCESS_TOKEN', '')}"
+    fallback = _strip_bearer(os.environ.get("DISNEY_ACCESS_TOKEN", ""))
+    return f"BEARER {fallback}" if fallback else ""
 
 
 def _bearer_from_cookie_value(value: str) -> str:
     """Extract a Disney Bearer JWT from the encoded token cookie value."""
-    raw = value.split("=", 1)[1] if value[:3].count("=") else value
-    padding = (4 - len(raw) % 4) % 4
-    decoded = base64.b64decode(raw + "=" * padding).decode("latin-1")
-    for jwt in re.findall(r"eyJ[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+", decoded):
-        try:
-            payload = json.loads(base64.b64decode(jwt.split(".")[1] + "=="))
-            if 0 < payload.get("exp", 0) - time.time() < 86400:
-                return f"BEARER {jwt}"
-        except Exception:
-            pass
-    return ""
+    return _bearer_from_token_state(_token_state_from_cookie_value(value))
 
 
 def _run_js_in_disney_tab(js: str, timeout: int = 12) -> str:
@@ -409,13 +511,43 @@ def _playwright_profile_dir() -> str:
 
 def _token_from_playwright_context(context) -> str:
     cookies = context.cookies(["https://disneyworld.disney.go.com", "https://disney.go.com"])
+    cookie_names = {cookie.get("name", "") for cookie in cookies}
+    parse_errors = []
     for cookie in cookies:
-        if cookie.get("name") == "TPR-WDW-LBJS.WEB-PROD.token":
-            token = _bearer_from_cookie_value(cookie.get("value", ""))
+        if cookie.get("name") == TOKEN_COOKIE_NAME:
+            state = _token_state_from_cookie_value(cookie.get("value", ""))
+            if state.error:
+                parse_errors.append(state.error)
+            try:
+                token = _bearer_from_token_state(state)
+            except Exception as exc:
+                parse_errors.append(f"cookie refresh failed: {type(exc).__name__}")
+                token = ""
             if token:
                 return token
-    fallback = os.environ.get("DISNEY_ACCESS_TOKEN", "")
-    return f"BEARER {fallback}" if fallback else ""
+
+    saved_state = _token_state_from_saved_tokens()
+    if saved_state.error:
+        parse_errors.append(saved_state.error)
+    try:
+        token = _bearer_from_token_state(saved_state)
+    except Exception as exc:
+        parse_errors.append(f"saved token refresh failed: {type(exc).__name__}")
+        token = ""
+    if token:
+        return token
+
+    fallback = _strip_bearer(os.environ.get("DISNEY_ACCESS_TOKEN", ""))
+    if fallback and _token_exp(fallback) > time.time() + 60:
+        return f"BEARER {fallback}"
+
+    has_cookie = TOKEN_COOKIE_NAME in cookie_names
+    detail = "; ".join(parse_errors[:3]) if parse_errors else "no usable token source"
+    raise DisneyAuthRequired(
+        "Disney auth required: "
+        f"{'token cookie present but not refreshable' if has_cookie else 'token cookie missing'}; "
+        f"{detail}. Re-seed the VPS browser profile with seed_disney_session.py."
+    )
 
 
 def _parse_availability_response(
@@ -501,8 +633,6 @@ def check_slots_via_playwright(restaurant: dict) -> List[Slot]:
             page.goto(url, wait_until="domcontentloaded", timeout=45000)
             page.wait_for_timeout(int(os.environ.get("DISNEY_AKAMAI_WARMUP_MS", "8000")))
             token = _token_from_playwright_context(context)
-            if not token:
-                raise RuntimeError("No Disney auth token found in Playwright profile. Log in on the VPS browser profile.")
 
             result = page.evaluate(
                 """async ({partySize, start, end, facilityId, token}) => {
@@ -572,8 +702,6 @@ def get_calendar_days_via_playwright(facility_id: str, slug: str) -> List[str]:
             page.goto(url, wait_until="domcontentloaded", timeout=45000)
             page.wait_for_timeout(int(os.environ.get("DISNEY_AKAMAI_WARMUP_MS", "8000")))
             token = _token_from_playwright_context(context)
-            if not token:
-                raise RuntimeError("No Disney auth token found in Playwright profile. Log in on the VPS browser profile.")
             result = page.evaluate(
                 """async ({facilityId, token}) => {
                   try {

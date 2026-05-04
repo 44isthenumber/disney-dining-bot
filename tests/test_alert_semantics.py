@@ -1,6 +1,10 @@
+import base64
+import json
+import time
 import unittest
 
 import disney_bot
+import monitor
 import watch_store
 from monitor import Slot
 from notify import _format_message, booking_url
@@ -22,6 +26,17 @@ def make_slot(**overrides):
     }
     data.update(overrides)
     return Slot(**data)
+
+
+def make_jwt(exp):
+    header = base64.urlsafe_b64encode(json.dumps({"alg": "none"}).encode()).decode().rstrip("=")
+    payload = base64.urlsafe_b64encode(json.dumps({"exp": exp}).encode()).decode().rstrip("=")
+    return f"{header}.{payload}.signature"
+
+
+def make_token_blob(access_token, refresh_token=""):
+    payload = {"access_token": access_token, "refresh_token": refresh_token}
+    return base64.b64encode(json.dumps(payload).encode()).decode().rstrip("=")
 
 
 class AlertSemanticsTest(unittest.TestCase):
@@ -144,6 +159,22 @@ class AlertSemanticsTest(unittest.TestCase):
         self.assertFalse(watch_store.is_active_watch({"date": "2026-05-03"}, today="2026-05-04"))
         self.assertTrue(watch_store.is_active_watch({"date": "2026-05-04"}, today="2026-05-04"))
         self.assertTrue(watch_store.is_active_watch({"date": "2026-05-05"}, today="2026-05-04"))
+
+    def test_disney_cookie_token_valid_after_more_than_24_hours(self):
+        token = make_jwt(int(time.time()) + 172800)
+        bearer = monitor._bearer_from_cookie_value(make_token_blob(token))
+        self.assertEqual(bearer, f"BEARER {token}")
+
+    def test_disney_cookie_token_with_expired_access_and_refresh_is_refreshable(self):
+        token = make_jwt(int(time.time()) - 60)
+        state = monitor._token_state_from_cookie_value(make_token_blob(token, "refresh-token"))
+        self.assertEqual(state.access_token, token)
+        self.assertEqual(state.refresh_token, "refresh-token")
+        self.assertLess(state.expires_at, time.time())
+
+    def test_disney_auth_errors_are_categorized(self):
+        self.assertEqual(disney_bot._error_category(monitor.DisneyAuthRequired("login required")), "disney_auth")
+        self.assertEqual(disney_bot._error_category("No Disney auth token found in Playwright profile"), "disney_auth")
 
 
 if __name__ == "__main__":

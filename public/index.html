@@ -732,13 +732,14 @@ async function refreshStatus() {
   try {
     const s = await apiFetch('/status');
     if (s.profile) profile.textContent = s.profile.name;
+    const authRequired = s.auth_status === 'reauth_required';
     const sessionOk = s.session_status === 'ok' || s.token_status === 'ok' || s.token_status === 'browser-session';
     const needsAttention = s.session_status === 'needs_attention';
     if (sessionOk || needsAttention) {
       dot.className = needsAttention ? 'warn' : 'ok';
       const pollStr = s.last_poll_at ? ' · ' + friendlyPollTime(s.last_poll_at) : '';
       const watchStr = s.watches_count + ' watch' + (s.watches_count !== 1 ? 'es' : '');
-      txt.textContent = (needsAttention ? 'Needs attention · ' : '') + watchStr + pollStr;
+      txt.textContent = (authRequired ? 'Disney login required · ' : needsAttention ? 'Needs attention · ' : '') + watchStr + pollStr;
     } else {
       const rawStatus = s.session_status || s.token_status || 'unknown';
       const diffMin = s.last_poll_at ? (Date.now() - new Date(s.last_poll_at).getTime()) / 60000 : Infinity;

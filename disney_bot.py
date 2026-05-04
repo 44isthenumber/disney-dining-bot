@@ -19,7 +19,7 @@ from dotenv import load_dotenv
 
 import storage
 import watch_store
-from monitor import Slot, check_slots_for_restaurant
+from monitor import DisneyAuthRequired, Slot, check_slots_for_restaurant
 from notify import send_sms
 
 load_dotenv()
@@ -66,6 +66,21 @@ def _load_seen() -> Dict[str, str]:
 
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _error_category(exc_or_message) -> str:
+    if isinstance(exc_or_message, DisneyAuthRequired):
+        return "disney_auth"
+    message = str(exc_or_message).lower()
+    if "disney auth required" in message or "no disney auth token" in message or "disney returned 401" in message:
+        return "disney_auth"
+    if "akamai" in message or "http 428" in message or "http 403" in message:
+        return "akamai"
+    if "sms failed" in message or "twilio" in message or "recipient phone" in message:
+        return "notification"
+    if "timeout" in message or "connection" in message or "network" in message:
+        return "network"
+    return "unknown"
 
 
 def _save_seen(seen: Dict[str, str]) -> None:
@@ -190,7 +205,7 @@ def poll(config: Optional[dict] = None) -> None:
             else:
                 print(f"[bot] {name}: no availability.")
         except Exception as e:
-            errors.append({"restaurant": name, "error": str(e)})
+            errors.append({"restaurant": name, "category": _error_category(e), "error": str(e)})
             failed_open_prefixes.extend(_watch_open_prefix(watch) for watch in restaurant.get("watches", []))
             print(f"[bot] Check failed for {name}: {e}")
 
@@ -206,9 +221,9 @@ def poll(config: Optional[dict] = None) -> None:
             sent_slots = send_result.sent_slots
             sms_sent = bool(sent_slots)
             for error in send_result.errors:
-                errors.append({"restaurant": "notification", "error": error})
+                errors.append({"restaurant": "notification", "category": _error_category(error), "error": error})
         except Exception as e:
-            errors.append({"restaurant": "notification", "error": str(e)})
+            errors.append({"restaurant": "notification", "category": _error_category(e), "error": str(e)})
             print(f"[bot] Notification failed: {e}")
         if sms_sent:
             mark_seen(sent_slots)
@@ -228,6 +243,8 @@ def poll(config: Optional[dict] = None) -> None:
 
     now_utc = _utc_now().isoformat() + "Z"
     previous_state = storage.read_json("bot_state.json") or {}
+    auth_failed = any(error.get("category") == "disney_auth" for error in errors)
+    auth_status = "reauth_required" if auth_failed else "ok"
     storage.write_json("bot_state.json", {
         "last_poll_at": now_utc,
         "last_successful_poll_at": now_utc if not errors else previous_state.get("last_successful_poll_at"),
@@ -235,6 +252,13 @@ def poll(config: Optional[dict] = None) -> None:
         "watch_count": len(watches),
         "restaurant_request_count": len(grouped),
         "last_errors": errors,
+        "auth_status": auth_status,
+        "auth_required_since": (
+            previous_state.get("auth_required_since") if auth_failed and previous_state.get("auth_status") == "reauth_required"
+            else now_utc if auth_failed
+            else None
+        ),
+        "last_auth_ok_at": now_utc if not auth_failed else previous_state.get("last_auth_ok_at"),
         "session_status": "needs_attention" if errors else "ok",
         "last_sms_sent_at": now_utc if sms_sent else previous_state.get("last_sms_sent_at"),
     })
