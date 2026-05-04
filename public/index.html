@@ -615,6 +615,33 @@ function getUserId() { return localStorage.getItem('disneyUserId') || 'craig'; }
 function getTripStart() { return localStorage.getItem('disneyTripStart') || ''; }
 function getTripEnd() { return localStorage.getItem('disneyTripEnd') || ''; }
 function getPartySize() { return parseInt(document.getElementById('global-party').value) || 2; }
+function smsConsentKey() { return 'disneySmsConsent:' + getUserId(); }
+function hasSmsConsent() { return localStorage.getItem(smsConsentKey()) === 'true'; }
+
+function syncSmsConsentControls() {
+  var accepted = hasSmsConsent();
+  ['sms-consent', 'modal-sms-consent'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.checked = accepted;
+  });
+}
+
+function setSmsConsentAccepted(accepted) {
+  if (accepted) localStorage.setItem(smsConsentKey(), 'true');
+  else localStorage.removeItem(smsConsentKey());
+  syncSmsConsentControls();
+}
+
+function bindSmsConsentMemory() {
+  ['sms-consent', 'modal-sms-consent'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('change', function() {
+      setSmsConsentAccepted(el.checked);
+    });
+  });
+  syncSmsConsentControls();
+}
 
 function fmtTime(t) {
   if (!t) return '';
@@ -962,7 +989,7 @@ async function openModal(facilityId, slug, name, partySize) {
   document.getElementById('modal-title').textContent = name;
   document.getElementById('modal-sub').textContent = 'Party of ' + partySize + ' · Loading…';
   document.getElementById('modal-msg').textContent = '';
-  document.getElementById('modal-sms-consent').checked = false;
+  syncSmsConsentControls();
   document.getElementById('modal-overlay').classList.add('open');
 
   // Start at trip start or today
@@ -1067,6 +1094,7 @@ async function calAddWatch(dates) {
     if (!document.getElementById('modal-sms-consent').checked) {
       throw new Error('Please confirm SMS consent before creating a watch.');
     }
+    setSmsConsentAccepted(true);
     var result = await apiFetch('/watches', {
       method: 'POST',
       body: JSON.stringify({
@@ -1304,6 +1332,7 @@ document.getElementById('watch-form').addEventListener('submit', async function(
     if (!document.getElementById('sms-consent').checked) {
       throw new Error('Please confirm SMS consent so we can send reservation alerts.');
     }
+    setSmsConsentAccepted(true);
     if (!restaurantId) throw new Error('Choose a restaurant first.');
     if (!datesText) throw new Error('Add at least one date (YYYY-MM-DD).');
     if (timeFrom && timeTo && timeFrom > timeTo) throw new Error('Earliest time must be before latest time.');
@@ -1325,6 +1354,7 @@ document.getElementById('watch-form').addEventListener('submit', async function(
     const n = result.added.length;
     msg.textContent = 'Watching ' + n + ' date' + (n !== 1 ? 's' : '') + ' — you\'ll get an SMS when a slot opens.';
     document.getElementById('watch-form').reset();
+    syncSmsConsentControls();
     document.getElementById('party-size').value = getPartySize();
     createDatePicker.selected = new Set();
     renderSelectedDateChips();
@@ -1351,8 +1381,10 @@ document.getElementById('watch-form').addEventListener('submit', async function(
 });
 
 initCreateDatePicker();
+bindSmsConsentMemory();
 
 function onLogin() {
+  syncSmsConsentControls();
   refreshStatus();
   loadRestaurants();
   loadWatches();
