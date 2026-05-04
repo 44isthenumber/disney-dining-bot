@@ -7,7 +7,10 @@ The assistant cannot read your clipboard; on macOS you can pipe it:
 
 Optional: after updating .env, run Playwright seed + one worker poll on the VPS:
 
-  pbpaste | python3 scripts/sync_disney_login_to_vps.py --password-stdin --run-seed-and-poll
+    pbpaste | python3 scripts/sync_disney_login_to_vps.py --password-stdin --run-seed-and-poll
+
+If Disney blocks automated login (MFA etc.), push credentials without --run-seed-and-poll,
+then complete login over SSH with a TTY (see docstring in seed_disney_session.py).
 
 Requires SSH key access (same as CLAUDE.md VPS instructions).
 """
@@ -74,7 +77,8 @@ def run_remote_shell(host: str, key_path: str, script: str) -> subprocess.Comple
     import os
 
     key_expanded = os.path.expanduser(key_path)
-    cmd = ssh_base(key_expanded, host) + ["bash", "-lc", script]
+    # Avoid bash -l: root login profiles sometimes run `set` / tracing and spam the terminal.
+    cmd = ssh_base(key_expanded, host) + ["bash", "--norc", "--noprofile", "-c", script]
     return subprocess.run(cmd, capture_output=False)
 
 
@@ -110,7 +114,7 @@ def main() -> None:
 
     if args.run_seed_and_poll:
         remote = (
-            "set -eu; cd /opt/disney-dining-bot; . .venv/bin/activate; "
+            "set -e; cd /opt/disney-dining-bot || exit 1; . .venv/bin/activate; "
             "DISNEY_HEADLESS=false xvfb-run -a timeout 300 python3 seed_disney_session.py || true; "
             "xvfb-run -a python3 disney_bot.py --once"
         )

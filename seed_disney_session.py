@@ -3,6 +3,12 @@
 
 Run this once on the VPS whenever `/status` reports that the Disney browser
 session needs attention. It uses the same profile directory as the worker.
+
+Manual completion (MFA, CAPTCHA): run with a TTY so you can press Enter after
+logging in, for example:
+
+  ssh -t -i ~/.ssh/disney_dining_vps root@HOST \\
+    'cd /opt/disney-dining-bot && . .venv/bin/activate && DISNEY_HEADLESS=false xvfb-run -a python3 seed_disney_session.py'
 """
 
 import os
@@ -20,32 +26,35 @@ def _has_auth_cookie(context) -> bool:
     return any(cookie.get("name") == TOKEN_COOKIE_NAME for cookie in cookies)
 
 
-def _click_first(page, selectors) -> bool:
-    for selector in selectors:
-        locator = page.locator(selector).first
-        try:
-            if locator.count() and locator.is_visible(timeout=1500):
-                locator.click()
+def _fill_first_any_frame(page, selectors, value, timeout_ms: int = 12000) -> bool:
+    """Disney often renders email/password inside cross-origin iframes."""
+    for frame in page.frames:
+        for selector in selectors:
+            loc = frame.locator(selector).first
+            try:
+                loc.wait_for(state="visible", timeout=timeout_ms)
+                loc.fill(value, timeout=timeout_ms)
                 return True
-        except Exception:
-            pass
+            except Exception:
+                continue
     return False
 
 
-def _fill_first(page, selectors, value) -> bool:
-    for selector in selectors:
-        locator = page.locator(selector).first
-        try:
-            if locator.count() and locator.is_visible(timeout=1500):
-                locator.fill(value)
+def _click_first_any_frame(page, selectors, timeout_ms: int = 4000) -> bool:
+    for frame in page.frames:
+        for selector in selectors:
+            loc = frame.locator(selector).first
+            try:
+                loc.wait_for(state="visible", timeout=timeout_ms)
+                loc.click(timeout=timeout_ms)
                 return True
-        except Exception:
-            pass
+            except Exception:
+                continue
     return False
 
 
 def _dismiss_common_overlays(page) -> None:
-    _click_first(page, [
+    _click_first_any_frame(page, [
         "button:has-text('Accept All')",
         "button:has-text('Accept')",
         "button[id*='accept' i]",
@@ -63,7 +72,11 @@ def _attempt_credential_login(page) -> bool:
 
     print("Dedicated Disney credentials found in environment; attempting login.")
     page.wait_for_load_state("domcontentloaded")
-    page.wait_for_timeout(2000)
+    page.wait_for_timeout(2500)
+    try:
+        page.wait_for_selector("iframe", timeout=15000)
+    except Exception:
+        pass
     _dismiss_common_overlays(page)
 
     email_selectors = [
@@ -78,31 +91,35 @@ def _attempt_credential_login(page) -> bool:
         "input[inputmode='email']",
     ]
 
-    email_filled = _fill_first(page, email_selectors, email)
+    email_filled = _fill_first_any_frame(page, email_selectors, email)
     if not email_filled:
-        _click_first(page, [
+        _click_first_any_frame(page, [
             "a[href*='login' i]",
             "button:has-text('Sign In')",
             "text=Sign In",
             "[data-testid*='sign-in' i]",
         ])
         page.wait_for_timeout(4000)
+        try:
+            page.wait_for_selector("iframe", timeout=12000)
+        except Exception:
+            pass
         _dismiss_common_overlays(page)
-        email_filled = _fill_first(page, email_selectors, email)
+        email_filled = _fill_first_any_frame(page, email_selectors, email)
     if not email_filled:
         print("Could not find a visible email field; manual login is required.")
         return False
 
-    _click_first(page, [
+    _click_first_any_frame(page, [
         "button[type='submit']",
         "button:has-text('Continue')",
         "button:has-text('Next')",
         "button:has-text('Sign In')",
         "input[type='submit']",
     ])
-    page.wait_for_timeout(3000)
+    page.wait_for_timeout(4000)
 
-    password_filled = _fill_first(page, [
+    password_filled = _fill_first_any_frame(page, [
         "input[type='password']",
         "input[name*='password' i]",
         "input[id*='password' i]",
@@ -111,7 +128,7 @@ def _attempt_credential_login(page) -> bool:
         print("Could not find a visible password field; manual login or challenge is required.")
         return False
 
-    _click_first(page, [
+    _click_first_any_frame(page, [
         "button[type='submit']",
         "button:has-text('Sign In')",
         "button:has-text('Log In')",
@@ -142,7 +159,11 @@ def main() -> None:
             args=["--no-sandbox"],
         )
         page = context.pages[0] if context.pages else context.new_page()
-        page.goto("https://disneyworld.disney.go.com/login", wait_until="domcontentloaded")
+        page.goto(
+            "https://disneyworld.disney.go.com/login",
+            wait_until="domcontentloaded",
+            timeout=90000,
+        )
         print("Disney login browser is open.")
         _dismiss_common_overlays(page)
         attempted_auto = _attempt_credential_login(page)
