@@ -44,6 +44,17 @@ def _fill_first(page, selectors, value) -> bool:
     return False
 
 
+def _dismiss_common_overlays(page) -> None:
+    _click_first(page, [
+        "button:has-text('Accept All')",
+        "button:has-text('Accept')",
+        "button[id*='accept' i]",
+        "#onetrust-accept-btn-handler",
+        "button:has-text('Continue')",
+    ])
+    page.wait_for_timeout(800)
+
+
 def _attempt_credential_login(page) -> bool:
     email = os.environ.get("DISNEY_LOGIN_EMAIL", "").strip()
     password = os.environ.get("DISNEY_LOGIN_PASSWORD", "").strip()
@@ -53,15 +64,31 @@ def _attempt_credential_login(page) -> bool:
     print("Dedicated Disney credentials found in environment; attempting login.")
     page.wait_for_load_state("domcontentloaded")
     page.wait_for_timeout(2000)
+    _dismiss_common_overlays(page)
 
-    email_filled = _fill_first(page, [
+    email_selectors = [
         "input[type='email']",
+        "input[autocomplete='email']",
+        "input[autocomplete='username']",
         "input[name*='email' i]",
         "input[id*='email' i]",
         "input[name*='username' i]",
         "input[id*='username' i]",
         "input[type='text']",
-    ], email)
+        "input[inputmode='email']",
+    ]
+
+    email_filled = _fill_first(page, email_selectors, email)
+    if not email_filled:
+        _click_first(page, [
+            "a[href*='login' i]",
+            "button:has-text('Sign In')",
+            "text=Sign In",
+            "[data-testid*='sign-in' i]",
+        ])
+        page.wait_for_timeout(4000)
+        _dismiss_common_overlays(page)
+        email_filled = _fill_first(page, email_selectors, email)
     if not email_filled:
         print("Could not find a visible email field; manual login is required.")
         return False
@@ -117,10 +144,14 @@ def main() -> None:
         page = context.pages[0] if context.pages else context.new_page()
         page.goto("https://disneyworld.disney.go.com/login", wait_until="domcontentloaded")
         print("Disney login browser is open.")
+        _dismiss_common_overlays(page)
         attempted_auto = _attempt_credential_login(page)
         if not attempted_auto or not _has_auth_cookie(context):
             print("Complete Disney login manually, then press Enter here to verify and save the browser profile.")
-            input()
+            try:
+                input()
+            except EOFError:
+                print("Non-interactive session (no TTY); skipping manual wait.")
         page.goto("https://disneyworld.disney.go.com/dine-res/restaurant/space-220-lounge/", wait_until="domcontentloaded")
         page.wait_for_timeout(3000)
         if _has_auth_cookie(context):
