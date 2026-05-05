@@ -21,10 +21,82 @@ import storage
 import watch_store
 from monitor import DisneyAuthRequired, Slot, check_slots_for_restaurant
 from notify import send_sms
+import os
+import subprocess
 
 load_dotenv()
 
 OPEN_SLOTS_FILE = "open_slots.json"
+
+
+def attempt_disney_session_recovery() -> bool:
+    """Attempt to automatically re-seed the Disney session using dedicated bot credentials.
+
+    Returns True if recovery was successful (or not needed), False if manual intervention is required.
+    """
+    email = os.environ.get("DISNEY_LOGIN_EMAIL", "").strip()
+    password = os.environ.get("DISNEY_LOGIN_PASSWORD", "").strip()
+
+    if not email or not password:
+        print("[recovery] No DISNEY_LOGIN_EMAIL / DISNEY_LOGIN_PASSWORD set — cannot auto-recover.")
+        return False
+
+    print("[recovery] Attempting automatic Disney session recovery...")
+
+    try:
+        # Run the seeder in headless mode with credentials
+        env = os.environ.copy()
+        env["DISNEY_HEADLESS"] = "true"
+
+        result = subprocess.run(
+            [sys.executable, "seed_disney_session.py"],
+            cwd=os.path.dirname(os.path.abspath(__file__)) or ".",
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=180,
+        )
+
+        if result.returncode == 0:
+            print("[recovery] Session recovery successful.")
+            return True
+        else:
+            print(f"[recovery] Recovery failed (exit {result.returncode}): {result.stderr[-500:]}")
+            return False
+
+    except Exception as exc:
+        print(f"[recovery] Recovery attempt crashed: {exc}")
+        return False
+
+
+def send_session_expired_alert(owner_phones: list[str]) -> None:
+    """Send a one-time alert that the Disney session needs manual attention."""
+    if not owner_phones:
+        print("[notify] No phones configured for session alert.")
+        return
+
+    message = (
+        "⚠️ Disney Dining Bot: Session expired.\n"
+        "Automatic recovery failed. Please re-seed:\n"
+        "ssh root@107.170.35.91 'cd /opt/disney-dining-bot && "
+        "DISNEY_HEADLESS=false xvfb-run -a python3 seed_disney_session.py'\n"
+        "Reply STOP to opt out."
+    )
+
+    for phone in owner_phones:
+        try:
+            # Reuse Twilio client via a lightweight call
+            from twilio.rest import Client
+            account_sid = os.environ.get("TWILIO_ACCOUNT_SID")
+            auth_token = os.environ.get("TWILIO_AUTH_TOKEN")
+            from_number = os.environ.get("TWILIO_FROM")
+            if all([account_sid, auth_token, from_number]):
+                client = Client(account_sid, auth_token)
+                client.messages.create(body=message, from_=from_number, to=phone)
+                print(f"[notify] Session alert sent to {phone}")
+        except Exception as e:
+            print(f"[notify] Failed to send session alert to {phone}: {e}")
+
 
 
 def load_config() -> dict:
@@ -209,6 +281,33 @@ def poll(config: Optional[dict] = None) -> None:
             failed_open_prefixes.extend(_watch_open_prefix(watch) for watch in restaurant.get("watches", []))
             print(f"[bot] Check failed for {name}: {e}")
 
+    # === Disney Session Recovery ===
+    auth_failed = any(error.get("category") == "disney_auth" for error in errors)
+    if auth_failed:
+        print("[bot] Disney auth error detected — attempting recovery...")
+        recovered = attempt_disney_session_recovery()
+        if recovered:
+            print("[bot] Recovery successful — retrying failed restaurants...")
+            # Re-run the restaurants that failed due to auth
+            errors = []
+            all_slots = []
+            for restaurant in grouped:
+                name = restaurant.get("name", "?")
+                try:
+                    slots = check_slots_for_restaurant(restaurant)
+                    owner_slots = _matching_owner_slots(slots, restaurant.get("watches", []))
+                    all_slots.extend(owner_slots)
+                except Exception as e:
+                    errors.append({"restaurant": name, "category": _error_category(e), "error": str(e)})
+                    print(f"[bot] Retry failed for {name}: {e}")
+            auth_failed = any(error.get("category") == "disney_auth" for error in errors)
+        else:
+            # Recovery failed — notify owners
+            print("[bot] Recovery failed. Sending session alert to owners...")
+            owner_phones = [w.get("recipient_phone") for w in watches if w.get("recipient_phone")]
+            owner_phones = list(set(filter(None, owner_phones)))
+            send_session_expired_alert(owner_phones)
+
     previous_open_keys = _load_open_keys()
     current_open_keys = {_slot_key(slot) for slot in all_slots}
     new_slots = filter_new(all_slots, previous_open_keys)
@@ -243,7 +342,6 @@ def poll(config: Optional[dict] = None) -> None:
 
     now_utc = _utc_now().isoformat() + "Z"
     previous_state = storage.read_json("bot_state.json") or {}
-    auth_failed = any(error.get("category") == "disney_auth" for error in errors)
     auth_status = "reauth_required" if auth_failed else "ok"
     storage.write_json("bot_state.json", {
         "last_poll_at": now_utc,
