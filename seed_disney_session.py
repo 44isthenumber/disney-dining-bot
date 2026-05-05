@@ -14,12 +14,38 @@ logging in, for example:
 import os
 import re
 import sys
+from typing import Optional
 
 from dotenv import load_dotenv
 
 load_dotenv()
 
 TOKEN_COOKIE_NAME = "TPR-WDW-LBJS.WEB-PROD.token"
+
+
+def _goto_with_retries(
+    page,
+    url: str,
+    *,
+    attempts: int = 3,
+    wait_until: str = "domcontentloaded",
+    timeout: int = 90_000,
+) -> None:
+    """Disney occasionally fails with net::ERR_HTTP2_PROTOCOL_ERROR; retry quietly."""
+    last_exc: Optional[BaseException] = None
+    for attempt in range(1, attempts + 1):
+        try:
+            page.goto(url, wait_until=wait_until, timeout=timeout)
+            return
+        except Exception as exc:
+            last_exc = exc
+            if attempt >= attempts:
+                raise
+            delay_ms = 1500 * attempt
+            print(f"[seed] Navigation attempt {attempt}/{attempts} failed ({exc!r}); waiting {delay_ms}ms…")
+            page.wait_for_timeout(delay_ms)
+    if last_exc:
+        raise last_exc
 
 
 def _has_auth_cookie(context) -> bool:
@@ -163,7 +189,8 @@ def main() -> None:
             args=["--no-sandbox"],
         )
         page = context.pages[0] if context.pages else context.new_page()
-        page.goto(
+        _goto_with_retries(
+            page,
             "https://disneyworld.disney.go.com/login",
             wait_until="domcontentloaded",
             timeout=90000,
@@ -177,7 +204,12 @@ def main() -> None:
                 input()
             except EOFError:
                 print("Non-interactive session (no TTY); skipping manual wait.")
-        page.goto("https://disneyworld.disney.go.com/dine-res/restaurant/space-220-lounge/", wait_until="domcontentloaded")
+        _goto_with_retries(
+            page,
+            "https://disneyworld.disney.go.com/dine-res/restaurant/space-220-lounge/",
+            wait_until="domcontentloaded",
+            timeout=90000,
+        )
         page.wait_for_timeout(3000)
         has_cookie = _has_auth_cookie(context)
         if has_cookie:
