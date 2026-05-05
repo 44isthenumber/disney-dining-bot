@@ -13,6 +13,7 @@ logging in, for example:
 
 import os
 import re
+import sys
 
 from dotenv import load_dotenv
 
@@ -152,10 +153,13 @@ def main() -> None:
     from playwright.sync_api import sync_playwright
 
     profile_dir = os.environ.get("DISNEY_BROWSER_PROFILE_DIR", ".browser-profile")
+    headless = os.environ.get("DISNEY_HEADLESS", "false").strip().lower() in (
+        "1", "true", "yes", "on",
+    )
     with sync_playwright() as p:
         context = p.chromium.launch_persistent_context(
             profile_dir,
-            headless=False,
+            headless=headless,
             args=["--no-sandbox"],
         )
         page = context.pages[0] if context.pages else context.new_page()
@@ -175,11 +179,14 @@ def main() -> None:
                 print("Non-interactive session (no TTY); skipping manual wait.")
         page.goto("https://disneyworld.disney.go.com/dine-res/restaurant/space-220-lounge/", wait_until="domcontentloaded")
         page.wait_for_timeout(3000)
-        if _has_auth_cookie(context):
+        has_cookie = _has_auth_cookie(context)
+        if has_cookie:
             print("Disney auth cookie found. Browser profile is ready for the worker.")
         else:
             print("WARNING: Disney auth cookie was not found. The worker will still require login.")
         context.close()
+        if not has_cookie:
+            sys.exit(1)
 
 
 if __name__ == "__main__":

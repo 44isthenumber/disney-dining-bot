@@ -49,6 +49,47 @@ def _format_message(slots: List[Slot]) -> str:
     return "\n".join(lines)
 
 
+A2P_FOOTER = "\n\nReply STOP to opt out. Reply HELP for help."
+
+
+def send_operational_sms(to_numbers: List[str], body: str) -> List[str]:
+    """Send a one-off operational message to explicit numbers (session alerts, etc.).
+
+    Appends the A2P compliance footer when the body does not already include STOP/HELP.
+    Returns a list of human-readable errors for sends that failed.
+    """
+    deduped = list(dict.fromkeys(p.strip() for p in to_numbers if p and p.strip()))
+    if not deduped:
+        return []
+
+    account_sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
+    auth_token = os.environ.get("TWILIO_AUTH_TOKEN", "")
+    from_number = os.environ.get("TWILIO_FROM", "")
+
+    if not all([account_sid, auth_token, from_number]):
+        err = "Twilio credentials not set — cannot send operational SMS"
+        print(f"[notify] {err}")
+        return [err]
+
+    full_body = body.rstrip()
+    if "Reply STOP" not in full_body:
+        full_body = full_body + A2P_FOOTER
+    if len(full_body) > MAX_MESSAGE_LENGTH:
+        full_body = full_body[: MAX_MESSAGE_LENGTH - 3] + "..."
+
+    client = Client(account_sid, auth_token)
+    errors: List[str] = []
+    for to_number in deduped:
+        try:
+            msg = client.messages.create(body=full_body, from_=from_number, to=to_number)
+            print(f"[notify] Operational SMS sent to {to_number}. SID: {msg.sid}")
+        except Exception as exc:
+            err = f"Operational SMS failed for {to_number}: {exc}"
+            errors.append(err)
+            print(f"[notify] {err}")
+    return errors
+
+
 def send_sms(slots: List[Slot]) -> SendResult:
     if not slots:
         return SendResult([], [])
