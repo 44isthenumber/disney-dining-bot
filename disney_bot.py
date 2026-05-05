@@ -258,6 +258,9 @@ def poll(config: Optional[dict] = None) -> None:
     grouped = watch_store.grouped_restaurant_requests(watches)
     print(f"\n[{ts}] Polling {len(watches)} watch(es) across {len(grouped)} restaurant request(s) …")
 
+    all_slots: List[Slot] = []
+    errors = []
+    failed_open_prefixes = []
     did_send_session_manual_alert = False
     for restaurant in grouped:
         name = restaurant.get("name", "?")
