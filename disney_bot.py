@@ -277,51 +277,48 @@ def poll(config: Optional[dict] = None) -> None:
             failed_open_prefixes.extend(_watch_open_prefix(watch) for watch in restaurant.get("watches", []))
             print(f"[bot] Check failed for {name}: {e}")
 
-    # === Disney Session Recovery ===
+    # === Disney Session Recovery (Login Agent) ===
     auth_failed = any(error.get("category") == "disney_auth" for error in errors)
+    login_agent_triggered = False
     if auth_failed:
-        print("[bot] Disney auth error detected — attempting recovery...")
-        recovered = attempt_disney_session_recovery()
-        if recovered:
-            print("[bot] Recovery successful — retrying failed restaurants...")
-            errors = []
-            all_slots = []
-            failed_open_prefixes = []
-            for restaurant in grouped:
-                name = restaurant.get("name", "?")
-                try:
-                    slots = check_slots_for_restaurant(restaurant)
-                    owner_slots = _matching_owner_slots(slots, restaurant.get("watches", []))
-                    all_slots.extend(owner_slots)
-                except Exception as e:
-                    errors.append({"restaurant": name, "category": _error_category(e), "error": str(e)})
-                    print(f"[bot] Retry failed for {name}: {e}")
-            auth_failed = any(error.get("category") == "disney_auth" for error in errors)
-        else:
-            # Recovery failed — notify owners (rate-limited)
-            print("[bot] Recovery failed — evaluating owner notification…")
-            owner_phones = [w.get("recipient_phone") for w in watches if w.get("recipient_phone")]
-            owner_phones = list(dict.fromkeys(filter(None, owner_phones)))
-            cooldown_h = max(1, int(os.environ.get("SESSION_MANUAL_ALERT_COOLDOWN_HOURS", "24")))
-            last_alert = state_at_start.get("last_session_manual_alert_at")
-            allow_alert = True
-            if last_alert:
-                try:
-                    parsed = datetime.fromisoformat(last_alert.replace("Z", "+00:00"))
-                    if parsed.tzinfo is None:
-                        parsed = parsed.replace(tzinfo=timezone.utc)
-                    if datetime.now(timezone.utc) - parsed < timedelta(hours=cooldown_h):
-                        allow_alert = False
-                except Exception:
-                    pass
-            if allow_alert:
-                send_session_expired_alert(owner_phones)
-                did_send_session_manual_alert = True
+        # Cooldown: only attempt Login Agent once every 15 minutes
+        last_attempt = state_at_start.get("last_login_agent_attempt_at")
+        cooldown_minutes = 15
+        can_attempt = True
+        if last_attempt:
+            try:
+                parsed = datetime.fromisoformat(last_attempt.replace("Z", "+00:00"))
+                if parsed.tzinfo is None:
+                    parsed = parsed.replace(tzinfo=timezone.utc)
+                if datetime.now(timezone.utc) - parsed < timedelta(minutes=cooldown_minutes):
+                    can_attempt = False
+                    print(f"[bot] Login Agent on cooldown (last attempt {last_attempt}). Skipping recovery this cycle.")
+            except Exception:
+                pass
+
+        if can_attempt:
+            print("[bot] Disney auth error detected — activating Login Agent...")
+            login_agent_triggered = True
+            recovered = attempt_disney_session_recovery()
+            if recovered:
+                print("[bot] Login Agent succeeded — retrying failed restaurants...")
+                errors = []
+                all_slots = []
+                failed_open_prefixes = []
+                for restaurant in grouped:
+                    name = restaurant.get("name", "?")
+                    try:
+                        slots = check_slots_for_restaurant(restaurant)
+                        owner_slots = _matching_owner_slots(slots, restaurant.get("watches", []))
+                        all_slots.extend(owner_slots)
+                    except Exception as e:
+                        errors.append({"restaurant": name, "category": _error_category(e), "error": str(e)})
+                        print(f"[bot] Retry failed for {name}: {e}")
+                auth_failed = any(error.get("category") == "disney_auth" for error in errors)
             else:
-                print(
-                    f"[notify] Session manual-alert suppressed "
-                    f"(last sent {last_alert!r}, cooldown {cooldown_h}h)."
-                )
+                print("[bot] Login Agent failed this cycle.")
+        else:
+            print("[bot] Skipping Login Agent due to cooldown.")
 
     previous_open_keys = _load_open_keys()
     current_open_keys = {_slot_key(slot) for slot in all_slots}
@@ -372,6 +369,9 @@ def poll(config: Optional[dict] = None) -> None:
             else None
         ),
         "last_auth_ok_at": now_utc if not auth_failed else previous_state.get("last_auth_ok_at"),
+        "last_login_agent_attempt_at": (
+            now_utc if login_agent_triggered else previous_state.get("last_login_agent_attempt_at")
+        ),
         "last_session_manual_alert_at": (
             now_utc if did_send_session_manual_alert else previous_state.get("last_session_manual_alert_at")
         ),
