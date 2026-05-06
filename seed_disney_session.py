@@ -200,45 +200,49 @@ def main() -> None:
         print("Disney login browser is open.")
         _dismiss_common_overlays(page)
 
-        # Try credential login up to 3 times with increasing delays
-        login_success = False
+        # === Step 1: Try automatic credential login ===
+        auto_success = False
         for attempt in range(1, 4):
-            attempted = _attempt_credential_login(page)
-            if attempted and _has_auth_cookie(context):
-                login_success = True
+            if _attempt_credential_login(page) and _has_auth_cookie(context):
+                auto_success = True
                 break
-            print(f"[seed] Login attempt {attempt}/3 did not yield valid cookie.")
+            print(f"[seed] Auto-login attempt {attempt}/3 did not yield valid cookie.")
             if attempt < 3:
                 delay = 8 * attempt
-                print(f"[seed] Waiting {delay}s before next attempt...")
+                print(f"[seed] Waiting {delay}s before retry...")
                 page.wait_for_timeout(delay * 1000)
 
-        if not login_success:
-            print("Automatic login failed or additional verification required.")
+        if auto_success:
+            print("[seed] Automatic login succeeded with valid cookie.")
+        else:
+            # === Step 2: Manual login fallback ===
             if not headless:
+                print("Automatic login failed or additional verification required.")
                 print("Complete Disney login manually, then press Enter here to verify and save the browser profile.")
                 try:
                     input()
                 except EOFError:
                     print("Non-interactive session (no TTY); skipping manual wait.")
+            else:
+                print("[seed] Headless mode and auto-login failed. Cannot proceed.")
 
-        # Warm up session and final validation
+        # === Step 3: Final validation ===
         _goto_with_retries(
             page,
             "https://disneyworld.disney.go.com/dine-res/restaurant/space-220-lounge/",
             wait_until="domcontentloaded",
             timeout=90000,
         )
-        page.wait_for_timeout(4000)
+        page.wait_for_timeout(3000)
 
         has_cookie = _has_auth_cookie(context)
         if has_cookie:
             print("SUCCESS: Disney auth cookie found. Browser profile is ready for the worker.")
+            context.close()
+            sys.exit(0)
         else:
             print("WARNING: Disney auth cookie was not found after login attempts.")
-
-        context.close()
-        if not has_cookie:
+            context.close()
             sys.exit(1)
 
 
