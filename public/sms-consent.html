@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SMS Consent Flow | Magic Table Finder</title>
+<style>
+  :root {
+    --ink: #172033;
+    --muted: #5d6678;
+    --line: #d9dfeb;
+    --panel: #ffffff;
+    --blue: #1a56db;
+    --blue-soft: #eef3ff;
+    --green: #18794e;
+    --green-soft: #eaf8f0;
+    --bg: #f6f8fc;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    line-height: 1.55;
+  }
+  header {
+    background: #111827;
+    color: #fff;
+    padding: 28px 20px;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  header p { color: #cbd5e1; max-width: 720px; margin: 8px 0 0; }
+  h1 { margin: 0; font-size: 30px; line-height: 1.15; }
+  h2 { font-size: 20px; margin: 0 0 12px; }
+  h3 { font-size: 15px; margin: 18px 0 8px; }
+  main { padding: 24px 20px 40px; }
+  section {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 22px;
+    margin: 0 0 18px;
+  }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+  .steps { margin: 0; padding-left: 22px; }
+  .steps li { margin: 0 0 10px; }
+  .review-box {
+    background: var(--blue-soft);
+    border: 1px solid #c9d8ff;
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .mock-form {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 18px;
+    background: #fff;
+  }
+  .field {
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+  .field span { display: block; margin-bottom: 5px; }
+  .input {
+    width: 100%;
+    height: 42px;
+    border: 1px solid #cbd5e1;
+    border-radius: 7px;
+    background: #f8fafc;
+  }
+  .date-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 6px;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    background: var(--blue-soft);
+    color: #123ea8;
+    border: 1px solid #c9d8ff;
+    padding: 5px 9px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .consent {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 13px;
+    color: #293244;
+  }
+  .empty-box {
+    width: 16px;
+    height: 16px;
+    border: 1px solid #64748b;
+    border-radius: 3px;
+    flex: 0 0 auto;
+    margin-top: 2px;
+    background: #fff;
+  }
+  .button {
+    width: 100%;
+    border: 0;
+    border-radius: 8px;
+    background: var(--blue);
+    color: #fff;
+    padding: 12px;
+    font-weight: 800;
+    margin-top: 14px;
+  }
+  .ok {
+    background: var(--green-soft);
+    border-color: #b7e3c9;
+  }
+  .ok strong { color: var(--green); }
+  p, li { color: var(--muted); }
+  a { color: var(--blue); font-weight: 700; }
+  code {
+    background: #f1f5f9;
+    border: 1px solid #dbe3ef;
+    border-radius: 5px;
+    padding: 2px 5px;
+  }
+  @media (max-width: 760px) {
+    .grid { grid-template-columns: 1fr; }
+    h1 { font-size: 25px; }
+    section { padding: 18px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>Magic Table Finder SMS Consent Flow</h1>
+    <p>This public page documents how Magic Table Finder collects opt-in consent for Disney dining reservation SMS alerts.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="grid">
+    <div>
+      <h2>How Users Opt In</h2>
+      <ol class="steps">
+        <li>Users visit <a href="https://magictablefinder.com/">https://magictablefinder.com/</a> and sign in to their Magic Table Finder profile.</li>
+        <li>They create a Disney dining watch by choosing a restaurant, party size, date or dates, meal period, and optional time window.</li>
+        <li>Before submitting, they must actively check an unchecked SMS consent checkbox.</li>
+        <li>The watch cannot be created until the checkbox is selected.</li>
+        <li>After opt-in, Magic Table Finder sends SMS alerts only when matching Disney dining reservation openings are found.</li>
+      </ol>
+    </div>
+    <div class="review-box">
+      <h2>Reviewer Notes</h2>
+      <p>The live watch creation form is profile protected because it controls real reservation alerts for a private family account. This page publicly shows the same consent language and links reviewers need to verify the opt-in workflow.</p>
+      <p><strong>Program name:</strong> Magic Table Finder Disney dining reservation alerts.</p>
+      <p><strong>Message frequency:</strong> varies based on user watch activity and Disney reservation availability.</p>
+      <p><strong>Opt-out/help:</strong> reply STOP to opt out. Reply HELP for help.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Consent Language Shown Before Watch Creation</h2>
+    <div class="mock-form" aria-label="Example Magic Table Finder create watch form">
+      <label class="field">
+        <span>Restaurant</span>
+        <div class="input"></div>
+      </label>
+      <label class="field">
+        <span>Party Size</span>
+        <div class="input"></div>
+      </label>
+      <div class="field">
+        <span>Selected Dates</span>
+        <div class="date-list">
+          <span class="chip">June 1, 2026</span>
+          <span class="chip">June 2, 2026</span>
+        </div>
+      </div>
+      <div class="consent">
+        <span class="empty-box" aria-hidden="true"></span>
+        <span>
+          I agree to receive SMS alerts from Magic Table Finder when matching Disney dining reservation openings are found.
+          Message frequency varies based on my watch activity and reservation availability. Message and data rates may apply.
+          Reply STOP to opt out. Reply HELP for help.
+          See <a href="/privacy.html">Privacy Policy</a> and <a href="/terms.html">Terms</a>.
+        </span>
+      </div>
+      <button class="button" type="button">Create Watch</button>
+    </div>
+  </section>
+
+  <section class="ok">
+    <h2>Privacy and Terms</h2>
+    <p><strong>Mobile opt-in data and SMS consent are not shared, sold, rented, or transferred to third parties, affiliates, or lead generators for marketing or promotional purposes.</strong></p>
+    <p><a href="/privacy.html">Privacy Policy</a> | <a href="/terms.html">Terms and Conditions</a></p>
+  </section>
+
+  <section>
+    <h2>Sample Alert</h2>
+    <p><code>Magic Table Finder: New Disney dining opening found for Space 220 Lounge on 2026-06-01 at 6:30 PM for party of 2. Book: [link]. Reply STOP to opt out. Reply HELP for help.</code></p>
+  </section>
+</main>
+</body>
+</html>
