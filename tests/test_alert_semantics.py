@@ -39,6 +39,12 @@ def make_token_blob(access_token, refresh_token=""):
     return base64.b64encode(json.dumps(payload).encode()).decode().rstrip("=")
 
 
+def make_signed_token_blob(access_token, refresh_token=""):
+    payload = {"access_token": access_token, "refresh_token": refresh_token}
+    blob = json.dumps(payload) + json.dumps({"kid": "guestcontroller", "alg": "ES256"})
+    return "5=" + base64.urlsafe_b64encode(blob.encode()).decode().rstrip("=") + ".signature.extra"
+
+
 class AlertSemanticsTest(unittest.TestCase):
     def test_filter_new_baselines_first_snapshot_without_alerting(self):
         slot = make_slot()
@@ -172,6 +178,13 @@ class AlertSemanticsTest(unittest.TestCase):
         self.assertEqual(state.access_token, token)
         self.assertEqual(state.refresh_token, "refresh-token")
         self.assertLess(state.expires_at, time.time())
+
+    def test_disney_cookie_token_accepts_signed_base64url_wrapper(self):
+        token = make_jwt(int(time.time()) + 172800)
+        state = monitor._token_state_from_cookie_value(make_signed_token_blob(token, "refresh-token"))
+        self.assertEqual(state.access_token, token)
+        self.assertEqual(state.refresh_token, "refresh-token")
+        self.assertGreater(state.expires_at, time.time())
 
     def test_disney_auth_errors_are_categorized(self):
         self.assertEqual(disney_bot._error_category(monitor.DisneyAuthRequired("login required")), "disney_auth")

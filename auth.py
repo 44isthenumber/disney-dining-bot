@@ -29,19 +29,33 @@ REFRESH_AHEAD_SECS = 3600  # refresh if less than 60 min remaining
 # ── token persistence ──────────────────────────────────────────────────────
 
 def _decode_token_blob(blob: str) -> dict:
-    """Decode the base64 cookie blob into a dict with access_token / refresh_token."""
-    # The blob may be URL-encoded (spaces → +, etc.) — normalise padding
-    blob = blob.strip()
-    padding = 4 - len(blob) % 4
-    if padding != 4:
-        blob += "=" * padding
-    try:
-        decoded = base64.b64decode(blob).decode("utf-8")
-        return json.loads(decoded)
-    except Exception:
-        # Some Disney token blobs are double-encoded
-        decoded = base64.b64decode(base64.b64decode(blob)).decode("utf-8")
-        return json.loads(decoded)
+    """Decode Disney's token cookie blob into access/refresh token data."""
+    blob = (blob or "").strip()
+    if "=" in blob[:4]:
+        blob = blob.split("=", 1)[1]
+    # Newer Disney cookies are shaped like base64url(json + jose_header).signature.
+    # The token JSON is still the first decoded object.
+    if "." in blob:
+        blob = blob.split(".", 1)[0]
+
+    def decode_once(value: str, *, urlsafe: bool = False) -> bytes:
+        padding = (4 - len(value) % 4) % 4
+        padded = value + ("=" * padding)
+        decoder = base64.urlsafe_b64decode if urlsafe else base64.b64decode
+        return decoder(padded)
+
+    for urlsafe in (False, True):
+        try:
+            decoded = decode_once(blob, urlsafe=urlsafe).decode("utf-8")
+            data, _ = json.JSONDecoder().raw_decode(decoded)
+            return data
+        except Exception:
+            pass
+
+    # Some older Disney token blobs are double-encoded.
+    decoded = decode_once(decode_once(blob).decode("utf-8")).decode("utf-8")
+    data, _ = json.JSONDecoder().raw_decode(decoded)
+    return data
 
 
 def _jwt_exp(token: str) -> int:
