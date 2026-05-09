@@ -16,7 +16,6 @@ import subprocess
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
-from urllib.parse import urlencode
 
 from dotenv import load_dotenv
 from twilio.rest import Client
@@ -25,7 +24,12 @@ from monitor import Slot
 
 load_dotenv()
 
-BOOK_BASE = "https://disneyworld.disney.go.com/dine-res/book/table-service/details"
+# Disney's SPA does not honor date/time/partySize/offerId on a cold URL load —
+# it reads that state from the authenticated session after the booking flow has
+# already populated it. So we link to the restaurant's own dining page (the same
+# URL the bot itself navigates to before polling) and put the slot details in
+# the message body. See plan: deep-link research, May 2026.
+BOOK_BASE = "https://disneyworld.disney.go.com/dine-res/restaurant"
 MAX_MESSAGE_LENGTH = 1500
 SIGNAL_CLI_PATH = os.environ.get("SIGNAL_CLI_PATH", "/usr/local/bin/signal-cli")
 SIGNAL_SEND_TIMEOUT = 60  # seconds; signal-cli send is usually <5s but pad for slow networks
@@ -38,15 +42,10 @@ class SendResult:
 
 
 def booking_url(slot: Slot) -> str:
-    params = {
-        "date": slot.date,
-        "partySize": str(slot.party_size),
-    }
-    if slot.time:
-        params["time"] = slot.time
-    if slot.offer_id:
-        params["offerId"] = slot.offer_id
-    return f"{BOOK_BASE}/{slot.facility_id}/?{urlencode(params)}"
+    # Use the human-readable slug when available; fall back to the numeric
+    # facility id for any older cached slot that somehow lacks one.
+    slug = (slot.slug or slot.facility_id).strip("/")
+    return f"{BOOK_BASE}/{slug}/"
 
 
 def _format_message(slots: List[Slot]) -> str:
@@ -57,7 +56,7 @@ def _format_message(slots: List[Slot]) -> str:
         time_label = slot.label or slot.time
         lines.append(f"\nNew opening: {slot.restaurant_name}")
         lines.append(f"{slot.date} at {time_label} | Party of {slot.party_size} | {slot.meal_period}")
-        lines.append(f"Book exact slot: {booking_url(slot)}")
+        lines.append(f"Book: {booking_url(slot)}")
 
     lines.append("\nReply STOP to opt out. Reply HELP for help.")
     return "\n".join(lines)

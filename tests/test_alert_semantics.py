@@ -14,6 +14,7 @@ def make_slot(**overrides):
     data = {
         "restaurant_name": "'Ohana",
         "facility_id": "90002606",
+        "slug": "ohana",
         "date": "2026-07-01",
         "time": "19:50",
         "label": "07:50 PM",
@@ -143,24 +144,30 @@ class AlertSemanticsTest(unittest.TestCase):
         self.assertIn("Reply STOP to opt out. Reply HELP for help.", message)
         self.assertNotIn("Times:", message)
 
-    def test_booking_url_includes_offer_id_and_slot_criteria(self):
+    def test_booking_url_uses_restaurant_slug_with_no_query_params(self):
+        # Disney's SPA does not honor date/time/partySize/offerId on a cold
+        # URL load, so we link to the canonical restaurant page (same URL the
+        # bot itself navigates to before polling) and rely on the message body
+        # to carry the slot details.
         url = booking_url(make_slot(offer_id="abc 123", time="19:50"))
-        self.assertIn("/dine-res/book/table-service/details/90002606/", url)
-        self.assertIn("date=2026-07-01", url)
-        self.assertIn("partySize=2", url)
-        self.assertIn("time=19%3A50", url)
-        self.assertIn("offerId=abc+123", url)
+        self.assertEqual(url, "https://disneyworld.disney.go.com/dine-res/restaurant/ohana/")
+        self.assertNotIn("offerId", url)
+        self.assertNotIn("?", url)
 
-    def test_message_has_distinct_exact_booking_url_per_opening(self):
+    def test_booking_url_falls_back_to_facility_id_when_slug_missing(self):
+        url = booking_url(make_slot(slug=""))
+        self.assertEqual(url, "https://disneyworld.disney.go.com/dine-res/restaurant/90002606/")
+
+    def test_message_lists_each_opening_distinctly(self):
         message = _format_message([
             make_slot(time="19:50", label="07:50 PM", offer_id="offer-a"),
             make_slot(time="20:55", label="08:55 PM", offer_id="offer-b"),
         ])
-        self.assertEqual(message.count("Book exact slot:"), 2)
-        self.assertIn("time=19%3A50", message)
-        self.assertIn("offerId=offer-a", message)
-        self.assertIn("time=20%3A55", message)
-        self.assertIn("offerId=offer-b", message)
+        # Two openings → two "Book:" lines and two distinct time labels in the
+        # body, even though the URL is the same per restaurant per day.
+        self.assertEqual(message.count("Book:"), 2)
+        self.assertIn("07:50 PM", message)
+        self.assertIn("08:55 PM", message)
 
     def test_watch_dates_expire_after_park_date_passes(self):
         self.assertFalse(watch_store.is_active_watch({"date": "2026-05-03"}, today="2026-05-04"))
