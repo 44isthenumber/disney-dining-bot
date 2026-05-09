@@ -422,7 +422,14 @@ function jwtExp(token) {
 
 function checkSecret(event) {
   if (event.httpMethod === "OPTIONS") return null;
-  if (event.path && event.path.replace(/^\/.netlify\/functions\/api/, "").replace(/^\/_api/, "") === "/profiles") return null;
+  const apiPath = event.path
+    ? event.path.replace(/^\/.netlify\/functions\/api/, "").replace(/^\/_api/, "")
+    : "";
+  // Public endpoints (no auth required):
+  // - /profiles: surfaced in the SPA login screen
+  // - /health: external uptime monitors (UptimeRobot etc.) ping this; safe
+  //   because it returns only a freshness boolean, no watch / owner data
+  if (apiPath === "/profiles" || apiPath === "/health") return null;
   const user = currentUser(event);
   const secret =
     event.headers["x-api-secret"] ||
@@ -451,6 +458,42 @@ function response(status, body, extraHeaders = {}) {
 }
 
 // ── endpoint handlers ─────────────────────────────────────────────────────────
+
+// Health endpoint for external uptime monitors. Returns 200 OK iff the worker
+// has successfully polled Disney within HEALTH_STALE_MINUTES (default 30).
+// Returns 503 with a small JSON body when stale or when no successful poll has
+// ever been recorded. No auth, no sensitive data leaked.
+async function handleHealth() {
+  const STALE_MIN = parseInt(process.env.HEALTH_STALE_MINUTES || "30", 10);
+  let state = null;
+  try {
+    state = await readJson("bot_state.json", {});
+  } catch (err) {
+    return response(503, { ok: false, reason: `state read failed: ${err.message}` });
+  }
+  state = state || {};
+  const lastSuccess = state.last_successful_poll_at;
+  if (!lastSuccess) {
+    return response(503, { ok: false, reason: "no successful poll recorded yet" });
+  }
+  const lastMs = Date.parse(lastSuccess);
+  if (isNaN(lastMs)) {
+    return response(503, { ok: false, reason: `unparseable last_successful_poll_at: ${lastSuccess}` });
+  }
+  const ageMin = Math.round((Date.now() - lastMs) / 60000);
+  if (ageMin > STALE_MIN) {
+    return response(503, {
+      ok: false,
+      reason: `last successful poll was ${ageMin} min ago (threshold ${STALE_MIN})`,
+      last_successful_poll_at: lastSuccess,
+    });
+  }
+  return response(200, {
+    ok: true,
+    last_successful_poll_at: lastSuccess,
+    age_minutes: ageMin,
+  });
+}
 
 async function handleStatus(user) {
   let tokenStatus = "browser-session";
@@ -705,6 +748,7 @@ exports.handler = async function (event) {
 
   try {
     if (method === "GET" && p === "/profiles") return response(200, { profiles: publicProfiles() });
+    if (method === "GET" && p === "/health") return await handleHealth();
     if (method === "GET" && p === "/status") return await handleStatus(user);
     if (method === "GET" && p === "/restaurants") return await handleRestaurants(event, user);
     if (method === "GET" && p.startsWith("/calendar/")) {
