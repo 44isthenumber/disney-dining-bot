@@ -4,6 +4,16 @@ A runbook for diagnosing the bot from the VPS without reading any source. Read t
 
 VPS: `root@107.170.35.91`, SSH key `~/.ssh/disney_dining_vps`, app at `/opt/disney-dining-bot`.
 
+## At-a-glance: alert channels
+
+| Alert source | Trigger | Goes to | Channel |
+|---|---|---|---|
+| Bot's Signal alert (in-process) | Disney session lost; Login Agent failed | Craig only | Signal (`+19852359090` "Magic Table Finder" → Craig) |
+| Reservation match | New opening on a watch | Watch's owner only | Signal |
+| UptimeRobot | `/_api/health` returns non-200 for >5 min, or no response for >30 min | `craig@sco.gs` | Email |
+
+If you haven't gotten an alert and feel anxious: hit https://magictablefinder.com/_api/health from any browser. `"ok":true` means the bot is healthy — Disney just doesn't have anything matching your watches yet.
+
 ---
 
 ## 1. Quick health check
@@ -166,9 +176,11 @@ Then retry §3.
 
 ---
 
-## 5. SMS alerts when the bot needs attention
+## 5. Signal alerts when the bot needs attention
 
-When the Login Agent fails, the worker sends an SMS to every configured owner phone (rate-limited to one alert per 6 hours so it doesn't flood Twilio). The body looks like:
+When the Login Agent fails, the worker sends a Signal message **to Craig only** (the admin, default owner). Jessica gets her own reservation alerts via Signal but does not receive operational alerts. Rate-limited to one alert per 6 hours.
+
+The body looks like:
 
 ```
 Disney Dining Bot: Disney login session failed after automatic recovery.
@@ -176,11 +188,34 @@ Manual re-seed required. On a machine with your SSH key:
 ssh -i ~/.ssh/disney_dining_vps -t root@107.170.35.91 'cd /opt/disney-dining-bot && . .venv/bin/activate && DISNEY_HEADLESS=false xvfb-run -a python3 seed_disney_session.py'
 ```
 
-If you didn't get the SMS but the bot is clearly broken:
+### How alerts are routed
 
-* Check `journalctl` for `[bot] Recovery failed but no owner phones are configured for alerting.` — `WATCH_USERS` in `.env` is missing phone numbers.
-* Check `journalctl` for `[bot] Session-expired alert dispatch crashed: ...` — Twilio creds problem; verify `TWILIO_*` env vars.
-* Check `bot_state.json` for `last_session_manual_alert_at` — if it's within the last 6 hours, you're inside the rate-limit window. The bot still needs a re-seed; you just won't get another SMS yet.
+`notify.py` is a channel dispatcher. Each `WATCH_USERS[*].phone` value carries a prefix:
+
+- `signal:+15551234567` → POSTs to local `signal-cli` on the VPS
+- `signal:<account-uuid>` → same, used when the recipient has Signal phone-number-discoverability disabled (Craig's case — his Signal account UUID is stored, not his phone number)
+- `whatsapp:+15551234567` → Twilio WhatsApp (legacy / fallback only)
+- `+15551234567` → Twilio SMS (legacy / fallback only)
+
+The bot's Signal sender account is `+19852359090` (a Google Voice number, registered with Signal under display name "Magic Table Finder"). Set in `.env` as `SIGNAL_BOT_NUMBER`. Operational alerts route to whatever `_configured_owner_phones()` returns, which is *only the admin's phone* — admin is `default_owner_id()` (i.e. `craig`) unless overridden via `DISNEY_ALERT_ADMIN`.
+
+### If you didn't get a Signal alert but the bot is clearly broken
+
+* Check `journalctl` for `[notify] signal-cli exit ...` or `[notify] signal-cli timed out` — signal-cli on the VPS hit an issue. Check `signal-cli -a +19852359090 listAccounts` works.
+* Check `journalctl` for `[bot] Recovery failed but no owner phones are configured for alerting.` — `WATCH_USERS` in `.env` is missing the admin's phone.
+* Check `bot_state.json:last_session_manual_alert_at` — if it's within the last 6 hours, you're inside the rate-limit window. The bot still needs a re-seed; you just won't get another Signal alert yet. Clear that field in the Gist if you need a fresh test alert.
+* If signal-cli fails with `Unregistered user`: the recipient's Signal account hides their phone number. Have them message the bot's Signal number first, then run `signal-cli -a +19852359090 receive` once on the VPS to learn their UUID, then store `signal:<uuid>` in `WATCH_USERS` instead of `signal:+phone`.
+
+## 5a. UptimeRobot — the external watchdog
+
+The in-bot Signal alert can only fire when the bot is alive enough to detect a failure. If the VPS itself is down or the systemd timer dies, that alert never sends. UptimeRobot covers that case.
+
+- **Monitor:** HTTP GET `https://magictablefinder.com/_api/health` every 5 minutes.
+- **Healthy:** returns `200 {"ok":true,"last_successful_poll_at":"...","age_minutes":N}` when the bot has polled within the last 30 minutes.
+- **Unhealthy:** returns `503 {"ok":false,"reason":"..."}` when stale or no poll on record.
+- **Alert contact:** email to `craig@sco.gs`. Make sure the email app on Craig's phone has push notifications enabled.
+
+If you want to tune the staleness threshold, set `HEALTH_STALE_MINUTES` in Netlify env vars (default 30).
 
 ---
 
@@ -224,6 +259,10 @@ After a Login Agent failure SMS, the worker waits 6 hours before sending another
 ## 7. Diagnostic command cheat sheet
 
 ```bash
+# Quickest "is the bot alive?" check, runs from any browser:
+#   https://magictablefinder.com/_api/health
+# Returns {"ok":true,...} or {"ok":false,...}
+
 # Tail live logs
 journalctl -u disney-dining-bot.service -f
 
@@ -233,6 +272,14 @@ journalctl -u disney-dining-bot.service -n 200 --no-pager | \
 
 # Full output of the most recent automated recovery attempt
 cat /var/log/disney-dining-bot/last-recovery.log
+
+# Signal: confirm the bot's account is registered and reachable
+signal-cli -a +19852359090 listAccounts
+signal-cli -a +19852359090 send -m "manual test" <recipient>
+
+# Manually re-seed Disney session (the canonical fix for "auth required" errors)
+cd /opt/disney-dining-bot && . .venv/bin/activate && \
+  DISNEY_HEADLESS=false xvfb-run -a python3 seed_disney_session.py
 
 # Force one immediate poll (don't wait for the 10-min timer)
 systemctl start disney-dining-bot.service
