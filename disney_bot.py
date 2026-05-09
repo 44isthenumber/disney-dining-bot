@@ -138,15 +138,22 @@ def attempt_disney_session_recovery() -> bool:
 
 
 def _configured_owner_phones() -> list:
-    """Return distinct E.164/whatsapp phone numbers across all configured owners."""
-    phones = []
-    seen = set()
-    for user in watch_store.profiles(include_private=True).values():
-        phone = (user.get("phone") or "").strip()
-        if phone and phone not in seen:
-            seen.add(phone)
-            phones.append(phone)
-    return phones
+    """Return phones that should receive operational/failure alerts.
+
+    Operational alerts (Disney session expired, recovery failed, etc.) go
+    only to the bot's admin — i.e. the default owner — because they're a
+    "go SSH in and re-seed" instruction. Other configured users (e.g.
+    Jessica) don't need to know; they only receive their own owner-scoped
+    reservation alerts via send_sms()/slot.recipient_phone, not this path.
+
+    Override the admin via the DISNEY_ALERT_ADMIN env var (set to a user_id
+    in WATCH_USERS) if you ever want a different operator on call.
+    """
+    admin_id = (os.environ.get("DISNEY_ALERT_ADMIN", "").strip()
+                or watch_store.default_owner_id())
+    user = watch_store.profiles(include_private=True).get(admin_id, {})
+    phone = (user.get("phone") or "").strip()
+    return [phone] if phone else []
 
 
 def send_session_expired_alert(owner_phones: list[str]) -> None:
