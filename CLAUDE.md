@@ -120,15 +120,27 @@ WATCH_USERS — JSON mapping user IDs to {name,password,phone}
 API_SECRET — legacy shared login fallback
 GITHUB_TOKEN — PAT for Gist read/write
 GITHUB_GIST_ID — 7e8d8f873715971f8989a25a2f22c089
-TWILIO_* — SMS/WhatsApp credentials
+SIGNAL_BOT_NUMBER — phone number the bot's signal-cli account sends FROM (currently +19852359090, a Google Voice number registered with Signal as "Magic Table Finder")
+SIGNAL_CLI_PATH — optional override for signal-cli binary (default /usr/local/bin/signal-cli)
+TWILIO_* — legacy / fallback only; see notify.py channel routing
 DISNEY_BROWSER_PROFILE_DIR — persistent Playwright profile path
 DISNEY_HEADLESS — MUST be "false" on the VPS. Akamai detects truly-headless Chromium on disneyworld.disney.go.com and aborts with ERR_HTTP2_PROTOCOL_ERROR. Run headed under xvfb-run instead.
 DISNEY_LOGIN_EMAIL — dedicated Disney bot account email (VPS only)
 DISNEY_LOGIN_PASSWORD — dedicated Disney bot account password (VPS only)
 DISNEY_RECOVERY_LOG_PATH — optional override for the full Login Agent log (default /var/log/disney-dining-bot/last-recovery.log)
+DISNEY_ALERT_ADMIN — optional WATCH_USERS user_id to receive operational alerts; defaults to default_owner_id (craig)
 ```
 
-Phone numbers may be configured as standard E.164 SMS (`+1...`) or WhatsApp (`whatsapp:+1...`). Craig and Jessica currently use WhatsApp via Twilio sandbox/WhatsApp sender. Never print full phone numbers, tokens, passwords, or `.env` contents.
+Each `WATCH_USERS[*].phone` value is a channel-prefixed recipient handled by `notify.py`'s dispatcher:
+
+- `signal:+15551234567` → Signal via local signal-cli (current production path)
+- `signal:<account-uuid>` → Signal by account UUID, used when the recipient has Signal phone-number-discoverability disabled (Craig's case)
+- `whatsapp:+15551234567` → Twilio WhatsApp (legacy / fallback only — sandbox opt-in expires every 72h, do not rely on this)
+- `+15551234567` → Twilio SMS (legacy / fallback only)
+
+Operational alerts (session expired, recovery failed) route only to the admin via `_configured_owner_phones()`, not to all owners. Reservation alerts remain owner-scoped per-watch.
+
+Never print full phone numbers, tokens, passwords, or `.env` contents.
 
 Security note: an old slash-command example previously contained the live legacy `API_SECRET`. Treat that secret as exposed in git history and rotate it in Netlify, the VPS `.env`, and any local `.env` before relying on it for real access control. Prefer per-user `WATCH_USERS[*].password` over the legacy shared `API_SECRET`.
 
