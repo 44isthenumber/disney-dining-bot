@@ -27,22 +27,34 @@ def _goto_with_retries(
     page,
     url: str,
     *,
-    attempts: int = 3,
+    attempts: int = 4,
     wait_until: str = "domcontentloaded",
     timeout: int = 90_000,
 ) -> None:
-    """Disney occasionally fails with net::ERR_HTTP2_PROTOCOL_ERROR; retry quietly."""
+    """Disney's Akamai edge intermittently aborts HTTP/2 to /login.
+
+    Retry strategy:
+      - First attempt: caller-provided wait_until.
+      - Subsequent attempts: progressively looser (`load` then `commit`) so we
+        return as soon as the navigation request commits, even if Akamai later
+        kills the stream. Without this, ERR_HTTP2_PROTOCOL_ERROR is fatal.
+    """
+    fallback_waits = [wait_until, "load", "commit", "commit"]
     last_exc: Optional[BaseException] = None
     for attempt in range(1, attempts + 1):
+        wu = fallback_waits[min(attempt - 1, len(fallback_waits) - 1)]
         try:
-            page.goto(url, wait_until=wait_until, timeout=timeout)
+            page.goto(url, wait_until=wu, timeout=timeout)
             return
         except Exception as exc:
             last_exc = exc
             if attempt >= attempts:
                 raise
             delay_ms = 1500 * attempt
-            print(f"[seed] Navigation attempt {attempt}/{attempts} failed ({exc!r}); waiting {delay_ms}ms…")
+            print(
+                f"[seed] Navigation attempt {attempt}/{attempts} (wait_until={wu}) "
+                f"failed ({exc!r}); waiting {delay_ms}ms…"
+            )
             page.wait_for_timeout(delay_ms)
     if last_exc:
         raise last_exc
@@ -186,17 +198,42 @@ def main() -> None:
         context = p.chromium.launch_persistent_context(
             profile_dir,
             headless=headless,
-            args=["--no-sandbox"],
+            args=[
+                "--no-sandbox",
+                # Force HTTP/1.1 — Akamai intermittently aborts HTTP/2 streams
+                # to disneyworld.disney.go.com/login from the VPS, producing
+                # net::ERR_HTTP2_PROTOCOL_ERROR before any login UI renders.
+                "--disable-http2",
+            ],
         )
         page = context.pages[0] if context.pages else context.new_page()
 
-        # Navigate to login page with retries
-        _goto_with_retries(
-            page,
-            "https://disneyworld.disney.go.com/login",
-            wait_until="domcontentloaded",
-            timeout=90000,
-        )
+        # Land on the homepage first (more forgiving than /login under Akamai),
+        # then click through to the login page. This avoids hitting /login
+        # cold from a server IP, which 100%-fails over HTTP/2.
+        try:
+            _goto_with_retries(
+                page,
+                "https://disneyworld.disney.go.com/",
+                wait_until="domcontentloaded",
+                timeout=90000,
+            )
+            _dismiss_common_overlays(page)
+            _click_first_any_frame(page, [
+                "a[href*='login' i]",
+                "button:has-text('Sign In')",
+                "a:has-text('Sign In')",
+                "[data-testid*='sign-in' i]",
+            ])
+            page.wait_for_timeout(3000)
+        except Exception as exc:
+            print(f"[seed] Homepage approach failed ({exc!r}); falling back to /login direct.")
+            _goto_with_retries(
+                page,
+                "https://disneyworld.disney.go.com/login",
+                wait_until="commit",
+                timeout=90000,
+            )
         print("Disney login browser is open.")
         _dismiss_common_overlays(page)
 

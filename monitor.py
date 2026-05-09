@@ -190,7 +190,13 @@ def _token_state_from_saved_tokens() -> DisneyTokenState:
 
 
 def _bearer_from_token_state(state: DisneyTokenState) -> str:
-    """Return a BEARER token, refreshing and persisting when possible."""
+    """Return a BEARER token, refreshing and persisting when possible.
+
+    If refresh fails but the existing access token still has > MIN_USABLE_TOKEN_SECS
+    of life left, fall back to the unrefreshed token rather than killing the session.
+    Disney's refresh endpoint has been intermittently rejecting our calls; the
+    cookie itself is honored by the dining API for as long as the JWT is valid.
+    """
     if not state.access_token:
         return ""
 
@@ -200,13 +206,26 @@ def _bearer_from_token_state(state: DisneyTokenState) -> str:
 
     if state.refresh_token:
         print(f"[auth] Disney {state.source} token expires in {int(remaining)}s — refreshing.")
-        refreshed = auth._do_refresh({
-            "access_token": state.access_token,
-            "refresh_token": state.refresh_token,
-        })
-        auth.save_tokens(refreshed)
-        print("[auth] Disney token refreshed and saved.")
-        return f"BEARER {_strip_bearer(refreshed['access_token'])}"
+        try:
+            refreshed = auth._do_refresh({
+                "access_token": state.access_token,
+                "refresh_token": state.refresh_token,
+            })
+            auth.save_tokens(refreshed)
+            print("[auth] Disney token refreshed and saved.")
+            return f"BEARER {_strip_bearer(refreshed['access_token'])}"
+        except Exception as exc:
+            if remaining > auth.MIN_USABLE_TOKEN_SECS:
+                print(
+                    f"[auth] Refresh failed for {state.source} "
+                    f"({type(exc).__name__}: {exc}); "
+                    f"using unrefreshed access token ({int(remaining)}s left)."
+                )
+                return f"BEARER {state.access_token}"
+            raise
+
+    if remaining > auth.MIN_USABLE_TOKEN_SECS:
+        return f"BEARER {state.access_token}"
 
     return ""
 

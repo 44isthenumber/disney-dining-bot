@@ -23,7 +23,8 @@ CLIENT_ID = "TPR-WDW-LBJS.WEB-PROD"
 REFRESH_URL = (
     f"https://auth.registerdisney.go.com/v4/client/{CLIENT_ID}/guest/refreshAuth"
 )
-REFRESH_AHEAD_SECS = 3600  # refresh if less than 60 min remaining
+REFRESH_AHEAD_SECS = 600  # refresh only when access token has <10 min remaining
+MIN_USABLE_TOKEN_SECS = 60  # access token must have >60s left to be usable as a fallback
 
 
 # ── token persistence ──────────────────────────────────────────────────────
@@ -143,8 +144,13 @@ def _do_refresh(tokens: dict) -> dict:
         timeout=15,
     )
     if resp.status_code != 200:
+        body_preview = (resp.text or "")[:600]
+        print(
+            f"[auth] refresh non-200: HTTP {resp.status_code} from {REFRESH_URL}; "
+            f"body: {body_preview!r}"
+        )
         raise RuntimeError(
-            f"Token refresh failed: HTTP {resp.status_code}\n{resp.text[:400]}"
+            f"Token refresh failed: HTTP {resp.status_code}\n{body_preview}"
         )
     body = resp.json()
 
@@ -182,9 +188,18 @@ def get_valid_token() -> str:
 
     if remaining < REFRESH_AHEAD_SECS:
         print(f"[auth] Token expires in {int(remaining)}s — refreshing …")
-        tokens = _do_refresh(tokens)
-        save_tokens(tokens)
-        print("[auth] Token refreshed and saved.")
+        try:
+            tokens = _do_refresh(tokens)
+            save_tokens(tokens)
+            print("[auth] Token refreshed and saved.")
+        except Exception as exc:
+            if remaining > MIN_USABLE_TOKEN_SECS:
+                print(
+                    f"[auth] Token refresh failed ({type(exc).__name__}: {exc}); "
+                    f"continuing with existing access token ({int(remaining)}s remaining)."
+                )
+            else:
+                raise
 
     return tokens["access_token"]
 

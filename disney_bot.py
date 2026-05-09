@@ -28,6 +28,40 @@ load_dotenv()
 OPEN_SLOTS_FILE = "open_slots.json"
 
 
+RECOVERY_LOG_PATH = os.environ.get(
+    "DISNEY_RECOVERY_LOG_PATH",
+    "/var/log/disney-dining-bot/last-recovery.log",
+)
+
+
+def _write_recovery_log(stdout: str, stderr: str, returncode: int) -> None:
+    """Persist the full seed_disney_session.py output for post-mortem.
+
+    Falls back to project root if the configured path isn't writable (e.g.
+    local dev without /var/log access). Best-effort; never raises.
+    """
+    candidates = [RECOVERY_LOG_PATH]
+    fallback = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)) or ".", "last-recovery.log"
+    )
+    if fallback not in candidates:
+        candidates.append(fallback)
+    body = (
+        f"=== seed_disney_session.py recovery attempt @ {datetime.now(timezone.utc).isoformat()} ===\n"
+        f"exit_code: {returncode}\n"
+        f"--- stdout ---\n{stdout or ''}\n"
+        f"--- stderr ---\n{stderr or ''}\n"
+    )
+    for path in candidates:
+        try:
+            os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+            with open(path, "w") as fh:
+                fh.write(body)
+            return
+        except Exception:
+            continue
+
+
 def attempt_disney_session_recovery() -> bool:
     """Attempt to automatically re-seed the Disney session using dedicated bot credentials.
 
@@ -56,6 +90,8 @@ def attempt_disney_session_recovery() -> bool:
             timeout=180,
         )
 
+        _write_recovery_log(result.stdout, result.stderr, result.returncode)
+
         if result.returncode == 0:
             print("[recovery] Session recovery successful.")
             return True
@@ -64,6 +100,7 @@ def attempt_disney_session_recovery() -> bool:
             tail_err = (result.stderr or "")[-400:]
             print(
                 f"[recovery] Recovery failed (exit {result.returncode}). "
+                f"Full log: {RECOVERY_LOG_PATH}. "
                 f"stdout tail: {tail_out!r} stderr tail: {tail_err!r}"
             )
             return False
@@ -71,6 +108,18 @@ def attempt_disney_session_recovery() -> bool:
     except Exception as exc:
         print(f"[recovery] Recovery attempt crashed: {exc}")
         return False
+
+
+def _configured_owner_phones() -> list:
+    """Return distinct E.164/whatsapp phone numbers across all configured owners."""
+    phones = []
+    seen = set()
+    for user in watch_store.profiles(include_private=True).values():
+        phone = (user.get("phone") or "").strip()
+        if phone and phone not in seen:
+            seen.add(phone)
+            phones.append(phone)
+    return phones
 
 
 def send_session_expired_alert(owner_phones: list[str]) -> None:
@@ -281,9 +330,11 @@ def poll(config: Optional[dict] = None) -> None:
     auth_failed = any(error.get("category") == "disney_auth" for error in errors)
     login_agent_triggered = False
     if auth_failed:
-        # Cooldown: only attempt Login Agent once every 15 minutes
+        # Cooldown: at most once per ~9 minutes so the 10-minute systemd timer
+        # never has a guaranteed silent-failure cycle. Previous 15-min cooldown
+        # blocked half of all polls from even attempting recovery.
         last_attempt = state_at_start.get("last_login_agent_attempt_at")
-        cooldown_minutes = 15
+        cooldown_minutes = 9
         can_attempt = True
         if last_attempt:
             try:
@@ -317,6 +368,30 @@ def poll(config: Optional[dict] = None) -> None:
                 auth_failed = any(error.get("category") == "disney_auth" for error in errors)
             else:
                 print("[bot] Login Agent failed this cycle.")
+                # SMS owners that manual re-seed is required, rate-limited to
+                # once per 6 hours so a stuck session doesn't flood Twilio.
+                last_alert = state_at_start.get("last_session_manual_alert_at")
+                should_alert = True
+                if last_alert:
+                    try:
+                        parsed_alert = datetime.fromisoformat(last_alert.replace("Z", "+00:00"))
+                        if parsed_alert.tzinfo is None:
+                            parsed_alert = parsed_alert.replace(tzinfo=timezone.utc)
+                        if datetime.now(timezone.utc) - parsed_alert < timedelta(hours=6):
+                            should_alert = False
+                    except Exception:
+                        pass
+                if should_alert:
+                    phones = _configured_owner_phones()
+                    if phones:
+                        print(f"[bot] Sending session-expired alert to {len(phones)} owner(s).")
+                        try:
+                            send_session_expired_alert(phones)
+                            did_send_session_manual_alert = True
+                        except Exception as exc:
+                            print(f"[bot] Session-expired alert dispatch crashed: {exc}")
+                    else:
+                        print("[bot] Recovery failed but no owner phones are configured for alerting.")
         else:
             print("[bot] Skipping Login Agent due to cooldown.")
 
