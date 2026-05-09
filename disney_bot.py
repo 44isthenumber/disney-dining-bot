@@ -77,9 +77,14 @@ def attempt_disney_session_recovery() -> bool:
     print("[recovery] Attempting automatic Disney session recovery...")
 
     try:
-        # Run the seeder in headless mode with credentials
+        # Run the seeder *headed* under the xvfb display the systemd service
+        # already provides. Truly headless Chromium (--headless=new) is detected
+        # by Akamai on disneyworld.disney.go.com and aborted with
+        # ERR_HTTP2_PROTOCOL_ERROR before any page renders. The worker poll
+        # itself runs headed-under-xvfb (DISNEY_HEADLESS=false in .env) and
+        # navigates fine; matching that mode lets recovery succeed.
         env = os.environ.copy()
-        env["DISNEY_HEADLESS"] = "true"
+        env["DISNEY_HEADLESS"] = "false"
 
         result = subprocess.run(
             [sys.executable, "seed_disney_session.py"],
