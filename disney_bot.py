@@ -76,43 +76,65 @@ def attempt_disney_session_recovery() -> bool:
 
     print("[recovery] Attempting automatic Disney session recovery...")
 
-    try:
-        # Run the seeder *headed* under the xvfb display the systemd service
-        # already provides. Truly headless Chromium (--headless=new) is detected
-        # by Akamai on disneyworld.disney.go.com and aborted with
-        # ERR_HTTP2_PROTOCOL_ERROR before any page renders. The worker poll
-        # itself runs headed-under-xvfb (DISNEY_HEADLESS=false in .env) and
-        # navigates fine; matching that mode lets recovery succeed.
-        env = os.environ.copy()
-        env["DISNEY_HEADLESS"] = "false"
+    # Run the seeder *headed* under the xvfb display the systemd service
+    # already provides. Truly headless Chromium (--headless=new) is detected
+    # by Akamai on disneyworld.disney.go.com and aborted with
+    # ERR_HTTP2_PROTOCOL_ERROR before any page renders. The worker poll
+    # itself runs headed-under-xvfb (DISNEY_HEADLESS=false in .env) and
+    # navigates fine; matching that mode lets recovery succeed.
+    env = os.environ.copy()
+    env["DISNEY_HEADLESS"] = "false"
 
+    # The seeder may need to: launch Chromium (~10 s), navigate the homepage
+    # (up to 4 retries × 90 s = 360 s worst case under Akamai), do up to 3
+    # auto-credential login attempts (~30 s each), and validate the cookie
+    # (~10 s). Worst case is ~7 min; we cap at 6 to bound the systemd unit
+    # but accept a single retry on a future cycle if we hit the cap.
+    timeout_secs = 360
+
+    try:
         result = subprocess.run(
             [sys.executable, "seed_disney_session.py"],
             cwd=os.path.dirname(os.path.abspath(__file__)) or ".",
             env=env,
             capture_output=True,
             text=True,
-            timeout=180,
+            timeout=timeout_secs,
         )
-
-        _write_recovery_log(result.stdout, result.stderr, result.returncode)
-
-        if result.returncode == 0:
-            print("[recovery] Session recovery successful.")
-            return True
-        else:
-            tail_out = (result.stdout or "")[-400:]
-            tail_err = (result.stderr or "")[-400:]
-            print(
-                f"[recovery] Recovery failed (exit {result.returncode}). "
-                f"Full log: {RECOVERY_LOG_PATH}. "
-                f"stdout tail: {tail_out!r} stderr tail: {tail_err!r}"
-            )
-            return False
-
+        stdout, stderr, returncode = result.stdout, result.stderr, result.returncode
+        crashed_msg = ""
+    except subprocess.TimeoutExpired as exc:
+        # subprocess.run already killed the child by the time TimeoutExpired
+        # is raised, but exc.stdout / exc.stderr hold what was captured before
+        # the kill. Without this, the recovery log is empty and we have no
+        # idea why the seeder didn't finish.
+        stdout = (exc.stdout or b"").decode("utf-8", errors="replace") if isinstance(exc.stdout, bytes) else (exc.stdout or "")
+        stderr = (exc.stderr or b"").decode("utf-8", errors="replace") if isinstance(exc.stderr, bytes) else (exc.stderr or "")
+        returncode = -1
+        crashed_msg = f"timed out after {timeout_secs}s"
     except Exception as exc:
-        print(f"[recovery] Recovery attempt crashed: {exc}")
+        stdout, stderr, returncode = "", "", -1
+        crashed_msg = f"crashed: {type(exc).__name__}: {exc}"
+
+    _write_recovery_log(stdout, stderr, returncode)
+
+    if crashed_msg:
+        tail = (stdout or "")[-400:]
+        print(f"[recovery] Recovery {crashed_msg}. Full log: {RECOVERY_LOG_PATH}. stdout tail: {tail!r}")
         return False
+
+    if returncode == 0:
+        print("[recovery] Session recovery successful.")
+        return True
+
+    tail_out = (stdout or "")[-400:]
+    tail_err = (stderr or "")[-400:]
+    print(
+        f"[recovery] Recovery failed (exit {returncode}). "
+        f"Full log: {RECOVERY_LOG_PATH}. "
+        f"stdout tail: {tail_out!r} stderr tail: {tail_err!r}"
+    )
+    return False
 
 
 def _configured_owner_phones() -> list:
