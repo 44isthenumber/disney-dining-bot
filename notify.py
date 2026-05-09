@@ -1,9 +1,21 @@
-"""Twilio SMS notifications for Disney dining availability alerts."""
+"""Multi-channel notifications for Disney dining alerts.
+
+Recipient routing (prefix-based, applied per-recipient):
+
+- ``signal:+15551234567`` -> Signal via local signal-cli (preferred for personal use)
+- ``whatsapp:+15551234567`` -> Twilio Programmable Messaging WhatsApp channel
+- ``+15551234567`` (or any non-prefixed string starting with ``+``) -> Twilio SMS
+
+The same dispatcher serves both reservation alerts (send_sms) and operational
+alerts (send_operational_sms) so a Signal-only owner gets every alert via
+Signal regardless of which code path triggered it.
+"""
 
 import os
+import subprocess
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import List
+from typing import List, Optional, Tuple
 from urllib.parse import urlencode
 
 from dotenv import load_dotenv
@@ -15,6 +27,8 @@ load_dotenv()
 
 BOOK_BASE = "https://disneyworld.disney.go.com/dine-res/book/table-service/details"
 MAX_MESSAGE_LENGTH = 1500
+SIGNAL_CLI_PATH = os.environ.get("SIGNAL_CLI_PATH", "/usr/local/bin/signal-cli")
+SIGNAL_SEND_TIMEOUT = 60  # seconds; signal-cli send is usually <5s but pad for slow networks
 
 
 @dataclass
@@ -52,24 +66,112 @@ def _format_message(slots: List[Slot]) -> str:
 A2P_FOOTER = "\n\nReply STOP to opt out. Reply HELP for help."
 
 
-def send_operational_sms(to_numbers: List[str], body: str) -> List[str]:
-    """Send a one-off operational message to explicit numbers (session alerts, etc.).
+# ── channel routing ────────────────────────────────────────────────────────
 
-    Appends the A2P compliance footer when the body does not already include STOP/HELP.
+def _classify(recipient: str) -> Tuple[str, str]:
+    """Return (channel, normalized_recipient) for a configured recipient string.
+
+    channel is one of: "signal", "whatsapp", "sms".
+    normalized_recipient is always a plain E.164 number with the "+" prefix,
+    stripped of any channel prefix.
+    """
+    r = (recipient or "").strip()
+    if r.lower().startswith("signal:"):
+        return "signal", r[len("signal:"):].strip()
+    if r.lower().startswith("whatsapp:"):
+        return "whatsapp", r[len("whatsapp:"):].strip()
+    return "sms", r
+
+
+def _send_via_signal(to_number: str, body: str) -> Optional[str]:
+    """Send a Signal message via local signal-cli. Returns None on success, error string on failure."""
+    bot_number = os.environ.get("SIGNAL_BOT_NUMBER", "").strip()
+    if not bot_number:
+        return "SIGNAL_BOT_NUMBER not set in .env"
+    if not os.path.exists(SIGNAL_CLI_PATH):
+        return f"signal-cli not found at {SIGNAL_CLI_PATH}"
+    try:
+        result = subprocess.run(
+            [SIGNAL_CLI_PATH, "-a", bot_number, "send", "-m", body, to_number],
+            capture_output=True,
+            text=True,
+            timeout=SIGNAL_SEND_TIMEOUT,
+        )
+    except subprocess.TimeoutExpired:
+        return f"signal-cli timed out after {SIGNAL_SEND_TIMEOUT}s sending to {to_number}"
+    except Exception as exc:
+        return f"signal-cli crashed sending to {to_number}: {type(exc).__name__}: {exc}"
+
+    if result.returncode != 0:
+        err_tail = (result.stderr or result.stdout or "").strip()[-300:]
+        return f"signal-cli exit {result.returncode} sending to {to_number}: {err_tail}"
+
+    timestamp = (result.stdout or "").strip().splitlines()[-1] if result.stdout else ""
+    print(f"[notify] Signal message delivered to {to_number}. {timestamp}")
+    return None
+
+
+_twilio_client: Optional[Client] = None
+
+
+def _twilio() -> Optional[Client]:
+    global _twilio_client
+    if _twilio_client is not None:
+        return _twilio_client
+    sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
+    tok = os.environ.get("TWILIO_AUTH_TOKEN", "")
+    if not sid or not tok:
+        return None
+    _twilio_client = Client(sid, tok)
+    return _twilio_client
+
+
+def _send_via_twilio(to_recipient_with_prefix: str, body: str) -> Optional[str]:
+    """Send via Twilio. to_recipient_with_prefix retains the channel prefix Twilio expects.
+
+    The from_number is read from TWILIO_FROM and must match the channel
+    (whatsapp:+... for WhatsApp, +... for SMS).
+    """
+    from_number = os.environ.get("TWILIO_FROM", "")
+    if not from_number:
+        return "TWILIO_FROM not set"
+    client = _twilio()
+    if client is None:
+        return "Twilio credentials not set"
+    try:
+        msg = client.messages.create(body=body, from_=from_number, to=to_recipient_with_prefix)
+        print(f"[notify] Twilio message accepted for {to_recipient_with_prefix}. SID: {msg.sid}")
+        return None
+    except Exception as exc:
+        return f"Twilio send failed for {to_recipient_with_prefix}: {exc}"
+
+
+def _dispatch(recipient: str, body: str) -> Optional[str]:
+    """Send body to recipient via the appropriate channel. Returns None on success, error string on failure."""
+    channel, normalized = _classify(recipient)
+    if not normalized:
+        return f"empty recipient: {recipient!r}"
+
+    if channel == "signal":
+        return _send_via_signal(normalized, body)
+
+    # Twilio expects "whatsapp:+..." or just "+..." — pass the original prefixed string
+    twilio_recipient = recipient if channel == "whatsapp" else normalized
+    return _send_via_twilio(twilio_recipient, body)
+
+
+# ── public entry points ────────────────────────────────────────────────────
+
+def send_operational_sms(to_numbers: List[str], body: str) -> List[str]:
+    """Send a one-off operational message to explicit recipients (session alerts, etc.).
+
+    Appends the A2P compliance footer when the body does not already include
+    STOP/HELP. Routes per-recipient via the channel implied by their prefix.
     Returns a list of human-readable errors for sends that failed.
     """
     deduped = list(dict.fromkeys(p.strip() for p in to_numbers if p and p.strip()))
     if not deduped:
         return []
-
-    account_sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
-    auth_token = os.environ.get("TWILIO_AUTH_TOKEN", "")
-    from_number = os.environ.get("TWILIO_FROM", "")
-
-    if not all([account_sid, auth_token, from_number]):
-        err = "Twilio credentials not set — cannot send operational SMS"
-        print(f"[notify] {err}")
-        return [err]
 
     full_body = body.rstrip()
     if "Reply STOP" not in full_body:
@@ -77,14 +179,10 @@ def send_operational_sms(to_numbers: List[str], body: str) -> List[str]:
     if len(full_body) > MAX_MESSAGE_LENGTH:
         full_body = full_body[: MAX_MESSAGE_LENGTH - 3] + "..."
 
-    client = Client(account_sid, auth_token)
     errors: List[str] = []
-    for to_number in deduped:
-        try:
-            msg = client.messages.create(body=full_body, from_=from_number, to=to_number)
-            print(f"[notify] Operational SMS sent to {to_number}. SID: {msg.sid}")
-        except Exception as exc:
-            err = f"Operational SMS failed for {to_number}: {exc}"
+    for recipient in deduped:
+        err = _dispatch(recipient, full_body)
+        if err:
             errors.append(err)
             print(f"[notify] {err}")
     return errors
@@ -94,17 +192,6 @@ def send_sms(slots: List[Slot]) -> SendResult:
     if not slots:
         return SendResult([], [])
 
-    account_sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
-    auth_token = os.environ.get("TWILIO_AUTH_TOKEN", "")
-    from_number = os.environ.get("TWILIO_FROM", "")
-
-    if not all([account_sid, auth_token, from_number]):
-        error = "Twilio credentials not set"
-        print(f"[notify] {error} — printing alert instead:")
-        print(_format_message(slots))
-        return SendResult([], [error])
-
-    client = Client(account_sid, auth_token)
     by_recipient = defaultdict(list)
     fallback_to = os.environ.get("TWILIO_TO", "")
     for slot in slots:
@@ -120,17 +207,15 @@ def send_sms(slots: List[Slot]) -> SendResult:
 
     sent_slots: List[Slot] = []
     errors: List[str] = []
-    for to_number, recipient_slots in by_recipient.items():
+    for recipient, recipient_slots in by_recipient.items():
         body = _format_message(recipient_slots)
         if len(body) > MAX_MESSAGE_LENGTH:
             body = body[: MAX_MESSAGE_LENGTH - 3] + "..."
-            print(f"[notify] Alert for {to_number} truncated to {MAX_MESSAGE_LENGTH} characters.")
-        try:
-            message = client.messages.create(body=body, from_=from_number, to=to_number)
-            print(f"[notify] SMS sent to {to_number} ({len(recipient_slots)} slot(s)). SID: {message.sid}")
+            print(f"[notify] Alert for {recipient} truncated to {MAX_MESSAGE_LENGTH} characters.")
+        err = _dispatch(recipient, body)
+        if err:
+            errors.append(err)
+            print(f"[notify] {err}")
+        else:
             sent_slots.extend(recipient_slots)
-        except Exception as exc:
-            error = f"SMS failed for {to_number}: {exc}"
-            errors.append(error)
-            print(f"[notify] {error}")
     return SendResult(sent_slots, errors)
