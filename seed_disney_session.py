@@ -198,36 +198,40 @@ def main() -> None:
         context = p.chromium.launch_persistent_context(
             profile_dir,
             headless=headless,
-            args=[
-                "--no-sandbox",
-                # Force HTTP/1.1 — Akamai intermittently aborts HTTP/2 streams
-                # to disneyworld.disney.go.com/login from the VPS, producing
-                # net::ERR_HTTP2_PROTOCOL_ERROR before any login UI renders.
-                "--disable-http2",
-            ],
+            args=["--no-sandbox"],
         )
         page = context.pages[0] if context.pages else context.new_page()
 
-        # Land on the homepage first (more forgiving than /login under Akamai),
-        # then click through to the login page. This avoids hitting /login
-        # cold from a server IP, which 100%-fails over HTTP/2.
+        # Approach the login flow via a restaurant page first. The worker's
+        # check_slots_via_playwright reliably loads /dine-res/restaurant/{slug}
+        # from this VPS, but /login direct fails under headless with
+        # ERR_HTTP2_PROTOCOL_ERROR (Akamai bot signal). Click Sign In from a
+        # working page so we ride the same TLS/h2 session that already works.
+        warmup_url = (
+            "https://disneyworld.disney.go.com/dine-res/restaurant/space-220-lounge/"
+        )
+        login_navigated = False
         try:
             _goto_with_retries(
                 page,
-                "https://disneyworld.disney.go.com/",
+                warmup_url,
                 wait_until="domcontentloaded",
                 timeout=90000,
             )
             _dismiss_common_overlays(page)
-            _click_first_any_frame(page, [
+            if _click_first_any_frame(page, [
                 "a[href*='login' i]",
                 "button:has-text('Sign In')",
                 "a:has-text('Sign In')",
                 "[data-testid*='sign-in' i]",
-            ])
-            page.wait_for_timeout(3000)
+            ]):
+                page.wait_for_timeout(4000)
+                login_navigated = True
+                print("[seed] Reached login flow via restaurant page Sign In click.")
         except Exception as exc:
-            print(f"[seed] Homepage approach failed ({exc!r}); falling back to /login direct.")
+            print(f"[seed] Warmup navigation failed ({exc!r}); will try /login direct.")
+
+        if not login_navigated:
             _goto_with_retries(
                 page,
                 "https://disneyworld.disney.go.com/login",
