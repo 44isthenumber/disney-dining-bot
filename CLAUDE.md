@@ -122,9 +122,10 @@ GITHUB_TOKEN — PAT for Gist read/write
 GITHUB_GIST_ID — 7e8d8f873715971f8989a25a2f22c089
 TWILIO_* — SMS/WhatsApp credentials
 DISNEY_BROWSER_PROFILE_DIR — persistent Playwright profile path
-DISNEY_HEADLESS — true for normal worker, false for manual login seeding
+DISNEY_HEADLESS — MUST be "false" on the VPS. Akamai detects truly-headless Chromium on disneyworld.disney.go.com and aborts with ERR_HTTP2_PROTOCOL_ERROR. Run headed under xvfb-run instead.
 DISNEY_LOGIN_EMAIL — dedicated Disney bot account email (VPS only)
 DISNEY_LOGIN_PASSWORD — dedicated Disney bot account password (VPS only)
+DISNEY_RECOVERY_LOG_PATH — optional override for the full Login Agent log (default /var/log/disney-dining-bot/last-recovery.log)
 ```
 
 Phone numbers may be configured as standard E.164 SMS (`+1...`) or WhatsApp (`whatsapp:+1...`). Craig and Jessica currently use WhatsApp via Twilio sandbox/WhatsApp sender. Never print full phone numbers, tokens, passwords, or `.env` contents.
@@ -199,6 +200,14 @@ Never force-push `main`. Never reset or delete Gist state unless explicitly requ
 
 ## Known Issues / Gotchas
 
+For end-to-end diagnostic patterns, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md). Highlights:
+
+- **Disney's refresh endpoint is dead.** `auth.registerdisney.go.com/v4/.../refreshAuth` currently returns Akamai 403 ("distribution supports only cachable requests"). The bot logs the response body verbatim but no longer treats refresh failure as fatal — `monitor.py:_bearer_from_token_state` and `auth.py:get_valid_token` fall back to the unrefreshed access token whenever it still has > 60 s of life. Disney's web layer renews the cookie on its own as soon as Playwright navigates to a Disney page, which is what keeps the bot alive.
+- **`DISNEY_HEADLESS=false` is mandatory.** Truly-headless Chromium (`--headless=new`) is detected by Akamai and aborted with `ERR_HTTP2_PROTOCOL_ERROR` before any page renders. Run headed under `xvfb-run -a` (the systemd service does this). The Login Agent recovery subprocess in `disney_bot.py` explicitly forces this — do not "fix" it back to true.
+- **Login Agent cooldown vs. timer.** Cooldown is 9 minutes, timer fires every 10 minutes, so every poll *can* attempt recovery if needed. Don't raise the cooldown above the timer interval — that reintroduces a guaranteed silent-failure window.
+- **Recovery log.** The most recent automated recovery attempt's full stdout/stderr lives at `/var/log/disney-dining-bot/last-recovery.log` (configurable via `DISNEY_RECOVERY_LOG_PATH`).
+- **SMS alert on recovery failure** is rate-limited to once per 6 hours via `bot_state.json:last_session_manual_alert_at`. Clear that field if you need a fresh test alert.
+- **Stale `SingletonLock` in `.browser-profile/`** can crash a manually-launched seeder with an immediate Node `EPIPE` traceback. Remove `.browser-profile/SingletonLock`, `SingletonCookie`, `SingletonSocket` and retry.
 - **Disney session expired:** push credentials from macOS via `pbpaste | python3 scripts/sync_disney_login_to_vps.py --password-stdin --run-seed-and-poll`. If manual MFA/CAPTCHA completion is required, omit `--run-seed-and-poll` and SSH in with a TTY to run `DISNEY_HEADLESS=false xvfb-run -a python3 seed_disney_session.py` so you can interact with the browser.
 - **Dedicated Disney bot login:** `DISNEY_LOGIN_EMAIL` and `DISNEY_LOGIN_PASSWORD` live only in the VPS `.env`. `seed_disney_session.py` attempts automated login and verifies the Disney auth cookie via `_fill_first_any_frame`.
 - **428 errors:** re-seed the VPS browser session and verify `DISNEY_BROWSER_PROFILE_DIR` persists across worker runs.

@@ -32,8 +32,12 @@ TWILIO_ACCOUNT_SID=...
 TWILIO_AUTH_TOKEN=...
 TWILIO_FROM=whatsapp:+1...      # or +1... for regular SMS
 DISNEY_BROWSER_PROFILE_DIR=/opt/disney-dining-bot/.browser-profile
-DISNEY_HEADLESS=true
+DISNEY_HEADLESS=false
+DISNEY_LOGIN_EMAIL=...           # dedicated bot Disney account
+DISNEY_LOGIN_PASSWORD=...        # dedicated bot Disney account
 ```
+
+> **Important:** `DISNEY_HEADLESS` must be `false`. Disney's Akamai aborts truly-headless Chromium (`--headless=new`) with `ERR_HTTP2_PROTOCOL_ERROR`. The systemd service runs the worker under `xvfb-run -a`, giving Chromium a virtual display, so "headed" Chromium runs fine without a real GUI. The recovery subprocess explicitly mirrors this. Do not flip this back to `true`.
 
 Netlify needs the same `WATCH_USERS`, `GITHUB_GIST_ID`, `GITHUB_TOKEN`, and legacy `API_SECRET` fallback if you keep it.
 If WATCH_USERS is not set in Netlify, it will use FALLBACK_USERS (default: craig and Jessica profiles without phones) for public profile exposure.
@@ -69,6 +73,8 @@ python3 scripts/smoke_test_api.py --user-id Jessica
 ```
 
 If `session_status` is `needs_attention`, run `seed_disney_session.py` again.
+
+For full diagnostic patterns (what each error message means and how to fix it), see [TROUBLESHOOTING.md](TROUBLESHOOTING.md). When the bot can't auto-recover, owners receive an SMS within ~10 minutes telling them a manual re-seed is needed; the most recent automated recovery attempt is captured in full at `/var/log/disney-dining-bot/last-recovery.log`.
 
 ## 6. Dedicated Disney Login
 
