@@ -52,6 +52,22 @@ def _format_message(slots: List[Slot]) -> str:
 A2P_FOOTER = "\n\nReply STOP to opt out. Reply HELP for help."
 
 
+def _twilio_sender_kwargs() -> tuple[dict, str]:
+    """Return Twilio create() kwargs for the sender plus a human-readable error.
+
+    Prefers TWILIO_MESSAGING_SERVICE_SID (required for A2P 10DLC SMS routing
+    through a registered campaign). Falls back to TWILIO_FROM for direct sends
+    (WhatsApp sandbox, dev/testing). Returns ({}, error) on misconfiguration.
+    """
+    messaging_service_sid = os.environ.get("TWILIO_MESSAGING_SERVICE_SID", "").strip()
+    if messaging_service_sid:
+        return {"messaging_service_sid": messaging_service_sid}, ""
+    from_number = os.environ.get("TWILIO_FROM", "").strip()
+    if from_number:
+        return {"from_": from_number}, ""
+    return {}, "Neither TWILIO_MESSAGING_SERVICE_SID nor TWILIO_FROM is set"
+
+
 def send_operational_sms(to_numbers: List[str], body: str) -> List[str]:
     """Send a one-off operational message to explicit numbers (session alerts, etc.).
 
@@ -64,10 +80,10 @@ def send_operational_sms(to_numbers: List[str], body: str) -> List[str]:
 
     account_sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
     auth_token = os.environ.get("TWILIO_AUTH_TOKEN", "")
-    from_number = os.environ.get("TWILIO_FROM", "")
+    sender_kwargs, sender_err = _twilio_sender_kwargs()
 
-    if not all([account_sid, auth_token, from_number]):
-        err = "Twilio credentials not set — cannot send operational SMS"
+    if not all([account_sid, auth_token]) or sender_err:
+        err = f"Twilio credentials not set — cannot send operational SMS ({sender_err})" if sender_err else "Twilio credentials not set — cannot send operational SMS"
         print(f"[notify] {err}")
         return [err]
 
@@ -81,7 +97,7 @@ def send_operational_sms(to_numbers: List[str], body: str) -> List[str]:
     errors: List[str] = []
     for to_number in deduped:
         try:
-            msg = client.messages.create(body=full_body, from_=from_number, to=to_number)
+            msg = client.messages.create(body=full_body, to=to_number, **sender_kwargs)
             print(f"[notify] Operational SMS sent to {to_number}. SID: {msg.sid}")
         except Exception as exc:
             err = f"Operational SMS failed for {to_number}: {exc}"
@@ -96,10 +112,10 @@ def send_sms(slots: List[Slot]) -> SendResult:
 
     account_sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
     auth_token = os.environ.get("TWILIO_AUTH_TOKEN", "")
-    from_number = os.environ.get("TWILIO_FROM", "")
+    sender_kwargs, sender_err = _twilio_sender_kwargs()
 
-    if not all([account_sid, auth_token, from_number]):
-        error = "Twilio credentials not set"
+    if not all([account_sid, auth_token]) or sender_err:
+        error = f"Twilio credentials not set ({sender_err})" if sender_err else "Twilio credentials not set"
         print(f"[notify] {error} — printing alert instead:")
         print(_format_message(slots))
         return SendResult([], [error])
@@ -126,7 +142,7 @@ def send_sms(slots: List[Slot]) -> SendResult:
             body = body[: MAX_MESSAGE_LENGTH - 3] + "..."
             print(f"[notify] Alert for {to_number} truncated to {MAX_MESSAGE_LENGTH} characters.")
         try:
-            message = client.messages.create(body=body, from_=from_number, to=to_number)
+            message = client.messages.create(body=body, to=to_number, **sender_kwargs)
             print(f"[notify] SMS sent to {to_number} ({len(recipient_slots)} slot(s)). SID: {message.sid}")
             sent_slots.extend(recipient_slots)
         except Exception as exc:

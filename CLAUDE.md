@@ -120,14 +120,18 @@ WATCH_USERS — JSON mapping user IDs to {name,password,phone}
 API_SECRET — legacy shared login fallback
 GITHUB_TOKEN — PAT for Gist read/write
 GITHUB_GIST_ID — 7e8d8f873715971f8989a25a2f22c089
-TWILIO_* — SMS/WhatsApp credentials
+TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN — Twilio API credentials
+TWILIO_MESSAGING_SERVICE_SID — A2P 10DLC-registered Messaging Service (primary sender)
+TWILIO_FROM — fallback sender (WhatsApp sandbox / dev only)
 DISNEY_BROWSER_PROFILE_DIR — persistent Playwright profile path
 DISNEY_HEADLESS — true for normal worker, false for manual login seeding
 DISNEY_LOGIN_EMAIL — dedicated Disney bot account email (VPS only)
 DISNEY_LOGIN_PASSWORD — dedicated Disney bot account password (VPS only)
 ```
 
-Phone numbers may be configured as standard E.164 SMS (`+1...`) or WhatsApp (`whatsapp:+1...`). Craig and Jessica currently use WhatsApp via Twilio sandbox/WhatsApp sender. Never print full phone numbers, tokens, passwords, or `.env` contents.
+Phone numbers may be configured as standard E.164 SMS (`+1...`) or WhatsApp (`whatsapp:+1...`). Real SMS via the A2P 10DLC-registered Messaging Service (`TWILIO_MESSAGING_SERVICE_SID`) is the primary alert mechanism — required for US carrier delivery (unregistered traffic is rejected as error 30034). WhatsApp (Twilio sandbox) remains supported as a dev/fallback channel; to use it, set `TWILIO_FROM=whatsapp:+1...` and leave `TWILIO_MESSAGING_SERVICE_SID` unset. Never print full phone numbers, tokens, passwords, or `.env` contents.
+
+When `TWILIO_MESSAGING_SERVICE_SID` is set, `notify.py` sends via `messaging_service_sid=` and Twilio picks the registered sender from the pool — do not pass `from_`. When unset, it falls back to `from_=TWILIO_FROM`.
 
 Security note: an old slash-command example previously contained the live legacy `API_SECRET`. Treat that secret as exposed in git history and rotate it in Netlify, the VPS `.env`, and any local `.env` before relying on it for real access control. Prefer per-user `WATCH_USERS[*].password` over the legacy shared `API_SECRET`.
 
