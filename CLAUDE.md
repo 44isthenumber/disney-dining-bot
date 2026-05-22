@@ -120,9 +120,11 @@ WATCH_USERS — JSON mapping user IDs to {name,password,phone}
 API_SECRET — legacy shared login fallback
 GITHUB_TOKEN — PAT for Gist read/write
 GITHUB_GIST_ID — 7e8d8f873715971f8989a25a2f22c089
-SIGNAL_BOT_NUMBER — phone number the bot's signal-cli account sends FROM (currently +19852359090, a Google Voice number registered with Signal as "Magic Table Finder")
+TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN — Twilio API credentials
+TWILIO_MESSAGING_SERVICE_SID — A2P 10DLC-registered Messaging Service (primary path for `+1...` SMS recipients). Twilio picks the registered sender from the pool; do not also set TWILIO_FROM for SMS.
+TWILIO_FROM — fallback sender. For WhatsApp recipients set to `whatsapp:+1...` (sandbox). For SMS, only used when TWILIO_MESSAGING_SERVICE_SID is unset (dev only — unregistered traffic is rejected by US carriers).
+SIGNAL_BOT_NUMBER — phone number the bot's signal-cli account sends FROM (alternative channel; recipients prefixed `signal:`)
 SIGNAL_CLI_PATH — optional override for signal-cli binary (default /usr/local/bin/signal-cli)
-TWILIO_* — legacy / fallback only; see notify.py channel routing
 DISNEY_BROWSER_PROFILE_DIR — persistent Playwright profile path
 DISNEY_HEADLESS — MUST be "false" on the VPS. Akamai detects truly-headless Chromium on disneyworld.disney.go.com and aborts with ERR_HTTP2_PROTOCOL_ERROR. Run headed under xvfb-run instead.
 DISNEY_LOGIN_EMAIL — dedicated Disney bot account email (VPS only)
@@ -133,10 +135,10 @@ DISNEY_ALERT_ADMIN — optional WATCH_USERS user_id to receive operational alert
 
 Each `WATCH_USERS[*].phone` value is a channel-prefixed recipient handled by `notify.py`'s dispatcher:
 
-- `signal:+15551234567` → Signal via local signal-cli (current production path)
-- `signal:<account-uuid>` → Signal by account UUID, used when the recipient has Signal phone-number-discoverability disabled (Craig's case)
-- `whatsapp:+15551234567` → Twilio WhatsApp (legacy / fallback only — sandbox opt-in expires every 72h, do not rely on this)
-- `+15551234567` → Twilio SMS (legacy / fallback only)
+- `+15551234567` → Twilio SMS via the A2P 10DLC Messaging Service (current production path). Requires `TWILIO_MESSAGING_SERVICE_SID` to be set so US carriers accept the traffic.
+- `signal:+15551234567` → Signal via local signal-cli (alternative channel; still supported)
+- `signal:<account-uuid>` → Signal by account UUID, used when the recipient has Signal phone-number-discoverability disabled
+- `whatsapp:+15551234567` → Twilio WhatsApp sandbox (dev / fallback only — sandbox opt-in expires every 72h, do not rely on this)
 
 Operational alerts (session expired, recovery failed) route only to the admin via `_configured_owner_phones()`, not to all owners. Reservation alerts remain owner-scoped per-watch.
 

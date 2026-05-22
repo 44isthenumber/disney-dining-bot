@@ -125,20 +125,38 @@ def _twilio() -> Optional[Client]:
     return _twilio_client
 
 
-def _send_via_twilio(to_recipient_with_prefix: str, body: str) -> Optional[str]:
-    """Send via Twilio. to_recipient_with_prefix retains the channel prefix Twilio expects.
+def _send_via_twilio(to_recipient_with_prefix: str, body: str, channel: str) -> Optional[str]:
+    """Send via Twilio. to_recipient_with_prefix retains any channel prefix Twilio expects.
 
-    The from_number is read from TWILIO_FROM and must match the channel
-    (whatsapp:+... for WhatsApp, +... for SMS).
+    For SMS, prefer TWILIO_MESSAGING_SERVICE_SID (required for US A2P 10DLC
+    delivery via the registered campaign — Twilio picks the registered sender
+    from the pool and we must NOT pass from_). Fall back to TWILIO_FROM.
+
+    For WhatsApp, Messaging Service routing does not apply to the sandbox
+    sender, so always use from_=TWILIO_FROM (which must be "whatsapp:+...").
     """
-    from_number = os.environ.get("TWILIO_FROM", "")
-    if not from_number:
-        return "TWILIO_FROM not set"
     client = _twilio()
     if client is None:
         return "Twilio credentials not set"
+
+    create_kwargs = {"body": body, "to": to_recipient_with_prefix}
+    if channel == "sms":
+        messaging_service_sid = os.environ.get("TWILIO_MESSAGING_SERVICE_SID", "").strip()
+        if messaging_service_sid:
+            create_kwargs["messaging_service_sid"] = messaging_service_sid
+        else:
+            from_number = os.environ.get("TWILIO_FROM", "").strip()
+            if not from_number:
+                return "Neither TWILIO_MESSAGING_SERVICE_SID nor TWILIO_FROM is set"
+            create_kwargs["from_"] = from_number
+    else:
+        from_number = os.environ.get("TWILIO_FROM", "").strip()
+        if not from_number:
+            return "TWILIO_FROM not set"
+        create_kwargs["from_"] = from_number
+
     try:
-        msg = client.messages.create(body=body, from_=from_number, to=to_recipient_with_prefix)
+        msg = client.messages.create(**create_kwargs)
         print(f"[notify] Twilio message accepted for {to_recipient_with_prefix}. SID: {msg.sid}")
         return None
     except Exception as exc:
@@ -156,7 +174,7 @@ def _dispatch(recipient: str, body: str) -> Optional[str]:
 
     # Twilio expects "whatsapp:+..." or just "+..." — pass the original prefixed string
     twilio_recipient = recipient if channel == "whatsapp" else normalized
-    return _send_via_twilio(twilio_recipient, body)
+    return _send_via_twilio(twilio_recipient, body, channel)
 
 
 # ── public entry points ────────────────────────────────────────────────────
