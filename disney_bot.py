@@ -27,6 +27,13 @@ load_dotenv()
 
 OPEN_SLOTS_FILE = "open_slots.json"
 
+# Page the operator only after this many consecutive auth-failed polls (~30 min
+# at the 10-minute timer cadence) so a transient Akamai/refresh blip that
+# self-heals on the next poll never raises a false alarm.
+AUTH_ALERT_THRESHOLD = 3
+# Within a single sustained outage, re-page at most once per this many hours.
+AUTH_ALERT_COOLDOWN_HOURS = 6
+
 
 RECOVERY_LOG_PATH = os.environ.get(
     "DISNEY_RECOVERY_LOG_PATH",
@@ -174,6 +181,51 @@ def send_session_expired_alert(owner_phones: list[str]) -> None:
     for err in errors:
         print(f"[notify] {err}")
 
+
+
+def _next_consecutive_auth_failures(previous, auth_failed: bool) -> int:
+    """Count consecutive auth-failed polls; any auth-clean poll resets to 0."""
+    if not auth_failed:
+        return 0
+    try:
+        prev = int(previous)
+    except (TypeError, ValueError):
+        prev = 0
+    return max(prev, 0) + 1
+
+
+def _should_send_session_alert(
+    consecutive_failures: int,
+    last_alert_at: Optional[str],
+    now: datetime,
+    threshold: int = AUTH_ALERT_THRESHOLD,
+    cooldown_hours: int = AUTH_ALERT_COOLDOWN_HOURS,
+) -> bool:
+    """Whether to page the operator that a manual re-seed is required.
+
+    Gated on two independent conditions:
+      1. Grace window — at least `threshold` consecutive auth-failed polls, so a
+         transient blip that self-heals on the next poll stays silent.
+      2. Re-alert cooldown — no prior alert within `cooldown_hours`, so a single
+         sustained outage pages at most once per window.
+
+    A clean poll resets the counter (see _next_consecutive_auth_failures) and the
+    caller clears `last_alert_at`, which re-arms alerting for a genuinely new
+    outage even if it falls inside the previous outage's cooldown window.
+    """
+    if consecutive_failures < threshold:
+        return False
+    if last_alert_at:
+        try:
+            parsed = datetime.fromisoformat(str(last_alert_at).replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            now_aware = now if now.tzinfo else now.replace(tzinfo=timezone.utc)
+            if now_aware - parsed < timedelta(hours=cooldown_hours):
+                return False
+        except Exception:
+            pass
+    return True
 
 
 def load_config() -> dict:
@@ -402,32 +454,41 @@ def poll(config: Optional[dict] = None) -> None:
                 auth_failed = any(error.get("category") == "disney_auth" for error in errors)
             else:
                 print("[bot] Login Agent failed this cycle.")
-                # SMS owners that manual re-seed is required, rate-limited to
-                # once per 6 hours so a stuck session doesn't flood Twilio.
-                last_alert = state_at_start.get("last_session_manual_alert_at")
-                should_alert = True
-                if last_alert:
-                    try:
-                        parsed_alert = datetime.fromisoformat(last_alert.replace("Z", "+00:00"))
-                        if parsed_alert.tzinfo is None:
-                            parsed_alert = parsed_alert.replace(tzinfo=timezone.utc)
-                        if datetime.now(timezone.utc) - parsed_alert < timedelta(hours=6):
-                            should_alert = False
-                    except Exception:
-                        pass
-                if should_alert:
-                    phones = _configured_owner_phones()
-                    if phones:
-                        print(f"[bot] Sending session-expired alert to {len(phones)} owner(s).")
-                        try:
-                            send_session_expired_alert(phones)
-                            did_send_session_manual_alert = True
-                        except Exception as exc:
-                            print(f"[bot] Session-expired alert dispatch crashed: {exc}")
-                    else:
-                        print("[bot] Recovery failed but no owner phones are configured for alerting.")
         else:
             print("[bot] Skipping Login Agent due to cooldown.")
+
+    # === Session-failure alerting (grace window + re-alert cooldown) ===
+    # Driven by the consecutive-failure counter, NOT by recovery's pass/fail, so
+    # a single transient auth blip that self-heals next poll never pages. The
+    # counter is computed from the *final* auth_failed (after any in-poll recovery
+    # retry) and resets to 0 on any clean poll.
+    consecutive_auth_failures = _next_consecutive_auth_failures(
+        state_at_start.get("consecutive_auth_failures"), auth_failed
+    )
+    if auth_failed:
+        if _should_send_session_alert(
+            consecutive_auth_failures,
+            state_at_start.get("last_session_manual_alert_at"),
+            datetime.now(timezone.utc),
+        ):
+            phones = _configured_owner_phones()
+            if phones:
+                print(
+                    f"[bot] Session auth-failed for {consecutive_auth_failures} consecutive poll(s) "
+                    f"— sending re-seed alert to {len(phones)} owner(s)."
+                )
+                try:
+                    send_session_expired_alert(phones)
+                    did_send_session_manual_alert = True
+                except Exception as exc:
+                    print(f"[bot] Session-expired alert dispatch crashed: {exc}")
+            else:
+                print("[bot] Session auth-failed but no owner phones are configured for alerting.")
+        else:
+            print(
+                f"[bot] Auth failed ({consecutive_auth_failures}/{AUTH_ALERT_THRESHOLD} consecutive) "
+                f"— holding alert (grace window / cooldown)."
+            )
 
     previous_open_keys = _load_open_keys()
     current_open_keys = {_slot_key(slot) for slot in all_slots}
@@ -482,8 +543,13 @@ def poll(config: Optional[dict] = None) -> None:
             now_utc if login_agent_triggered else previous_state.get("last_login_agent_attempt_at")
         ),
         "last_session_manual_alert_at": (
-            now_utc if did_send_session_manual_alert else previous_state.get("last_session_manual_alert_at")
+            now_utc if did_send_session_manual_alert
+            # Clean poll re-arms alerting: clearing the timestamp lets a genuinely
+            # new outage page after its own grace window, even within 6h of a prior alert.
+            else None if not auth_failed
+            else previous_state.get("last_session_manual_alert_at")
         ),
+        "consecutive_auth_failures": consecutive_auth_failures,
         "session_status": "needs_attention" if errors else "ok",
         "last_sms_sent_at": now_utc if sms_sent else previous_state.get("last_sms_sent_at"),
     })

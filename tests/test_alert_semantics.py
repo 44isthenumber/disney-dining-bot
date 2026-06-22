@@ -2,6 +2,7 @@ import base64
 import json
 import time
 import unittest
+from datetime import datetime, timedelta, timezone
 
 import disney_bot
 import monitor
@@ -196,6 +197,57 @@ class AlertSemanticsTest(unittest.TestCase):
     def test_disney_auth_errors_are_categorized(self):
         self.assertEqual(disney_bot._error_category(monitor.DisneyAuthRequired("login required")), "disney_auth")
         self.assertEqual(disney_bot._error_category("No Disney auth token found in Playwright profile"), "disney_auth")
+
+    # ── session-failure alert grace window ──────────────────────────────────
+
+    def test_consecutive_auth_failures_increments_and_resets(self):
+        self.assertEqual(disney_bot._next_consecutive_auth_failures(0, True), 1)
+        self.assertEqual(disney_bot._next_consecutive_auth_failures(2, True), 3)
+        # Any clean poll resets the streak.
+        self.assertEqual(disney_bot._next_consecutive_auth_failures(5, False), 0)
+        # Missing / malformed prior state is treated as 0.
+        self.assertEqual(disney_bot._next_consecutive_auth_failures(None, True), 1)
+        self.assertEqual(disney_bot._next_consecutive_auth_failures("bad", True), 1)
+
+    def test_no_alert_during_grace_window(self):
+        now = datetime(2026, 6, 22, 12, 0, tzinfo=timezone.utc)
+        self.assertFalse(disney_bot._should_send_session_alert(1, None, now))
+        self.assertFalse(disney_bot._should_send_session_alert(2, None, now))
+
+    def test_alert_fires_at_threshold(self):
+        now = datetime(2026, 6, 22, 12, 0, tzinfo=timezone.utc)
+        self.assertTrue(disney_bot._should_send_session_alert(3, None, now))
+
+    def test_recovery_failure_alone_does_not_alert(self):
+        # The core bug fix: alerting is driven by the consecutive-failure count,
+        # not by recovery returning False. A single failed poll must stay silent.
+        now = datetime(2026, 6, 22, 12, 0, tzinfo=timezone.utc)
+        self.assertFalse(disney_bot._should_send_session_alert(1, None, now))
+
+    def test_no_realert_within_6h(self):
+        now = datetime(2026, 6, 22, 12, 0, tzinfo=timezone.utc)
+        last_alert = (now - timedelta(hours=5)).isoformat().replace("+00:00", "Z")
+        self.assertFalse(disney_bot._should_send_session_alert(4, last_alert, now))
+
+    def test_realert_after_6h(self):
+        now = datetime(2026, 6, 22, 12, 0, tzinfo=timezone.utc)
+        last_alert = (now - timedelta(hours=7)).isoformat().replace("+00:00", "Z")
+        self.assertTrue(disney_bot._should_send_session_alert(4, last_alert, now))
+
+    def test_clean_poll_rearms_alerting(self):
+        # Option B: a clean poll resets the streak to 0 AND the caller clears
+        # last_alert_at. A fresh outage then reaching threshold pages again even
+        # though the wall-clock is well within the prior alert's 6h cooldown.
+        now = datetime(2026, 6, 22, 12, 0, tzinfo=timezone.utc)
+        self.assertEqual(disney_bot._next_consecutive_auth_failures(4, False), 0)
+        self.assertTrue(disney_bot._should_send_session_alert(3, None, now))
+
+    def test_naive_now_is_handled(self):
+        # poll() passes datetime.now(timezone.utc) (aware), but guard against a
+        # naive `now` so the timedelta comparison never raises.
+        now = datetime(2026, 6, 22, 12, 0)
+        last_alert = "2026-06-22T04:00:00Z"
+        self.assertTrue(disney_bot._should_send_session_alert(3, last_alert, now))
 
 
 if __name__ == "__main__":
