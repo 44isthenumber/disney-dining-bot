@@ -1,6 +1,6 @@
 {
   "indexed_at": "2026-05-01T20:29:53.978606+00:00",
-  "count": 122,
+  "count": 123,
   "restaurants": [
     {
       "facility_id": "90002606",
@@ -491,6 +491,22 @@
       "booking_url": "https://disneyworld.disney.go.com/dine-res/restaurant/grand-floridian-cafe",
       "price_range": "$$ ($15 to $34.99 per adult)",
       "description": "For casual American dining at Disney’s Grand Floridian Resort &amp; Spa, this elegant yet unpretentious eatery can’t be beat."
+    },
+    {
+      "facility_id": "15437454",
+      "name": "Harmony Barber Shop",
+      "slug": "booking-harmony-barber-shop",
+      "park": "Magic Kingdom Park",
+      "cuisine": "",
+      "experience_type": "Enchanting Extras",
+      "dining_type": "scheduled_activity",
+      "meal_period": "",
+      "thumbnail_url": "",
+      "booking_url": "https://disneyworld.disney.go.com/enchanting-extras-collection/booking-harmony-barber-shop/",
+      "price_range": "",
+      "description": "Haircuts and pixie-dusted styles on Main Street, U.S.A. Books through Disney's Enchanting Extras Collection.",
+      "max_party_size": 2,
+      "age_param": "adult"
     },
     {
       "facility_id": "90001744",

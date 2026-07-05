@@ -10,7 +10,10 @@ from dotenv import load_dotenv
 
 import storage
 import watch_store
-from monitor import get_calendar_days_via_playwright
+from monitor import (
+    get_calendar_days_via_playwright,
+    get_scheduled_activity_calendar_days_via_playwright,
+)
 
 load_dotenv()
 
@@ -31,7 +34,12 @@ def update_cache():
         slug = r.get("slug", fid)
         name = r.get("name", fid)
         try:
-            dates = get_calendar_days_via_playwright(fid, slug)
+            if (r.get("booking_type") or "dining") == "scheduled_activity":
+                dates = get_scheduled_activity_calendar_days_via_playwright(
+                    fid, slug, r.get("party_size", 2)
+                )
+            else:
+                dates = get_calendar_days_via_playwright(fid, slug)
             storage.write_json(f"calendar_{fid}.json", {
                 "facility_id": fid,
                 "available_dates": dates,

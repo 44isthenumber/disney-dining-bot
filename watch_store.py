@@ -130,6 +130,7 @@ def _normalize_watch(raw: dict) -> dict:
         "slug": raw.get("slug") or facility_id,
         "party_size": party_size,
         "meal_periods": raw.get("meal_periods") or ["ALL"],
+        "booking_type": raw.get("booking_type") or "dining",
         "date": date,
         "time_from": raw.get("time_from") or None,
         "time_to": raw.get("time_to") or None,
@@ -246,6 +247,7 @@ def grouped_restaurant_requests(watches: Iterable[dict]) -> List[dict]:
             watch.get("name") or watch["facility_id"],
             int(watch.get("party_size", 2)),
             tuple(watch.get("meal_periods") or ["ALL"]),
+            watch.get("booking_type") or "dining",
             watch.get("time_from"),
             watch.get("time_to"),
         )
@@ -255,6 +257,7 @@ def grouped_restaurant_requests(watches: Iterable[dict]) -> List[dict]:
             "name": watch.get("name") or watch["facility_id"],
             "party_size": int(watch.get("party_size", 2)),
             "meal_periods": list(watch.get("meal_periods") or ["ALL"]),
+            "booking_type": watch.get("booking_type") or "dining",
             "time_from": watch.get("time_from"),
             "time_to": watch.get("time_to"),
             "dates": set(),

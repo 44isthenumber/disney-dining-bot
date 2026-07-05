@@ -45,6 +45,10 @@ def booking_url(slot: Slot) -> str:
     # Use the human-readable slug when available; fall back to the numeric
     # facility id for any older cached slot that somehow lacks one.
     slug = (slot.slug or slot.facility_id).strip("/")
+    if slot.booking_type == "scheduled_activity":
+        # Enchanting Extras experiences book through their own flow; there is
+        # no per-offer deep link.
+        return f"https://disneyworld.disney.go.com/enchanting-extras-collection/{slug}/"
     return f"{BOOK_BASE}/{slug}/"
 
 

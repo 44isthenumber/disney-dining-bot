@@ -94,6 +94,7 @@ class Slot:
     owner_id: str = ""
     watch_id: str = ""
     recipient_phone: str = ""
+    booking_type: str = "dining"  # "dining" or "scheduled_activity" (Enchanting Extras)
 
 
 class DisneyAuthRequired(RuntimeError):
@@ -762,7 +763,276 @@ def get_calendar_days_via_playwright(facility_id: str, slug: str) -> List[str]:
     return sorted(available)
 
 
+# ── Scheduled activities ("Enchanting Extras", e.g. Harmony Barber Shop) ──
+#
+# These experiences are not in the dine-res API. They book through Disney's
+# Scheduled Activity system on the same origin:
+#   GET /sa-api/api/v1/experience/details/{slug}/
+#       → bookableStartDate/bookableEndDate, product.schedules, availableDaysDateRange
+#   GET /sa-api/api/v1/experience/offers/{productId}
+#       ?entityType=activity-product&startDate=…&endDate=…&{ageGroup}=N
+#       → bookableExperience.availableOffers.offers: {date: [offer, …]}
+# Date windows must span at most availableDaysDateRange (9) days per request.
+# sa-api authenticates via browser cookies — no bearer token is needed.
+
+SA_PAGE_BASE = "https://disneyworld.disney.go.com/enchanting-extras-collection"
+SA_API_BASE = "/sa-api/api/v1/experience"
+
+_SA_FETCH_JS = """async (url) => {
+  try {
+    const resp = await fetch(url, { headers: {
+      'accept': 'application/json, text/plain, */*',
+      'skip-intercept': 'true',
+    }});
+    return { status: resp.status, data: resp.status === 200 ? await resp.json() : null };
+  } catch (e) {
+    return { status: 0, error: String(e) };
+  }
+}"""
+
+
+def _sa_page_url(slug: str) -> str:
+    return f"{SA_PAGE_BASE}/{slug}/"
+
+
+def _sa_date_windows(dates: List[str], max_days: int = 9) -> List[tuple]:
+    """Pack ISO dates into (start, end) windows spanning at most max_days days."""
+    windows: List[tuple] = []
+    remaining = sorted(set(dates))
+    max_days = max(1, max_days)
+    while remaining:
+        start = date.fromisoformat(remaining[0])
+        limit = (start + timedelta(days=max_days - 1)).isoformat()
+        chunk = [d for d in remaining if d <= limit]
+        windows.append((chunk[0], chunk[-1]))
+        remaining = [d for d in remaining if d > limit]
+    return windows
+
+
+def _sa_scheduled_dates(details_result: dict, dates: List[str], name: str) -> tuple:
+    """Clamp requested dates using the sa-api details response.
+
+    Returns (dates bookable per Disney, request window size in days).
+    """
+    status = details_result.get("status")
+    if status == 401:
+        raise RuntimeError(f"[monitor] {name}: Disney returned 401 from sa-api details — session likely expired")
+    if status != 200:
+        raise RuntimeError(f"[monitor] {name}: HTTP {status} from sa-api details {details_result.get('error', '')}")
+    data = details_result.get("data") or {}
+    start = data.get("bookableStartDate") or ""
+    end = data.get("bookableEndDate") or ""
+    kept = [d for d in dates if (not start or d >= start) and (not end or d <= end)]
+    product = ((data.get("bookableExperience") or {}).get("product")) or {}
+    schedules = product.get("schedules") or []
+    scheduled = {s.get("date") for s in schedules if (s.get("status") or "").upper() == "SCHEDULED"}
+    if scheduled:
+        kept = [d for d in kept if d in scheduled]
+    try:
+        window = int(product.get("availableDaysDateRange") or 9)
+    except (TypeError, ValueError):
+        window = 9
+    return kept, max(1, min(window, 9))
+
+
+def _parse_sa_offers_response(
+    *,
+    data: dict,
+    facility_id: str,
+    slug: str,
+    restaurant_name: str,
+    dates: List[str],
+    party_size: int,
+    meal_periods: List[str],
+    time_from: Optional[str] = None,
+    time_to: Optional[str] = None,
+) -> List[Slot]:
+    target_dates = set(dates)
+    target_meals = {m.upper() for m in meal_periods} if meal_periods else {"ALL"}
+    slots: List[Slot] = []
+    offers_by_date = (
+        ((data or {}).get("bookableExperience") or {}).get("availableOffers") or {}
+    ).get("offers") or {}
+    for entry_date, offer_list in offers_by_date.items():
+        if entry_date not in target_dates:
+            continue
+        for offer in offer_list or []:
+            if (offer.get("status") or "").upper() == "UNAVAILABLE":
+                continue
+            start_time = offer.get("startTime") or ""
+            if not start_time:
+                continue
+            offer_time = start_time[:5]
+            if not _time_in_window(offer_time, time_from, time_to):
+                continue
+            meal = (offer.get("timePeriod") or "UNKNOWN").upper()
+            if "ALL" not in target_meals and meal not in target_meals:
+                continue
+            try:
+                label = datetime.strptime(offer_time, "%H:%M").strftime("%I:%M %p").lstrip("0")
+            except ValueError:
+                label = offer_time
+            slots.append(Slot(
+                restaurant_name=restaurant_name,
+                facility_id=facility_id,
+                date=entry_date,
+                time=offer_time,
+                label=label,
+                meal_period=meal,
+                party_size=party_size,
+                offer_id=str(offer.get("priceId") or ""),
+                slug=slug,
+                booking_type="scheduled_activity",
+            ))
+    return slots
+
+
+def _sa_raise_for_offers_status(result: dict, name: str) -> None:
+    status = result.get("status")
+    if status in (200, 404):
+        return
+    if status == 401:
+        raise RuntimeError(f"[monitor] {name}: Disney returned 401 from sa-api offers — session likely expired")
+    raise RuntimeError(f"[monitor] {name}: HTTP {status} from sa-api offers {result.get('error', '')}")
+
+
+def check_scheduled_activity_slots_via_playwright(restaurant: dict) -> List[Slot]:
+    """Availability check for scheduled activities via the persistent profile."""
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError as exc:
+        raise RuntimeError("Playwright is not installed. Run: python3 -m playwright install chromium") from exc
+
+    facility_id = restaurant["facility_id"]
+    slug = restaurant.get("slug", facility_id)
+    name = restaurant.get("name", facility_id)
+    party_size = int(restaurant.get("party_size", 2))
+    meal_periods = restaurant.get("meal_periods", ["ALL"])
+    time_from = restaurant.get("time_from")
+    time_to = restaurant.get("time_to")
+    age_param = restaurant.get("age_param") or "adult"
+    dates = _expand_dates(restaurant.get("dates"), restaurant.get("date_start"), restaurant.get("date_end"))
+    if not dates:
+        print(f"[monitor] {name}: no dates configured, skipping.")
+        return []
+    dates = _filter_bookable_dates(dates, name)
+    if not dates:
+        print(f"[monitor] {name}: no configured dates are bookable yet.")
+        return []
+
+    slots: List[Slot] = []
+    with sync_playwright() as p:
+        context = p.chromium.launch_persistent_context(
+            _playwright_profile_dir(),
+            headless=_playwright_headless(),
+            args=["--no-sandbox"],
+        )
+        page = context.pages[0] if context.pages else context.new_page()
+        try:
+            page.goto(_sa_page_url(slug), wait_until="domcontentloaded", timeout=45000)
+            page.wait_for_timeout(int(os.environ.get("DISNEY_AKAMAI_WARMUP_MS", "8000")))
+            details = page.evaluate(_SA_FETCH_JS, f"{SA_API_BASE}/details/{slug}/")
+            dates, window_days = _sa_scheduled_dates(details, dates, name)
+            if not dates:
+                print(f"[monitor] {name}: no requested dates inside Disney's bookable window.")
+                return []
+            for start, end in _sa_date_windows(dates, window_days):
+                offers_url = (
+                    f"{SA_API_BASE}/offers/{facility_id}?entityType=activity-product"
+                    f"&startDate={start}&endDate={end}&{age_param}={party_size}"
+                )
+                result = page.evaluate(_SA_FETCH_JS, offers_url)
+                _sa_raise_for_offers_status(result, name)
+                if result.get("status") == 404:
+                    continue
+                slots.extend(_parse_sa_offers_response(
+                    data=result.get("data") or {},
+                    facility_id=facility_id,
+                    slug=slug,
+                    restaurant_name=name,
+                    dates=dates,
+                    party_size=party_size,
+                    meal_periods=meal_periods,
+                    time_from=time_from,
+                    time_to=time_to,
+                ))
+                page.wait_for_timeout(800)
+        finally:
+            context.close()
+
+    print(f"[monitor] {name}: {len(slots)} slot(s) found via scheduled-activity API.")
+    return slots
+
+
+def get_scheduled_activity_calendar_days_via_playwright(
+    facility_id: str,
+    slug: str,
+    party_size: int = 2,
+    age_param: str = "adult",
+) -> List[str]:
+    """Dates with at least one bookable offer across the full bookable range.
+
+    Sweeps the offers endpoint so the calendar cache reflects true
+    availability (the SPA renders cached dates as "go book now"), not just
+    operating days.
+    """
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError as exc:
+        raise RuntimeError("Playwright is not installed. Run: python3 -m playwright install chromium") from exc
+
+    with sync_playwright() as p:
+        context = p.chromium.launch_persistent_context(
+            _playwright_profile_dir(),
+            headless=_playwright_headless(),
+            args=["--no-sandbox"],
+        )
+        page = context.pages[0] if context.pages else context.new_page()
+        try:
+            page.goto(_sa_page_url(slug), wait_until="domcontentloaded", timeout=45000)
+            page.wait_for_timeout(int(os.environ.get("DISNEY_AKAMAI_WARMUP_MS", "8000")))
+            details = page.evaluate(_SA_FETCH_JS, f"{SA_API_BASE}/details/{slug}/")
+            status = details.get("status")
+            if status != 200:
+                raise RuntimeError(f"HTTP {status} from sa-api details {details.get('error', '')}")
+            data = details.get("data") or {}
+            start = data.get("bookableStartDate")
+            end = data.get("bookableEndDate")
+            if not start or not end:
+                return []
+            all_dates = []
+            cur = date.fromisoformat(start)
+            last = date.fromisoformat(end)
+            while cur <= last:
+                all_dates.append(cur.isoformat())
+                cur += timedelta(days=1)
+            all_dates, window_days = _sa_scheduled_dates(details, all_dates, slug)
+            available = set()
+            for win_start, win_end in _sa_date_windows(all_dates, window_days):
+                offers_url = (
+                    f"{SA_API_BASE}/offers/{facility_id}?entityType=activity-product"
+                    f"&startDate={win_start}&endDate={win_end}&{age_param}={party_size}"
+                )
+                result = page.evaluate(_SA_FETCH_JS, offers_url)
+                if result.get("status") != 200:
+                    continue
+                offers_by_date = (
+                    ((result.get("data") or {}).get("bookableExperience") or {}).get("availableOffers") or {}
+                ).get("offers") or {}
+                for entry_date, offer_list in offers_by_date.items():
+                    if any((o.get("startTime") and (o.get("status") or "").upper() != "UNAVAILABLE") for o in offer_list or []):
+                        available.add(entry_date)
+                page.wait_for_timeout(800)
+        finally:
+            context.close()
+    return sorted(available)
+
+
 def check_slots_for_restaurant(restaurant: dict) -> List[Slot]:
+    if (restaurant.get("booking_type") or "").lower() == "scheduled_activity":
+        # Scheduled activities are Playwright-only; there is no dine-res
+        # token path or AppleScript equivalent for sa-api.
+        return check_scheduled_activity_slots_via_playwright(restaurant)
     mode = os.environ.get("DISNEY_BROWSER_MODE", "playwright").lower()
     if mode in {"applescript", "chrome"}:
         return check_slots_via_chrome(restaurant)

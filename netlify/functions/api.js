@@ -342,6 +342,7 @@ function normalizeWatch(raw, userFallback = null) {
     slug: raw.slug || raw.facility_id,
     party_size: partySize,
     meal_periods: raw.meal_periods || ["ALL"],
+    booking_type: raw.booking_type === "scheduled_activity" ? "scheduled_activity" : "dining",
     date,
     time_from: raw.time_from || null,
     time_to: raw.time_to || null,
@@ -613,6 +614,7 @@ async function handlePostWatch(event, user) {
     dates = [],
     time_from = null,
     time_to = null,
+    booking_type = "dining",
   } = body;
 
   const errors = [];
@@ -624,12 +626,23 @@ async function handlePostWatch(event, user) {
   const timeFrom = typeof time_from === "string" && time_from.trim() ? time_from.trim() : null;
   const timeTo = typeof time_to === "string" && time_to.trim() ? time_to.trim() : null;
 
+  const bookingType = booking_type === "scheduled_activity" ? "scheduled_activity" : "dining";
+  let facilityRecord = null;
+  try {
+    facilityRecord = (require("./restaurants.json").restaurants || [])
+      .find((r) => r.facility_id === facilityId) || null;
+  } catch {
+    facilityRecord = null;
+  }
+
   if (!facilityId) {
     errors.push("Choose a restaurant first.");
   }
 
   if (!Number.isInteger(partySize) || partySize < 1 || partySize > 20) {
     errors.push("Party size must be a whole number between 1 and 20.");
+  } else if (facilityRecord && facilityRecord.max_party_size && partySize > facilityRecord.max_party_size) {
+    errors.push(`${facilityRecord.name} allows up to ${facilityRecord.max_party_size} guests per reservation.`);
   }
 
   if (!Array.isArray(dates) || dates.length === 0) {
@@ -660,6 +673,13 @@ async function handlePostWatch(event, user) {
   const validMealPeriods = ["ALL", "BREAKFAST", "LUNCH", "DINNER"];
   if (meal_periods && !Array.isArray(meal_periods)) {
     errors.push("Meal periods must be a list.");
+  } else if (bookingType === "scheduled_activity") {
+    normalizedMealPeriods = meal_periods && meal_periods.length > 0
+      ? meal_periods.map((period) => String(period || "").trim().toUpperCase()).filter(Boolean)
+      : ["ALL"];
+    if (normalizedMealPeriods.length !== 1 || normalizedMealPeriods[0] !== "ALL") {
+      errors.push("This experience uses the time window, not meal periods.");
+    }
   } else {
     normalizedMealPeriods = meal_periods && meal_periods.length > 0
       ? meal_periods.map((period) => String(period || "").trim().toUpperCase()).filter(Boolean)
@@ -703,6 +723,7 @@ async function handlePostWatch(event, user) {
       slug: slug || facilityId,
       party_size: partySize,
       meal_periods: normalizedMealPeriods,
+      booking_type: bookingType,
       date,
       time_from: timeFrom,
       time_to: timeTo,

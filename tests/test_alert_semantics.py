@@ -250,5 +250,157 @@ class AlertSemanticsTest(unittest.TestCase):
         self.assertTrue(disney_bot._should_send_session_alert(3, last_alert, now))
 
 
+def make_sa_slot(**overrides):
+    data = {
+        "restaurant_name": "Harmony Barber Shop",
+        "facility_id": "15437454",
+        "slug": "booking-harmony-barber-shop",
+        "date": "2026-07-06",
+        "time": "11:40",
+        "label": "11:40 AM",
+        "meal_period": "MORNING",
+        "party_size": 2,
+        "offer_id": "priceSummary0",
+        "owner_id": "craig",
+        "watch_id": "watch_sa1",
+        "recipient_phone": "+15555550123",
+        "booking_type": "scheduled_activity",
+    }
+    data.update(overrides)
+    return Slot(**data)
+
+
+def make_sa_offers_data(offers_by_date):
+    return {"bookableExperience": {"availableOffers": {"offers": offers_by_date}}}
+
+
+class ScheduledActivityTest(unittest.TestCase):
+    def _parse(self, offers_by_date, **overrides):
+        kwargs = {
+            "data": make_sa_offers_data(offers_by_date),
+            "facility_id": "15437454",
+            "slug": "booking-harmony-barber-shop",
+            "restaurant_name": "Harmony Barber Shop",
+            "dates": ["2026-07-06", "2026-07-07"],
+            "party_size": 2,
+            "meal_periods": ["ALL"],
+        }
+        kwargs.update(overrides)
+        return monitor._parse_sa_offers_response(**kwargs)
+
+    def test_offer_parsing_maps_timeperiod_and_skips_unavailable(self):
+        slots = self._parse({
+            "2026-07-06": [
+                {"startTime": "11:40:00-04:00", "timePeriod": "Morning", "priceId": "priceSummary0"},
+            ],
+            "2026-07-07": [
+                {"date": "2026-07-07", "status": "UNAVAILABLE"},
+            ],
+        })
+        self.assertEqual(len(slots), 1)
+        slot = slots[0]
+        self.assertEqual(slot.date, "2026-07-06")
+        self.assertEqual(slot.time, "11:40")
+        self.assertEqual(slot.label, "11:40 AM")
+        self.assertEqual(slot.meal_period, "MORNING")
+        self.assertEqual(slot.offer_id, "priceSummary0")
+        self.assertEqual(slot.booking_type, "scheduled_activity")
+
+    def test_offer_with_missing_timeperiod_falls_back_to_unknown(self):
+        slots = self._parse({
+            "2026-07-06": [{"startTime": "14:00:00-04:00"}],
+        })
+        self.assertEqual(len(slots), 1)
+        self.assertEqual(slots[0].meal_period, "UNKNOWN")
+        self.assertEqual(slots[0].label, "2:00 PM")
+
+    def test_offer_outside_requested_dates_is_ignored(self):
+        slots = self._parse({
+            "2026-08-01": [{"startTime": "11:40:00-04:00", "timePeriod": "Morning"}],
+        })
+        self.assertEqual(slots, [])
+
+    def test_time_window_filters_offers(self):
+        offers = {
+            "2026-07-06": [
+                {"startTime": "09:20:00-04:00", "timePeriod": "Morning"},
+                {"startTime": "15:10:00-04:00", "timePeriod": "Afternoon"},
+            ],
+        }
+        slots = self._parse(offers, time_from="10:00", time_to="16:00")
+        self.assertEqual([s.time for s in slots], ["15:10"])
+
+    def test_sa_slot_key_is_stable_and_alert_semantics_apply(self):
+        slot = make_sa_slot()
+        key = disney_bot._slot_key(slot)
+        self.assertIn("MORNING", key)
+        self.assertEqual(disney_bot.filter_new([slot], previous_open_keys={key}), [])
+        self.assertEqual(disney_bot.filter_new([slot], previous_open_keys=set()), [slot])
+
+    def test_sa_date_windows_chunks_to_nine_days(self):
+        dates = [f"2026-07-{d:02d}" for d in range(1, 13)]
+        self.assertEqual(
+            monitor._sa_date_windows(dates),
+            [("2026-07-01", "2026-07-09"), ("2026-07-10", "2026-07-12")],
+        )
+
+    def test_sa_date_windows_packs_sparse_dates(self):
+        self.assertEqual(
+            monitor._sa_date_windows(["2026-07-01", "2026-07-20"]),
+            [("2026-07-01", "2026-07-01"), ("2026-07-20", "2026-07-20")],
+        )
+        self.assertEqual(
+            monitor._sa_date_windows(["2026-07-03"]),
+            [("2026-07-03", "2026-07-03")],
+        )
+
+    def test_sa_scheduled_dates_clamps_to_bookable_and_scheduled(self):
+        details = {
+            "status": 200,
+            "data": {
+                "bookableStartDate": "2026-07-06",
+                "bookableEndDate": "2026-09-03",
+                "bookableExperience": {"product": {
+                    "availableDaysDateRange": 9,
+                    "schedules": [
+                        {"date": "2026-07-06", "status": "SCHEDULED"},
+                        {"date": "2026-07-08", "status": "SCHEDULED"},
+                    ],
+                }},
+            },
+        }
+        dates, window = monitor._sa_scheduled_dates(
+            details, ["2026-07-05", "2026-07-06", "2026-07-07", "2026-07-08"], "Harmony"
+        )
+        self.assertEqual(dates, ["2026-07-06", "2026-07-08"])
+        self.assertEqual(window, 9)
+
+    def test_sa_scheduled_dates_raises_on_401(self):
+        with self.assertRaises(RuntimeError) as ctx:
+            monitor._sa_scheduled_dates({"status": 401}, ["2026-07-06"], "Harmony")
+        self.assertEqual(disney_bot._error_category(ctx.exception), "disney_auth")
+
+    def test_booking_url_uses_enchanting_extras_link(self):
+        url = booking_url(make_sa_slot())
+        self.assertEqual(
+            url,
+            "https://disneyworld.disney.go.com/enchanting-extras-collection/booking-harmony-barber-shop/",
+        )
+
+    def test_dining_booking_url_unchanged(self):
+        self.assertEqual(booking_url(make_slot()), "https://disneyworld.disney.go.com/dine-res/restaurant/ohana/")
+
+    def test_grouped_requests_split_by_booking_type(self):
+        dining = {
+            "watch_id": "w1", "owner_id": "craig", "facility_id": "15437454",
+            "date": "2026-07-06", "party_size": 2,
+        }
+        sa = dict(dining, watch_id="w2", booking_type="scheduled_activity")
+        groups = watch_store.grouped_restaurant_requests([dining, sa])
+        self.assertEqual(len(groups), 2)
+        types = sorted(g.get("booking_type") for g in groups)
+        self.assertEqual(types, ["dining", "scheduled_activity"])
+
+
 if __name__ == "__main__":
     unittest.main()

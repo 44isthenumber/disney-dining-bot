@@ -473,6 +473,7 @@
         </label>
         <label class="create-field party-field">Party
           <input type="number" id="party-size" min="1" max="20" value="2" required>
+          <small id="specialty-hint" style="display:none;font-size:11px;color:var(--muted)"></small>
         </label>
         <div class="create-field date-field">Dates
           <button type="button" id="toggle-date-picker" aria-expanded="false" aria-controls="date-picker-panel">Choose Dates</button>
@@ -990,8 +991,18 @@ document.getElementById('bulk-btn').addEventListener('click', watchAllGrey);
 function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); }
 
 async function openModal(facilityId, slug, name, partySize) {
+  var record = findRestaurant(facilityId);
+  var specialty = isScheduledActivity(record);
+  partySize = Math.min(partySize, maxPartyFor(record));
   cal.facilityId = facilityId; cal.slug = slug; cal.name = name; cal.partySize = partySize;
+  cal.bookingType = specialty ? 'scheduled_activity' : 'dining';
   cal.available = new Set(); cal.watched = new Set(); cal.watchIds = {}; cal.watchesByDate = {}; cal.pending = false;
+  document.getElementById('watch-meal').parentElement.style.display = specialty ? 'none' : '';
+  if (specialty) {
+    document.getElementById('watch-meal').value = 'ALL';
+    document.getElementById('watch-time-from').value = '';
+    document.getElementById('watch-time-to').value = '';
+  }
   document.getElementById('modal-title').textContent = name;
   document.getElementById('modal-sub').textContent = 'Party of ' + partySize + ' · Loading…';
   document.getElementById('modal-msg').textContent = '';
@@ -1093,7 +1104,7 @@ function renderCalendar() {
 async function calAddWatch(dates) {
   cal.pending = true;
   document.getElementById('modal-msg').textContent = 'Adding…';
-  var meal = document.getElementById('watch-meal').value || 'ALL';
+  var meal = cal.bookingType === 'scheduled_activity' ? 'ALL' : (document.getElementById('watch-meal').value || 'ALL');
   var timeFrom = document.getElementById('watch-time-from').value || null;
   var timeTo = document.getElementById('watch-time-to').value || null;
   try {
@@ -1107,6 +1118,7 @@ async function calAddWatch(dates) {
         facility_id: cal.facilityId, name: cal.name, slug: cal.slug,
         party_size: cal.partySize,
         meal_periods: meal === 'ALL' ? ['ALL'] : [meal],
+        booking_type: cal.bookingType || 'dining',
         time_from: timeFrom,
         time_to: timeTo,
         dates: dates,
@@ -1173,7 +1185,36 @@ function populateRestaurantSelect(restaurants) {
   }).join('');
   select.innerHTML = '<option value="">Select a restaurant...</option>' + options;
   if (selected) select.value = selected;
+  applyBookingTypeUI();
 }
+
+// ── Scheduled activities (Enchanting Extras, e.g. Harmony Barber Shop) ──────
+
+function findRestaurant(facilityId) {
+  return allRestaurants.find(function(r) { return r.facility_id === facilityId; });
+}
+
+function isScheduledActivity(r) { return !!r && r.dining_type === 'scheduled_activity'; }
+
+function maxPartyFor(r) { return (r && r.max_party_size) || 20; }
+
+function applyBookingTypeUI() {
+  var r = findRestaurant(document.getElementById('restaurant-select').value);
+  var sa = isScheduledActivity(r);
+  var maxParty = maxPartyFor(r);
+  var party = document.getElementById('party-size');
+  party.max = maxParty;
+  if (parseInt(party.value) > maxParty) party.value = maxParty;
+  document.querySelector('#watch-form .meal-field').style.display = sa ? 'none' : '';
+  if (sa) {
+    document.querySelectorAll('#watch-form input[name=meal-period]').forEach(function(c) { c.checked = false; });
+  }
+  var hint = document.getElementById('specialty-hint');
+  hint.style.display = sa ? '' : 'none';
+  hint.textContent = sa ? 'Up to ' + maxParty + ' guests for this experience. Use the time window to narrow times.' : '';
+}
+
+document.getElementById('restaurant-select').addEventListener('change', applyBookingTypeUI);
 
 function parseWatchDates(raw) {
   const dates = validTypedDates(raw);
@@ -1346,13 +1387,15 @@ document.getElementById('watch-form').addEventListener('submit', async function(
     if (!dates.length) throw new Error('At least one date required.');
     const restaurant = allRestaurants.find(r => r.facility_id === restaurantId);
     if (!restaurant) throw new Error('Restaurant not found.');
+    const specialty = isScheduledActivity(restaurant);
     const body = {
       facility_id: restaurantId,
       name: restaurant.name,
       slug: restaurant.slug,
       party_size: partySize,
       dates: dates,
-      meal_periods: mealPeriods.length ? mealPeriods : ['ALL'],
+      meal_periods: specialty ? ['ALL'] : (mealPeriods.length ? mealPeriods : ['ALL']),
+      booking_type: specialty ? 'scheduled_activity' : 'dining',
       time_from: timeFrom,
       time_to: timeTo
     };

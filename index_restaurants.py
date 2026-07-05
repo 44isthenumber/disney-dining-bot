@@ -24,6 +24,28 @@ from auth import get_valid_token  # noqa: E402 — needs dotenv loaded first
 FACILITIES_URL = "https://disneyworld.disney.go.com/dine-res/api/dine/facilities"
 OUT_FILE = Path(__file__).parent / "restaurants.json"
 
+# Experiences that live outside the dine-res facilities API (Disney's
+# "Enchanting Extras" scheduled-activity system). The indexer rewrites
+# restaurants.json wholesale, so these must be re-merged on every run.
+SPECIALTY_EXPERIENCES = [
+    {
+        "facility_id": "15437454",
+        "name": "Harmony Barber Shop",
+        "slug": "booking-harmony-barber-shop",
+        "park": "Magic Kingdom Park",
+        "cuisine": "",
+        "experience_type": "Enchanting Extras",
+        "dining_type": "scheduled_activity",
+        "meal_period": "",
+        "thumbnail_url": "",
+        "booking_url": "https://disneyworld.disney.go.com/enchanting-extras-collection/booking-harmony-barber-shop/",
+        "price_range": "",
+        "description": "Haircuts and pixie-dusted styles on Main Street, U.S.A. Books through Disney's Enchanting Extras Collection.",
+        "max_party_size": 2,
+        "age_param": "adult",
+    },
+]
+
 
 def _slug_from_url(url_friendly_id: str) -> str:
     """Extract last path segment: 'http://.../jaleo/' → 'jaleo'"""
@@ -108,6 +130,12 @@ def main() -> None:
             if not item:
                 continue
             restaurants.append(_extract(item, dining_type))
+
+    indexed_ids = {r["facility_id"] for r in restaurants}
+    restaurants.extend(
+        dict(item) for item in SPECIALTY_EXPERIENCES
+        if item["facility_id"] not in indexed_ids
+    )
 
     restaurants.sort(key=lambda r: r["name"])
 
