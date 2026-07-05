@@ -58,6 +58,30 @@ xvfb-run -a python3 disney_bot.py --once
 
 ---
 
+## Scheduled Activities (Enchanting Extras, e.g. Harmony Barber Shop)
+
+Some watchable experiences are NOT in the dine-res dining API. They book
+through Disney's Scheduled Activity system on the same origin (verified live
+2026-07-05):
+
+- Watch records carry `booking_type`: `"dining"` (default) or
+  `"scheduled_activity"`. `check_slots_for_restaurant` dispatches on it.
+- Details: `GET /sa-api/api/v1/experience/details/{slug}/` → bookable window
+  (rolling ~60 days), `schedules` (operating days), `availableDaysDateRange`.
+- Availability: `GET /sa-api/api/v1/experience/offers/{productId}?entityType=activity-product&startDate=…&endDate=…&adult=N`
+  — date windows must span ≤ 9 days; available offers have `startTime` +
+  `timePeriod` ("Morning"/"Afternoon"), which maps to `Slot.meal_period` so
+  dedupe/alert semantics are unchanged. sa-api auths via browser cookies
+  (no bearer token); warm up on `/enchanting-extras-collection/{slug}/`.
+- These watches always use `meal_periods: ["ALL"]`; the time window is the
+  filter. Harmony Barber Shop: product id 15437454, max 2 guests per order
+  (`max_party_size` in restaurants.json, enforced by api.js and the UI).
+- `index_restaurants.py` re-merges `SPECIALTY_EXPERIENCES` on every run —
+  add new Enchanting Extras experiences there, not just restaurants.json.
+- Smoke test: `xvfb-run -a python3 scripts/smoke_test_sa_api.py` on the VPS.
+
+---
+
 ## Key Files
 
 | File | Purpose |
