@@ -7,14 +7,14 @@ alwaysApply: true
 
 Cursor owns. Grok 4.6 builds. Other Cursor LLMs verify. Buzz is chat. Grok Bot is social. Goose and Claude Code are out.
 
-- For anything beyond a typo or single-file fix, run `~/.cursor/skills/deliver/SKILL.md`.
+- For anything beyond a typo or single-file fix, run `.cursor/skills/deliver/SKILL.md`.
 - Spec verify / QA / validator must be a different model than the builder.
 - Phone / mentions: Buzz. Fizz frames, not captain. Never Slack.
 - Social / out-of-repo agents: Grok Bot. Not this repo's owner.
 
 Default workflow:
 
-1. Read `AGENTS.md` before changing production behavior. `CLAUDE.md` is product archive only.
+1. Read `AGENTS.md` before changing production behavior. `PRODUCT.md` is product/ops detail.
 2. Run `/deliver`. Do not launch Goose or Claude Code.
 3. After validator pass, stay off `main` unless Craig said deploy (Netlify).
 
