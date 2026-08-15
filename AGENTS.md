@@ -13,13 +13,14 @@ Live site: magictablefinder.com.
 
 | Layer | Tool | Notes |
 |---|---|---|
-| Owner | **Cursor** | Classify, implement, integrate, verify, Cloud/iOS |
+| Owner | **Cursor** | Classify, integrate, verify, Cloud/iOS |
 | Builder | **Grok 4.6 in Cursor** | Default coding model |
-| Phone team | **Buzz seats** | Optional review. Not captain. |
+| QC | **Other Cursor LLMs** | `/deliver` — spec verify / QA / validator must differ from the builder |
+| Social / agents | **Grok Bot** | Out-of-repo only. Not this repo's owner. |
+| Communication | **Buzz** | Mentions and phone. Fizz frames, not captain. Never Slack. |
 | Production poller | **VPS systemd timer** | Every 10 min. Headed Playwright under Xvfb. Not Cloud. |
 | High-risk review | **Codex** | Auth, Twilio, VPS, Gist, destructive git |
-| Goose | **Not in any workstream** | Do not launch |
-| Claude / Anthropic | **Not in any workstream** | Do not launch |
+| Goose / Claude Code | **Out** | Do not launch |
 
 ## Cursor Cloud specific instructions
 
@@ -36,6 +37,10 @@ Cloud clones GitHub `44isthenumber/disney-dining-bot`. It cannot see Mac Keychai
 - Do not `playwright install` or run `disney_bot.py` in Cloud. Headed Disney Chrome lives on the VPS.
 - Do not add Cloud secrets for Disney login, Twilio, Signal, or a Gist write token. Code and unit tests do not need them.
 - Do not change `DISNEY_HEADLESS`, recovery cooldown, navigate-per-restaurant, or refresh-failure handling unless Craig explicitly asks.
+
+## Delivery
+
+For anything beyond a typo or single-file fix, run `~/.cursor/skills/deliver/SKILL.md`. Agents grapple; do not ask Craig to approve the spec. After validator pass, stay off `main` (Netlify deploys from `main`). Cloud still must not touch the VPS Disney session.
 
 ## Safety
 

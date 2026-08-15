@@ -5,18 +5,18 @@ alwaysApply: true
 
 # Multi-Agent Orchestration
 
-This repo uses Cursor as owner and Grok as builder. Goose and Claude are not in any workstream.
+Cursor owns. Grok 4.6 builds. Other Cursor LLMs verify. Buzz is chat. Grok Bot is social. Goose and Claude Code are out.
 
-- Owner / release: Cursor (desktop or Cloud).
-- Builder: Grok 4.6 in Cursor.
-- High-risk review: Codex, only for auth, Twilio, VPS, Gist, or destructive git.
-- Phone review: Buzz seats when Cursor assigns them. Not required for routine work.
+- For anything beyond a typo or single-file fix, run `~/.cursor/skills/deliver/SKILL.md`.
+- Spec verify / QA / validator must be a different model than the builder.
+- Phone / mentions: Buzz. Fizz frames, not captain. Never Slack.
+- Social / out-of-repo agents: Grok Bot. Not this repo's owner.
 
 Default workflow:
 
 1. Read `AGENTS.md` before changing production behavior. `CLAUDE.md` is product archive only.
-2. Cursor implements. Do not launch Goose or Claude.
-3. Cursor owns the final diff, commits, deploys, VPS actions, and production safety.
+2. Run `/deliver`. Do not launch Goose or Claude Code.
+3. After validator pass, stay off `main` unless Craig said deploy (Netlify).
 
 Safety rules:
 
