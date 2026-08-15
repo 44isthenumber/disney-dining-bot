@@ -1,0 +1,30 @@
+---
+description: Protect the VPS Disney session and alert availability. Never trade this for Cloud convenience.
+alwaysApply: true
+---
+
+# Disney session protection
+
+The headed VPS Playwright profile is the only living Disney login. Protect authentication and availability over every other goal, including Cursor Cloud.
+
+## Locked production path
+
+- Poller runs only on the VPS, headed Chromium under Xvfb (`DISNEY_HEADLESS=false`).
+- Persistent profile: `DISNEY_BROWSER_PROFILE_DIR` (production: `/opt/disney-dining-bot/.browser-profile`).
+- Keep-alive is **navigation**, not token refresh. Disney `refreshAuth` is dead. A failed refresh is not a dead session if the access JWT still has life.
+- Navigate to each restaurant page, warm up, then `fetch()` inside the page. Do not call Disney from Python HTTP.
+- Seed via a restaurant page Sign In click. Do not open `/login` first.
+- Recovery cooldown stays below the 10-minute timer (9 minutes). Do not raise it.
+- Session SMS is admin-only, after 3 consecutive auth-failed polls. Do not page Jessica for session failure.
+
+## Never
+
+- Set `DISNEY_HEADLESS=true` or use `--headless=new`.
+- Replay `_abck` / cookie env vars as a substitute for the live profile.
+- Put Disney email, password, profile, or Gist write tokens in Cursor Cloud secrets.
+- Run `disney_bot.py`, `seed_disney_session.py`, or `playwright install` in Cloud Agents.
+- SSH to the VPS or reseed from Cloud.
+- Clear `open_slots.json` or `seen_slots.json` because auth failed.
+- Treat one refresh 403 or one failed recovery as a session-dead alert.
+
+Cloud may change UI, Netlify functions, unit tests, and docs. It may not touch the living session.

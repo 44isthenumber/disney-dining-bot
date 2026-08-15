@@ -1,0 +1,17 @@
+{
+  "name": "magic-table-finder",
+  "install": "python3 -m pip install --user -q -r requirements.txt",
+  "terminals": [
+    {
+      "name": "frontend preview",
+      "command": "python3 -m http.server 8788 --directory public",
+      "description": "Static SPA only. Do not start disney_bot.py, Playwright, or Netlify Functions here."
+    }
+  ],
+  "ports": [
+    {
+      "name": "frontend preview",
+      "port": 8788
+    }
+  ]
+}
