@@ -5,33 +5,24 @@ alwaysApply: true
 
 # Multi-Agent Orchestration
 
-This repo uses a small agent team:
+Cursor owns. Grok 4.6 builds. Other Cursor LLMs verify. Buzz is chat. Grok Bot is social. Goose and Claude Code are out.
 
-- Primary orchestrator/release owner: GPT-5.5 in Cursor.
-- Workhorse coder: Goose CLI on local `qwen2.5-coder:14b`.
-- Senior reviewer: Claude Sonnet 4.6.
+- For anything beyond a typo or single-file fix, run `~/.cursor/skills/deliver/SKILL.md`.
+- Spec verify / QA / validator must be a different model than the builder.
+- Phone / mentions: Buzz. Fizz frames, not captain. Never Slack.
+- Social / out-of-repo agents: Grok Bot. Not this repo's owner.
 
 Default workflow:
 
-1. Read `CLAUDE.md` before changing production behavior.
-2. Use Goose for bounded implementation/test/search tasks with exact files, acceptance criteria, and stop conditions.
-3. Use Claude for subtle design, reliability, alert semantics, and mobile UX review.
-4. The Cursor orchestrator owns final diff review, commits, deploys, VPS actions, and production safety.
-
-Real Goose commands verified in this environment:
-
-```bash
-goose run --no-session --text "<prompt>"
-goose run --recipe multi-agent-coder --explain
-goose run --recipe multi-agent-coder --interactive
-```
-
-Do not suggest `goose session --recipe ...`; this installed Goose CLI does not support that option.
+1. Read `AGENTS.md` before changing production behavior. `CLAUDE.md` is product archive only.
+2. Run `/deliver`. Do not launch Goose or Claude Code.
+3. After validator pass, stay off `main` unless Craig said deploy (Netlify).
 
 Safety rules:
 
+- Disney session and availability outrank Cloud convenience. Follow `disney-session-protection.mdc`.
 - Never let worker agents mutate `.env`, Gist state, Twilio, Netlify, VPS, git history, or production deployments unsupervised.
 - Do not clear `open_slots.json` or `seen_slots.json` unless the user explicitly asks for alert-state repair.
-- For alert, worker, or notification changes, run `tests/test_alert_semantics.py` and get senior review.
+- For alert, worker, or notification changes, run `tests/test_alert_semantics.py`.
 - For frontend changes, run an extracted `public/index.html` script through `node --check`.
 - Smoke-test with `scripts/smoke_test_api.py` before calling production work done.

@@ -1,4 +1,6 @@
-# Disney Dining Bot — Claude Context
+# Disney Dining Bot — Product Archive
+
+> **ARCHIVE (2026-08-15).** Canonical agent law is `AGENTS.md`. Goose and Claude are not in any workstream. Keep this file for product/ops detail only.
 
 ## What This Project Does
 Self-hosted MouseWatcher-style service for Walt Disney World dining. A web UI at **magictablefinder.com** lets each user manage their own watch list; a VPS worker polls Disney and sends SMS alerts to the user who created the watch.
@@ -259,9 +261,9 @@ For end-to-end diagnostic patterns, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
 
 When multiple agents are available:
 
-- Primary architect/release owner: define product promise, specs, final code review, commits, deploys, production safety.
-- Goose/Qwen coder: bounded implementation/test tickets only. Give exact files, exact behavior, tests, and stop conditions. Do not let it deploy or mutate production.
-- Claude/Sonnet reviewer: design and reliability review, edge-case pressure testing, UX critique.
+- Owner: Cursor. Implements, reviews, commits, deploys, production safety.
+- Builder: Grok 4.6 in Cursor.
+- Do not launch Goose or Claude.
 - QA/ops checks: smoke tests, VPS timer state, bot health, Twilio usage, no leftover fake watches.
 
 For meaningful changes:
