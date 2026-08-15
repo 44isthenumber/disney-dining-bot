@@ -1,7 +1,7 @@
 # Magic Table Finder — Agent Instructions
 
 > **Primary law for Cursor and Grok Build.** Do not route work to Goose or Claude/Anthropic.
-> `CLAUDE.md` is an archive of product detail. Prefer this file + `.cursor/rules/`.
+> Prefer this file + `.cursor/rules/`. Product/ops detail is `PRODUCT.md`.
 
 ## Product promise
 
@@ -40,7 +40,7 @@ Cloud clones GitHub `44isthenumber/disney-dining-bot`. It cannot see Mac Keychai
 
 ## Delivery
 
-For anything beyond a typo or single-file fix, run `~/.cursor/skills/deliver/SKILL.md`. Agents grapple; do not ask Craig to approve the spec. After validator pass, stay off `main` (Netlify deploys from `main`). Cloud still must not touch the VPS Disney session.
+For anything beyond a typo or single-file fix, run `.cursor/skills/deliver/SKILL.md`. Agents grapple; do not ask Craig to approve the spec. After validator pass, stay off `main` (Netlify deploys from `main`). Cloud still must not touch the VPS Disney session.
 
 ## Safety
 
@@ -61,7 +61,7 @@ python3 scripts/smoke_test_api.py --user-id craig
 
 | What | Where |
 |---|---|
-| Full product archive | `CLAUDE.md` |
+| Product / ops brief | `PRODUCT.md` |
 | VPS deploy | `VPS_DEPLOYMENT.md` |
 | Troubleshooting | `TROUBLESHOOTING.md` |
 | Reliability skill | `.cursor/skills/magic-table-reliability/SKILL.md` |

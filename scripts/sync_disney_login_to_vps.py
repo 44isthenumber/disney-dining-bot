@@ -12,7 +12,7 @@ Optional: after updating .env, run Playwright seed + one worker poll on the VPS:
 If Disney blocks automated login (MFA etc.), push credentials without --run-seed-and-poll,
 then complete login over SSH with a TTY (see docstring in seed_disney_session.py).
 
-Requires SSH key access (same as CLAUDE.md VPS instructions).
+Requires SSH key access (same as PRODUCT.md VPS instructions).
 """
 
 from __future__ import annotations

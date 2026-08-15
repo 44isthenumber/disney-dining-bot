@@ -25,7 +25,7 @@ python3 -m playwright install --with-deps chromium
 Copy `.env.template` to `.env` and set:
 
 ```bash
-# Each user's phone field uses a channel prefix. See notify.py and CLAUDE.md.
+# Each user's phone field uses a channel prefix. See notify.py and PRODUCT.md.
 # signal:+1...         -> Signal via local signal-cli (current production)
 # signal:<uuid>        -> Signal by account UUID (use when the recipient has
 #                         "Phone Number Discoverability" off in Signal Privacy)

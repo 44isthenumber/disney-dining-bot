@@ -5,7 +5,7 @@ Check current Disney dining availability for all watched restaurants using the l
 ## Steps
 
 0. **Preflight**
-   - Read `CLAUDE.md` first for current production architecture and alert semantics.
+   - Read `AGENTS.md` and `PRODUCT.md` first for current production architecture and alert semantics.
    - Confirm the browser/MCP tools are available and a Disney tab can be controlled.
    - Confirm the API secret source without printing it. Never paste secrets into the transcript.
    - This command is readonly: do not mutate `open_slots.json`, `seen_slots.json`, watches, or Twilio.

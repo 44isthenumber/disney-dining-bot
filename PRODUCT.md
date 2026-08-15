@@ -1,6 +1,6 @@
-# Disney Dining Bot — Product Archive
+# Magic Table Finder — Product and ops brief
 
-> **ARCHIVE (2026-08-15).** Canonical agent law is `AGENTS.md`. Goose and Claude are not in any workstream. Keep this file for product/ops detail only.
+> Agent law is `AGENTS.md`. This file is product/ops detail only. Do not launch Claude Code.
 
 ## What This Project Does
 Self-hosted MouseWatcher-style service for Walt Disney World dining. A web UI at **magictablefinder.com** lets each user manage their own watch list; a VPS worker polls Disney and sends SMS alerts to the user who created the watch.
