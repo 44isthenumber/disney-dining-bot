@@ -367,28 +367,43 @@
   }
   #login-overlay.hidden { display: none; }
   #login-box {
-    background: #fff; border-radius: 16px; padding: 40px 36px;
-    width: 340px; max-width: 92vw;
+    background: #fff; border-radius: 16px; padding: 36px 28px;
+    width: 380px; max-width: 92vw;
     box-shadow: 0 24px 64px rgba(0,0,0,.5);
     text-align: center;
   }
   #login-box .login-icon { font-size: 48px; margin-bottom: 10px; }
   #login-box h2 { font-size: 22px; font-weight: 700; color: #1a1a2e; margin-bottom: 4px; }
-  #login-box p { font-size: 13px; color: #888; margin-bottom: 24px; }
-  #login-box input[type=password], #login-box select {
+  #login-box #login-lead { font-size: 13px; color: #888; margin-bottom: 18px; }
+  #login-box input[type=password],
+  #login-box input[type=email],
+  #login-box input[type=text],
+  #login-box input[type=tel] {
     width: 100%; padding: 11px 14px; border: 1.5px solid #ddd; border-radius: 8px;
     font-size: 15px; margin-bottom: 12px; outline: none;
     transition: border-color .15s;
     background: #fff;
   }
-  #login-box input[type=password]:focus { border-color: var(--blue); }
-  #login-btn {
+  #login-box input:focus { border-color: var(--blue); }
+  #login-box .login-switch { font-size: 13px; color: #666; margin: 14px 0 0; }
+  #login-box .login-switch button {
+    border: 0; background: none; color: var(--blue); font-weight: 700; cursor: pointer;
+    font-size: 13px;
+  }
+  #login-box .login-consent {
+    display: flex; gap: 8px; align-items: flex-start; text-align: left;
+    font-size: 12px; color: #444; line-height: 1.45; margin: 4px 0 14px;
+  }
+  #login-box .login-consent input { width: auto; margin-top: 3px; flex-shrink: 0; }
+  #login-box .login-hint { font-size: 11px; color: #999; margin: 12px 0 0; line-height: 1.5; }
+  #signin-form.hidden, #signup-form.hidden { display: none; }
+  #login-btn, #signup-btn {
     width: 100%; padding: 11px; background: var(--blue); color: #fff;
     border: none; border-radius: 8px; font-size: 15px; font-weight: 600;
     cursor: pointer; transition: background .15s;
   }
-  #login-btn:hover { background: var(--blue-dark); }
-  #login-btn:disabled { background: #aaa; cursor: default; }
+  #login-btn:hover, #signup-btn:hover { background: var(--blue-dark); }
+  #login-btn:disabled, #signup-btn:disabled { background: #aaa; cursor: default; }
   #login-error { color: #e53e3e; font-size: 13px; margin-top: 10px; min-height: 18px; }
 
   /* ── Logout button in header ─── */
@@ -408,16 +423,36 @@
   <div id="login-box">
     <div class="login-icon">🏰</div>
     <h2>Magic Table Finder</h2>
-    <p>Disney dining alerts — choose your profile to get started.</p>
-    <select id="login-profile"></select>
-    <p style="font-size:11px;color:#aaa;margin:-4px 0 10px;text-align:left;line-height:1.5">Alerts go to this profile's phone number when a table opens.</p>
-    <input type="password" id="login-pwd" placeholder="Password" autocomplete="current-password" />
-    <button id="login-btn">Sign In</button>
-    <p style="font-size:11px;color:#aaa;margin:12px 0 0;line-height:1.6">
-      SMS alerts require active consent before watch creation.
-      <a href="/sms-consent.html" target="_blank" rel="noopener" style="color:#8fb4ff;font-weight:700">SMS consent flow</a> ·
-      <a href="/privacy.html" target="_blank" rel="noopener" style="color:#8fb4ff;font-weight:700">Privacy</a> ·
-      <a href="/terms.html" target="_blank" rel="noopener" style="color:#8fb4ff;font-weight:700">Terms</a>
+    <p id="login-lead">Sign in to manage your dining watches. Alerts go to the phone on your account when a matching table opens.</p>
+    <form id="signin-form" autocomplete="on">
+      <input type="text" id="login-identifier" placeholder="Email or profile name" autocomplete="username" />
+      <input type="password" id="login-pwd" placeholder="Password" autocomplete="current-password" />
+      <button type="submit" id="login-btn">Sign In</button>
+      <p class="login-switch">Need an account? <button type="button" id="show-signup">Create account</button></p>
+    </form>
+    <form id="signup-form" class="hidden" autocomplete="on">
+      <input type="email" id="signup-email" placeholder="Email" autocomplete="email" />
+      <input type="password" id="signup-pwd" placeholder="Password (8+ characters)" autocomplete="new-password" />
+      <input type="tel" id="signup-phone" placeholder="Mobile number" autocomplete="tel" />
+      <input type="text" id="signup-name" placeholder="Name (optional)" autocomplete="name" />
+      <label class="login-consent">
+        <input type="checkbox" id="signup-consent" />
+        <span>
+          I agree to receive SMS alerts from Magic Table Finder. Message frequency varies.
+          Msg &amp; data rates may apply. Reply STOP to opt out. Reply HELP for help.
+          See <a href="/privacy.html" target="_blank" rel="noopener">Privacy</a> and
+          <a href="/terms.html" target="_blank" rel="noopener">Terms</a>.
+        </span>
+      </label>
+      <button type="submit" id="signup-btn">Create account</button>
+      <p class="login-switch">Already have an account? <button type="button" id="show-signin">Sign in</button></p>
+    </form>
+    <p class="login-hint">
+      Existing Craig and Jessica profiles: sign in with your profile name and current password.
+      SMS consent is also required when you create a watch.
+      <a href="/sms-consent.html" target="_blank" rel="noopener">SMS consent</a> ·
+      <a href="/privacy.html" target="_blank" rel="noopener">Privacy</a> ·
+      <a href="/terms.html" target="_blank" rel="noopener">Terms</a>
     </p>
     <div id="login-error"></div>
   </div>
@@ -617,12 +652,16 @@ function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
-function getSecret() { return localStorage.getItem('disneyApiSecret') || ''; }
-function getUserId() { return localStorage.getItem('disneyUserId') || 'craig'; }
+var sessionUserId = '';
+function getUserId() { return sessionUserId || ''; }
 function getTripStart() { return localStorage.getItem('disneyTripStart') || ''; }
 function getTripEnd() { return localStorage.getItem('disneyTripEnd') || ''; }
 function getPartySize() { return parseInt(document.getElementById('global-party').value) || 2; }
-function smsConsentKey() { return 'disneySmsConsent:' + getUserId(); }
+function smsConsentKey() { return 'disneySmsConsent:' + (getUserId() || 'pending'); }
+function clearLegacyAuthStorage() {
+  localStorage.removeItem('disneyApiSecret');
+  localStorage.removeItem('disneyUserId');
+}
 function hasSmsConsent() { return localStorage.getItem(smsConsentKey()) === 'true'; }
 
 function syncSmsConsentControls() {
@@ -669,11 +708,9 @@ function watchCriteriaLabel(w) {
 
 async function apiFetch(path, opts) {
   opts = opts || {};
-  const res = await fetch('/_api' + path, Object.assign({}, opts, {
+  const res = await fetch('/_api' + path, Object.assign({ credentials: 'include' }, opts, {
     headers: Object.assign({
       'Content-Type': 'application/json',
-      'X-API-Secret': getSecret(),
-      'X-User-Id': getUserId(),
     }, opts.headers || {})
   }));
   if (res.status === 204) return null;
@@ -683,8 +720,9 @@ async function apiFetch(path, opts) {
     try { data = JSON.parse(text); } catch(e) { data = { detail: text }; }
   }
   if (res.status === 401) {
+    sessionUserId = '';
     showLogin();
-    throw new Error((data && (data.detail || data.error)) || 'Invalid password');
+    throw new Error((data && (data.detail || data.error)) || 'Sign in required');
   }
   if (!res.ok) {
     var detail = data && (data.detail || data.error || (Array.isArray(data.details) && data.details.join(' ')));
@@ -698,63 +736,123 @@ async function apiFetch(path, opts) {
 function showLogin() {
   document.getElementById('login-overlay').classList.remove('hidden');
   document.getElementById('login-pwd').value = '';
+  document.getElementById('signup-pwd').value = '';
   document.getElementById('login-error').textContent = '';
-  setTimeout(function() { document.getElementById('login-pwd').focus(); }, 50);
+  setTimeout(function() {
+    var el = document.getElementById('signup-form').classList.contains('hidden')
+      ? document.getElementById('login-identifier')
+      : document.getElementById('signup-email');
+    if (el) el.focus();
+  }, 50);
 }
 
 function hideLogin() {
   document.getElementById('login-overlay').classList.add('hidden');
 }
 
-async function loadProfiles() {
-  const select = document.getElementById('login-profile');
-  try {
-    const res = await fetch('/_api/profiles');
-    const data = res.ok ? await res.json() : { profiles: [] };
-    const profiles = data.profiles && data.profiles.length ? data.profiles : [{ id: 'craig', name: 'Craig' }];
-    select.innerHTML = profiles.map(function(p) {
-      return '<option value="'+esc(p.id)+'">'+esc(p.name)+'</option>';
-    }).join('');
-    select.value = getUserId();
-  } catch(e) {
-    select.innerHTML = '<option value="craig">Craig</option>';
-  }
+function showSigninForm() {
+  document.getElementById('signin-form').classList.remove('hidden');
+  document.getElementById('signup-form').classList.add('hidden');
+  document.getElementById('login-error').textContent = '';
+  document.getElementById('login-identifier').focus();
 }
 
-document.getElementById('login-btn').addEventListener('click', attemptLogin);
-document.getElementById('login-pwd').addEventListener('keydown', function(e) {
-  if (e.key === 'Enter') attemptLogin();
-});
+function showSignupForm() {
+  document.getElementById('signin-form').classList.add('hidden');
+  document.getElementById('signup-form').classList.remove('hidden');
+  document.getElementById('login-error').textContent = '';
+  document.getElementById('signup-consent').checked = false;
+  document.getElementById('signup-email').focus();
+}
 
-async function attemptLogin() {
-  const pwd = document.getElementById('login-pwd').value.trim();
-  const userId = document.getElementById('login-profile').value || 'craig';
+document.getElementById('show-signup').addEventListener('click', showSignupForm);
+document.getElementById('show-signin').addEventListener('click', showSigninForm);
+
+function rememberSessionUser(profile) {
+  sessionUserId = profile && profile.id ? profile.id : '';
+  clearLegacyAuthStorage();
+}
+
+async function attemptLogin(e) {
+  if (e) e.preventDefault();
+  const identifier = document.getElementById('login-identifier').value.trim();
+  const pwd = document.getElementById('login-pwd').value;
   const btn = document.getElementById('login-btn');
   const err = document.getElementById('login-error');
-  if (!pwd) return;
+  if (!identifier || !pwd) return;
   btn.disabled = true; btn.textContent = 'Signing in…'; err.textContent = '';
   try {
-    const res = await fetch('/_api/status', {
-      headers: { 'X-API-Secret': pwd, 'X-User-Id': userId }
+    const res = await fetch('/_api/login', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier: identifier, password: pwd })
     });
+    var data = null;
+    try { data = await res.json(); } catch (parseErr) { data = null; }
     if (res.ok) {
-      localStorage.setItem('disneyApiSecret', pwd);
-      localStorage.setItem('disneyUserId', userId);
+      rememberSessionUser(data && data.profile);
       hideLogin();
       onLogin();
     } else {
-      err.textContent = 'Incorrect password.';
+      err.textContent = (data && data.detail) || 'Incorrect email or password.';
       document.getElementById('login-pwd').focus();
     }
   } catch(e) {
     err.textContent = 'Connection error — try again.';
   }
-  btn.disabled = false; btn.textContent = 'Sign in';
+  btn.disabled = false; btn.textContent = 'Sign In';
 }
 
-document.getElementById('logout-btn').addEventListener('click', function() {
-  localStorage.removeItem('disneyApiSecret');
-  localStorage.removeItem('disneyUserId');
+async function attemptSignup(e) {
+  if (e) e.preventDefault();
+  const email = document.getElementById('signup-email').value.trim();
+  const pwd = document.getElementById('signup-pwd').value;
+  const phone = document.getElementById('signup-phone').value.trim();
+  const name = document.getElementById('signup-name').value.trim();
+  const consent = document.getElementById('signup-consent').checked;
+  const btn = document.getElementById('signup-btn');
+  const err = document.getElementById('login-error');
+  btn.disabled = true; btn.textContent = 'Creating account…'; err.textContent = '';
+  try {
+    const res = await fetch('/_api/signup', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: email,
+        password: pwd,
+        phone: phone,
+        name: name,
+        sms_consent: consent
+      })
+    });
+    var data = null;
+    try { data = await res.json(); } catch (parseErr) { data = null; }
+    if (res.ok) {
+      rememberSessionUser(data && data.profile);
+      if (consent && sessionUserId) setSmsConsentAccepted(true);
+      hideLogin();
+      onLogin();
+    } else {
+      err.textContent = (data && data.detail) || 'Could not create account.';
+    }
+  } catch(e) {
+    err.textContent = 'Connection error — try again.';
+  }
+  btn.disabled = false; btn.textContent = 'Create account';
+}
+
+document.getElementById('signin-form').addEventListener('submit', attemptLogin);
+document.getElementById('signup-form').addEventListener('submit', attemptSignup);
+
+document.getElementById('logout-btn').addEventListener('click', async function() {
+  try {
+    await fetch('/_api/logout', { method: 'POST', credentials: 'include' });
+  } catch (e) {}
+  sessionUserId = '';
+  clearLegacyAuthStorage();
+  showSigninForm();
   showLogin();
 });
 
@@ -777,13 +875,23 @@ document.getElementById('logout-btn').addEventListener('click', function() {
     document.getElementById('party-size').value = this.value;
   });
 
-  loadProfiles();
-
-  // Show login if no secret stored, otherwise validate silently
-  if (!getSecret()) {
-    showLogin();
-  }
+  clearLegacyAuthStorage();
+  restoreSession();
 })();
+
+async function restoreSession() {
+  try {
+    const me = await fetch('/_api/me', { credentials: 'include' });
+    if (me.ok) {
+      const data = await me.json();
+      rememberSessionUser(data && data.profile);
+      hideLogin();
+      onLogin();
+      return;
+    }
+  } catch (e) {}
+  showLogin();
+}
 
 // ── Status ───────────────────────────────────────────────────────────────────
 
@@ -801,7 +909,10 @@ async function refreshStatus() {
   const profile = document.getElementById('profile-label');
   try {
     const s = await apiFetch('/status');
-    if (s.profile) profile.textContent = s.profile.name;
+    if (s.profile) {
+      profile.textContent = s.profile.name;
+      if (s.profile.id) sessionUserId = s.profile.id;
+    }
     const authRequired = s.auth_status === 'reauth_required';
     const sessionOk = s.session_status === 'ok' || s.token_status === 'ok' || s.token_status === 'browser-session';
     const needsAttention = s.session_status === 'needs_attention';

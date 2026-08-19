@@ -2,8 +2,8 @@
 """Safe production smoke test for Magic Table Finder.
 
 This verifies the website API without sending SMS:
-- profiles are visible
-- status is readable for each profile
+- signup/login is session-cookie based (no public /profiles directory)
+- status is readable for the signed-in owner
 - a fake future watch can be created for the selected owner
 - the watch is owner-scoped
 - cleanup deletes the generated watch IDs
@@ -42,15 +42,39 @@ def load_dotenv(path: Path) -> None:
         os.environ.setdefault(key, value.strip().strip("'\""))
 
 
+def password_for(user_id: str) -> str:
+    raw = os.environ.get("WATCH_USERS") or os.environ.get("DISNEY_USERS") or ""
+    if raw.strip():
+        try:
+            parsed = json.loads(raw)
+            password = str((parsed.get(user_id) or {}).get("password") or "").strip()
+            if password:
+                return password
+        except json.JSONDecodeError:
+            pass
+    return os.environ.get("API_SECRET", "")
+
+
 class ApiClient:
-    def __init__(self, base_url: str, secret: str, user_id: str) -> None:
+    def __init__(self, base_url: str) -> None:
         self.base_url = base_url.rstrip("/")
         self.session = requests.Session()
-        self.session.headers.update({
-            "Content-Type": "application/json",
-            "X-API-Secret": secret,
-            "X-User-Id": user_id,
-        })
+        self.session.headers.update({"Content-Type": "application/json"})
+
+    def login(self, identifier: str, password: str) -> dict[str, Any]:
+        response = self.session.post(
+            f"{self.base_url}/login",
+            json={"identifier": identifier, "password": password},
+            timeout=20,
+        )
+        try:
+            data = response.json()
+        except ValueError:
+            data = {"detail": response.text}
+        if response.status_code >= 400:
+            detail = data.get("detail") or data.get("error") or response.reason
+            raise RuntimeError(f"POST /login failed for {identifier}: {response.status_code} {detail}")
+        return data
 
     def request(self, method: str, path: str, **kwargs: Any) -> Any:
         response = self.session.request(method, f"{self.base_url}{path}", timeout=20, **kwargs)
@@ -74,27 +98,38 @@ def main() -> int:
     args = parser.parse_args()
 
     load_dotenv(Path(".env"))
-    secret = os.environ.get("API_SECRET", "")
+    secret = password_for(args.user_id)
     if not secret:
-        print("API_SECRET is required in the environment or .env", file=sys.stderr)
+        print("A per-user WATCH_USERS password (or API_SECRET fallback) is required", file=sys.stderr)
         return 2
 
-    public = requests.get(f"{args.base_url.rstrip('/')}/profiles", timeout=20)
-    public.raise_for_status()
-    profiles = public.json().get("profiles", [])
-    profile_ids = [profile.get("id") for profile in profiles]
-    print(f"profiles: {', '.join(profile_ids)}")
-    if args.user_id not in profile_ids:
-        print(f"user {args.user_id!r} is not exposed by /profiles", file=sys.stderr)
+    profiles_probe = requests.get(f"{args.base_url.rstrip('/')}/profiles", timeout=20)
+    if profiles_probe.status_code != 404:
+        print(f"/profiles must not be a public directory (got {profiles_probe.status_code})", file=sys.stderr)
+        return 1
+    print("profiles: hidden (404)")
+
+    other_ids = ["craig", "Jessica"]
+    clients: dict[str, ApiClient] = {}
+    for profile_id in other_ids:
+        password = password_for(profile_id)
+        if not password:
+            continue
+        client = ApiClient(args.base_url)
+        client.login(profile_id, password)
+        clients[profile_id] = client
+
+    if args.user_id not in clients:
+        print(f"could not sign in as {args.user_id!r}", file=sys.stderr)
         return 1
 
-    clients = {profile_id: ApiClient(args.base_url, secret, profile_id) for profile_id in profile_ids if profile_id}
     client = clients[args.user_id]
     created_ids: list[str] = []
     try:
         for profile_id, profile_client in clients.items():
             status = profile_client.request("GET", "/status")
-            print(f"status[{profile_id}]: {status.get('session_status')} watches={status.get('watches_count')}")
+            profile = (status.get("profile") or {}).get("id")
+            print(f"status[{profile_id}]: {status.get('session_status')} watches={status.get('watches_count')} owner={profile}")
 
         payload = {
             **FAKE_RESTAURANT,
