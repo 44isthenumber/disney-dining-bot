@@ -117,7 +117,8 @@ function attachBlobsFromEvent(event) {
 async function claimKey(store, key, value) {
   const existing = await store.get(key, { type: "json" });
   if (existing && existing.userId && existing.userId !== value.userId) return false;
-  await store.setJSON(key, value);
+  const result = await store.setJSON(key, value, { onlyIfNew: true });
+  if (result && result.modified === false) return false;
   const confirm = await store.get(key, { type: "json" });
   return Boolean(confirm && confirm.userId === value.userId);
 }
@@ -130,7 +131,9 @@ function createBlobsStore(event) {
   } catch (err) {
     throw new Error("Netlify Blobs is not available; refusing memory fallback");
   }
-  const store = getStore({ name: STORE_NAME, consistency: "strong" });
+  // Default eventual consistency. connectLambda does not set uncachedEdgeURL,
+  // so consistency: "strong" throws BlobsConsistencyError on every operation.
+  const store = getStore(STORE_NAME);
 
   return {
     kind: "blobs",

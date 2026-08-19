@@ -386,11 +386,33 @@ test("claimKey rejects a pointer that already belongs to another user", async ()
   const data = new Map();
   const fake = {
     async get(key) { return data.get(key) || null; },
-    async setJSON(key, value) { data.set(key, value); },
+    async setJSON(key, value, opts) {
+      if (opts && opts.onlyIfNew && data.has(key)) return { modified: false };
+      data.set(key, value);
+      return { modified: true };
+    },
   };
   assert.equal(await claimKey(fake, "email:sam@example.com", { userId: "user_one" }), true);
   assert.equal(await claimKey(fake, "email:sam@example.com", { userId: "user_two" }), false);
   assert.equal(data.get("email:sam@example.com").userId, "user_one");
+});
+
+test("claimKey uses onlyIfNew and allows only one concurrent winner", async () => {
+  let held = null;
+  const fake = {
+    async get() { return held; },
+    async setJSON(_key, value, opts) {
+      if (opts && opts.onlyIfNew && held) return { modified: false };
+      held = value;
+      return { modified: true };
+    },
+  };
+  const results = await Promise.all([
+    claimKey(fake, "email:sam@example.com", { userId: "user_one" }),
+    claimKey(fake, "email:sam@example.com", { userId: "user_two" }),
+  ]);
+  assert.equal(results.filter(Boolean).length, 1);
+  assert.ok(held && (held.userId === "user_one" || held.userId === "user_two"));
 });
 
 test("production user store refuses silent memory fallback", () => {
