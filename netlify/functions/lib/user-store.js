@@ -107,31 +107,30 @@ function createMemoryStore() {
   };
 }
 
-async function claimNew(store, key, value) {
-  const existing = await store.get(key);
-  if (existing != null) return false;
-  try {
-    await store.setJSON(key, value, { onlyIfNew: true });
-    return true;
-  } catch (err) {
-    const message = String((err && err.message) || err || "");
-    if (/onlyIfNew|already exists|precondition/i.test(message)) return false;
-    const raced = await store.get(key);
-    if (raced != null) return false;
-    throw err;
+function attachBlobsFromEvent(event) {
+  const { connectLambda } = require("@netlify/blobs");
+  if (event && event.blobs) {
+    connectLambda(event);
   }
 }
 
-function createBlobsStore(context) {
+async function claimKey(store, key, value) {
+  const existing = await store.get(key, { type: "json" });
+  if (existing && existing.userId && existing.userId !== value.userId) return false;
+  await store.setJSON(key, value);
+  const confirm = await store.get(key, { type: "json" });
+  return Boolean(confirm && confirm.userId === value.userId);
+}
+
+function createBlobsStore(event) {
   let getStore;
   try {
+    attachBlobsFromEvent(event);
     ({ getStore } = require("@netlify/blobs"));
   } catch (err) {
     throw new Error("Netlify Blobs is not available; refusing memory fallback");
   }
-  const opts = { name: STORE_NAME, consistency: "strong" };
-  if (context) opts.context = context;
-  const store = getStore(opts);
+  const store = getStore({ name: STORE_NAME, consistency: "strong" });
 
   return {
     kind: "blobs",
@@ -156,15 +155,22 @@ function createBlobsStore(context) {
     async createUser(record) {
       const email = normalizeEmail(record.email);
       const saved = { ...record, email };
+      const lookupKey = `idlookup:${String(record.id).toLowerCase()}`;
       if (email) {
-        const claimed = await claimNew(store, `email:${email}`, { userId: record.id });
+        const claimed = await claimKey(store, `email:${email}`, { userId: record.id });
         if (!claimed) return { ok: false, reason: "email_taken" };
       }
-      const idClaimed = await claimNew(store, `idlookup:${String(record.id).toLowerCase()}`, {
-        userId: record.id,
-      });
+      const idClaimed = await claimKey(store, lookupKey, { userId: record.id });
       if (!idClaimed) return { ok: false, reason: "id_taken" };
       await store.setJSON(`user:${record.id}`, saved);
+      if (email) {
+        const stillOurs = await store.get(`email:${email}`, { type: "json" });
+        if (!stillOurs || stillOurs.userId !== record.id) {
+          await store.delete(`user:${record.id}`);
+          await store.delete(lookupKey);
+          return { ok: false, reason: "email_taken" };
+        }
+      }
       return { ok: true, user: saved };
     },
     async seedFromEnvUsers(envUsers) {
@@ -191,14 +197,14 @@ function createBlobsStore(context) {
   };
 }
 
-function createUserStore({ context, allowMemory = false } = {}) {
+function createUserStore({ event, allowMemory = false } = {}) {
   if (process.env.MTF_USER_STORE === "memory") {
     if (!allowMemory) {
       throw new Error("MTF_USER_STORE=memory is test-only");
     }
     return createMemoryStore();
   }
-  return createBlobsStore(context);
+  return createBlobsStore(event);
 }
 
 module.exports = {
@@ -206,6 +212,8 @@ module.exports = {
   normalizeEmail,
   publicUser,
   parseEnvUsers,
+  attachBlobsFromEvent,
+  claimKey,
   createMemoryStore,
   createBlobsStore,
   createUserStore,

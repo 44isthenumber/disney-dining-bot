@@ -734,7 +734,7 @@ function createHandler(deps = {}) {
 
       let store = injectedStore;
       if (!store) {
-        store = createUserStore({ context, allowMemory });
+        store = createUserStore({ event, allowMemory });
       }
       await ensureSeeded(store);
 

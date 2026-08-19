@@ -23,7 +23,7 @@ A person can create a Magic Table Finder account (email, password, phone, SMS co
 | Netlify Blobs | Platform already used (Netlify Functions) | Yes | No new vendor, no spend. **Pick.** |
 | Stripe / Neon / Supabase / D1 | Not in repo | Would add vendor | Out of scope. |
 
-**Decision:** Netlify Blobs store `mtf-users`, one blob per user (`user:{id}`) plus `email:{normalized}` uniqueness keys. Tests inject an in-memory adapter (`MTF_USER_STORE=memory`). Do not silently fall back to memory in production (users would vanish between Lambdas).
+**Decision:** Netlify Blobs store `mtf-users`, one blob per user (`user:{id}`) plus `email:{normalized}` uniqueness keys. Classic Netlify Functions (`exports.handler`) must call `connectLambda(event)` before `getStore` — do not pass Lambda `context` into `getStore`. This package’s `setJSON` does not support `onlyIfNew`; uniqueness is write-then-read confirmation, then delete the user blob if the email pointer is no longer ours. Tests inject an in-memory adapter. Do not silently fall back to memory in production (users would vanish between Lambdas).
 
 The VPS worker keeps reading `WATCH_USERS` for `recipient_for()` fallback and admin operational alerts. Reservation alerts already use `slot.recipient_phone` stamped on each watch at create time (`api.js` `handlePostWatch`, `notify.py` `send_sms`). New users’ phones go on the watch record. Do not change `disney_bot.py` / Playwright / Gist watch I/O in this PR.
 

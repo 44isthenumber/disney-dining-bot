@@ -4,7 +4,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { hashPassword, verifyPassword } = require("../netlify/functions/lib/password");
 const { signSession, verifySession, COOKIE_NAME } = require("../netlify/functions/lib/session");
-const { createMemoryStore, createUserStore, publicUser } = require("../netlify/functions/lib/user-store");
+const { createMemoryStore, createUserStore, publicUser, attachBlobsFromEvent, claimKey } = require("../netlify/functions/lib/user-store");
 const { createHandler, normalizeWatch } = require("../netlify/functions/api");
 
 const SECRET = "test-session-secret-not-for-production";
@@ -365,6 +365,32 @@ test("GET /profiles is not a public directory", async () => {
   const res = await invoke(handler, { method: "GET", path: "/profiles" });
   assert.equal(res.statusCode, 404);
   assert.equal(res.json.profiles, undefined);
+});
+
+test("classic Lambda events initialize Blobs via connectLambda", () => {
+  const { getStore } = require("../netlify/functions/node_modules/@netlify/blobs");
+  const blobs = Buffer.from(JSON.stringify({
+    url: "https://blob.example",
+    token: "test-token",
+  })).toString("base64");
+  attachBlobsFromEvent({
+    blobs,
+    headers: { "x-nf-deploy-id": "deploy", "x-nf-site-id": "site" },
+  });
+  const store = getStore("mtf-users");
+  assert.equal(typeof store.setJSON, "function");
+  assert.equal(typeof store.get, "function");
+});
+
+test("claimKey rejects a pointer that already belongs to another user", async () => {
+  const data = new Map();
+  const fake = {
+    async get(key) { return data.get(key) || null; },
+    async setJSON(key, value) { data.set(key, value); },
+  };
+  assert.equal(await claimKey(fake, "email:sam@example.com", { userId: "user_one" }), true);
+  assert.equal(await claimKey(fake, "email:sam@example.com", { userId: "user_two" }), false);
+  assert.equal(data.get("email:sam@example.com").userId, "user_one");
 });
 
 test("production user store refuses silent memory fallback", () => {
