@@ -14,12 +14,20 @@ const https = require("https");
 const path = require("path");
 const fs = require("fs");
 const crypto = require("crypto");
+const { createMemoryStore, createUserStore, publicUser } = require("./lib/user-store");
+const { resolveSessionSecret } = require("./lib/session");
+const {
+  ensureSeeded,
+  handleSignup,
+  handleLogin,
+  handleLogout,
+  requireUser,
+} = require("./lib/identity");
 
 // ── env ───────────────────────────────────────────────────────────────────────
 
 const GIST_ID = process.env.GITHUB_GIST_ID || "";
 const GH_TOKEN = process.env.GITHUB_TOKEN || "";
-const API_SECRET = (process.env.API_SECRET || "").trim();
 const DEFAULT_OWNER_ID = process.env.DEFAULT_OWNER_ID || "craig";
 
 // ── http helper ───────────────────────────────────────────────────────────────
@@ -266,60 +274,8 @@ function parseWatchId(wid) {
   return null;
 }
 
-function parseUsers() {
-  const raw = process.env.WATCH_USERS || process.env.DISNEY_USERS || "";
-  if (raw.trim()) {
-    try {
-      const parsed = JSON.parse(raw);
-      const users = {};
-      for (const [id, value] of Object.entries(parsed)) {
-        users[id] = {
-          id,
-          name: value.name || id,
-          password: value.password || "",
-          phone: value.phone || "",
-        };
-      }
-      if (Object.keys(users).length) return users;
-    } catch {}
-  }
-  // Fallback when WATCH_USERS absent: expose public profiles without phones
-  const fallbackRaw = process.env.FALLBACK_USERS || '{"craig":{"name":"Craig"},"Jessica":{"name":"Jessica"}}';
-  try {
-    const parsed = JSON.parse(fallbackRaw);
-    const users = {};
-    for (const [id, value] of Object.entries(parsed)) {
-      users[id] = {
-        id,
-        name: value.name || id,
-        password: API_SECRET,
-        phone: "",  // no phone numbers in fallback
-      };
-    }
-    return users;
-  } catch {
-    // Ultimate fallback
-    return {
-      [DEFAULT_OWNER_ID]: {
-        id: DEFAULT_OWNER_ID,
-        name: process.env.DEFAULT_OWNER_NAME || "Craig",
-        password: API_SECRET,
-        phone: "",
-      },
-    };
-  }
-}
-
-function publicProfiles() {
-  const users = parseUsers();
-  return Object.values(users).map((u) => ({ id: u.id, name: u.name, has_phone: !!u.phone }));
-}
-
-function currentUser(event) {
-  const users = parseUsers();
-  const requested = event.headers["x-user-id"] || event.headers["X-User-Id"] || DEFAULT_OWNER_ID;
-  return users[requested] || users[DEFAULT_OWNER_ID] || Object.values(users)[0];
-}
+// People identity lives in Netlify Blobs (see lib/user-store.js).
+// WATCH_USERS is only a one-time seed source for craig / Jessica.
 
 function watchRecordId(ownerId, facilityId, partySize, date) {
   return `${ownerId}__${facilityId}__${partySize}__${date}`;
@@ -333,7 +289,7 @@ function normalizeWatch(raw, userFallback = null) {
   const ownerId = raw.owner_id || raw.ownerId || (userFallback && userFallback.id) || DEFAULT_OWNER_ID;
   const partySize = parseInt(raw.party_size || raw.partySize || 2, 10);
   const date = raw.date;
-  const profile = parseUsers()[ownerId] || {};
+  const existingPhone = raw.recipient_phone;
   return {
     watch_id: raw.watch_id || raw.watchId || newWatchId(),
     owner_id: ownerId,
@@ -346,7 +302,7 @@ function normalizeWatch(raw, userFallback = null) {
     date,
     time_from: raw.time_from || null,
     time_to: raw.time_to || null,
-    recipient_phone: raw.recipient_phone || profile.phone || "",
+    recipient_phone: existingPhone == null ? "" : existingPhone,
     created_at: raw.created_at || new Date().toISOString(),
   };
 }
@@ -419,27 +375,12 @@ function jwtExp(token) {
   }
 }
 
-// ── auth ──────────────────────────────────────────────────────────────────────
-
-function checkSecret(event) {
-  if (event.httpMethod === "OPTIONS") return null;
-  const apiPath = event.path
-    ? event.path.replace(/^\/.netlify\/functions\/api/, "").replace(/^\/_api/, "")
-    : "";
-  // Public endpoints (no auth required):
-  // - /profiles: surfaced in the SPA login screen
-  // - /health: external uptime monitors (UptimeRobot etc.) ping this; safe
-  //   because it returns only a freshness boolean, no watch / owner data
-  if (apiPath === "/profiles" || apiPath === "/health") return null;
-  const user = currentUser(event);
-  const secret =
-    event.headers["x-api-secret"] ||
-    event.headers["X-Api-Secret"] ||
-    event.headers["X-API-Secret"] ||
-    "";
-  const expected = user && user.password ? user.password : API_SECRET;
-  if (expected && secret !== expected) return response(401, { detail: "Invalid API secret" });
-  return null;
+function isPublicPath(method, apiPath) {
+  if (apiPath === "/health") return true;
+  if (method === "POST" && (apiPath === "/signup" || apiPath === "/login" || apiPath === "/logout")) {
+    return true;
+  }
+  return false;
 }
 
 // ── response helper ───────────────────────────────────────────────────────────
@@ -450,7 +391,7 @@ function response(status, body, extraHeaders = {}) {
     headers: {
       "Content-Type": "application/json",
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Headers": "Content-Type, X-API-Secret, X-User-Id",
+      "Access-Control-Allow-Headers": "Content-Type",
       "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
       ...extraHeaders,
     },
@@ -496,7 +437,7 @@ async function handleHealth() {
   });
 }
 
-async function handleStatus(user) {
+async function handleStatus(user, loadAllWatches = loadWatches) {
   let tokenStatus = "browser-session";
   let tokenExpiresInMinutes = null;
 
@@ -507,13 +448,13 @@ async function handleStatus(user) {
     restaurantsIndexed = require("./restaurants.json").count || 0;
   } catch {}
 
-  const watches = await loadWatches();
+  const watches = await loadAllWatches();
   const activeWatches = watches.filter((w) => isActiveWatch(w));
   const userWatches = activeWatches.filter((w) => w.owner_id === user.id);
   const userExpiredWatches = watches.filter((w) => w.owner_id === user.id && !isActiveWatch(w));
 
   return response(200, {
-    profile: { id: user.id, name: user.name, has_phone: !!user.phone },
+    profile: publicUser(user),
     token_status: tokenStatus,
     token_expires_in_minutes: tokenExpiresInMinutes,
     last_poll_at: botState.last_poll_at || null,
@@ -532,7 +473,7 @@ async function handleStatus(user) {
   });
 }
 
-async function handleRestaurants(event, user) {
+async function handleRestaurants(event, user, loadAllWatches = loadWatches) {
   let data;
   try {
     // require() is traced by zip-it-and-ship-it so this file gets bundled.
@@ -558,7 +499,7 @@ async function handleRestaurants(event, user) {
   }
 
   const watched = {};
-  const watches = (await loadWatches()).filter((w) => w.owner_id === user.id && isActiveWatch(w));
+  const watches = (await loadAllWatches()).filter((w) => w.owner_id === user.id && isActiveWatch(w));
   for (const entry of watches) {
     const key = `${entry.facility_id}__${entry.party_size}`;
     if (!watched[key]) watched[key] = { party_size: entry.party_size || 2, dates: [] };
@@ -589,20 +530,24 @@ async function handleCalendar(facilityId) {
   return response(200, { facility_id: facilityId, available_dates: [], cached_at: null });
 }
 
-async function handleGetWatches(user) {
-  const watches = (await loadWatches())
+async function handleGetWatches(user, loadAllWatches = loadWatches) {
+  const watches = (await loadAllWatches())
     .filter((w) => w.owner_id === user.id)
     .filter((w) => isActiveWatch(w))
     .map(publicWatch);
   return response(200, { owner_id: user.id, watches });
 }
 
-async function handlePostWatch(event, user) {
+async function handlePostWatch(event, user, loadAllWatches = loadWatches, saveAllWatches = saveWatches) {
   let body;
   try {
     body = JSON.parse(event.body || "{}");
   } catch {
     return response(400, { detail: "Invalid JSON body" });
+  }
+
+  if (!user.phone) {
+    return response(422, { detail: "Add a mobile number to your account before creating a watch." });
   }
 
   const {
@@ -710,7 +655,7 @@ async function handlePostWatch(event, user) {
     return response(422, { detail: errors.join(" ") });
   }
 
-  const watches = await loadWatches();
+  const watches = await loadAllWatches();
   const byId = new Map(watches.map((w) => [w.watch_id, w]));
   const added = [];
   for (const date of normalizedDates) {
@@ -727,63 +672,116 @@ async function handlePostWatch(event, user) {
       date,
       time_from: timeFrom,
       time_to: timeTo,
-      recipient_phone: user.phone || "",
+      recipient_phone: user.phone,
     }, user));
     added.push(wid);
   }
-  await saveWatches([...byId.values()]);
+  await saveAllWatches([...byId.values()]);
   return response(201, { added });
 }
 
-async function handleDeleteWatch(watchIdStr, user) {
-  const watches = await loadWatches();
+async function handleDeleteWatch(watchIdStr, user, loadAllWatches = loadWatches, saveAllWatches = saveWatches) {
+  const watches = await loadAllWatches();
   const remaining = watches.filter((w) => !(w.watch_id === watchIdStr && w.owner_id === user.id));
   if (remaining.length === watches.length) return response(404, { detail: "Watch not found" });
-  await saveWatches(remaining);
+  await saveAllWatches(remaining);
   return { statusCode: 204, headers: { "Access-Control-Allow-Origin": "*" }, body: "" };
 }
 
 // ── router ────────────────────────────────────────────────────────────────────
 
-exports.handler = async function (event) {
-  // CORS preflight
-  if (event.httpMethod === "OPTIONS") {
-    return response(204, "", {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Headers": "Content-Type, X-API-Secret, X-User-Id",
-      "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-    });
+function createHandler(deps = {}) {
+  const nowFn = deps.now || (() => Date.now());
+  const secret = resolveSessionSecret(deps.sessionSecret);
+  const injectedStore = deps.store || null;
+  const allowMemory = Boolean(deps.allowMemory);
+  const watchesState = deps.watchesState || null;
+
+  async function loadAllWatches() {
+    if (watchesState) return (watchesState.watches || []).map((w) => normalizeWatch(w));
+    return loadWatches();
+  }
+  async function saveAllWatches(watches) {
+    if (watchesState) {
+      watchesState.watches = watches.map((w) => normalizeWatch(w));
+      return;
+    }
+    return saveWatches(watches);
   }
 
-  const authErr = checkSecret(event);
-  if (authErr) return authErr;
-
-  // Strip function prefix to get the API path:
-  // event.path is like "/.netlify/functions/api/status" or "/_api/status"
-  let p = event.path || "/";
-  p = p.replace(/^\/.netlify\/functions\/api/, "").replace(/^\/_api/, "") || "/";
-  if (!p.startsWith("/")) p = "/" + p;
-
-  const method = event.httpMethod;
-  const user = currentUser(event);
-
-  try {
-    if (method === "GET" && p === "/profiles") return response(200, { profiles: publicProfiles() });
-    if (method === "GET" && p === "/health") return await handleHealth();
-    if (method === "GET" && p === "/status") return await handleStatus(user);
-    if (method === "GET" && p === "/restaurants") return await handleRestaurants(event, user);
-    if (method === "GET" && p.startsWith("/calendar/")) {
-      return await handleCalendar(p.slice("/calendar/".length));
-    }
-    if (method === "GET" && p === "/watches") return await handleGetWatches(user);
-    if (method === "POST" && p === "/watches") return await handlePostWatch(event, user);
-    if (method === "DELETE" && p.startsWith("/watches/")) {
-      return await handleDeleteWatch(decodeURIComponent(p.slice("/watches/".length)), user);
+  return async function handler(event, context) {
+    if (event.httpMethod === "OPTIONS") {
+      return response(204, "", {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+      });
     }
 
-    return response(404, { detail: `Not found: ${method} ${p}` });
-  } catch (err) {
-    console.error("Handler error:", err);
-    return response(500, { detail: err.message || "Internal server error" });
-  }
-};
+    let p = event.path || "/";
+    p = p.replace(/^\/.netlify\/functions\/api/, "").replace(/^\/_api/, "") || "/";
+    if (!p.startsWith("/")) p = "/" + p;
+
+    const method = event.httpMethod;
+    const nowMs = nowFn();
+    const jsonResponse = response;
+
+    try {
+      if (method === "GET" && p === "/health") return await handleHealth();
+      if (method === "GET" && p === "/profiles") {
+        return response(404, { detail: "Not found" });
+      }
+
+      let store = injectedStore;
+      if (!store) {
+        store = createUserStore({ event, allowMemory });
+      }
+      await ensureSeeded(store);
+
+      if (method === "POST" && p === "/signup") {
+        return await handleSignup(event, store, { secret, nowMs, jsonResponse });
+      }
+      if (method === "POST" && p === "/login") {
+        return await handleLogin(event, store, { secret, nowMs, jsonResponse });
+      }
+      if (method === "POST" && p === "/logout") {
+        return handleLogout(event, { jsonResponse });
+      }
+
+      if (!isPublicPath(method, p)) {
+        const resolved = await requireUser(event, store, { secret, nowMs, jsonResponse });
+        if (resolved.error) return resolved.error;
+        const user = resolved.user;
+
+        if (method === "GET" && p === "/me") return response(200, { profile: publicUser(user) });
+        if (method === "GET" && p === "/status") return await handleStatus(user, loadAllWatches);
+        if (method === "GET" && p === "/restaurants") return await handleRestaurants(event, user, loadAllWatches);
+        if (method === "GET" && p.startsWith("/calendar/")) {
+          return await handleCalendar(p.slice("/calendar/".length));
+        }
+        if (method === "GET" && p === "/watches") return await handleGetWatches(user, loadAllWatches);
+        if (method === "POST" && p === "/watches") {
+          return await handlePostWatch(event, user, loadAllWatches, saveAllWatches);
+        }
+        if (method === "DELETE" && p.startsWith("/watches/")) {
+          return await handleDeleteWatch(
+            decodeURIComponent(p.slice("/watches/".length)),
+            user,
+            loadAllWatches,
+            saveAllWatches
+          );
+        }
+      }
+
+      return response(404, { detail: `Not found: ${method} ${p}` });
+    } catch (err) {
+      console.error("Handler error:", err && err.message ? err.message : "Internal server error");
+      return response(500, { detail: "Internal server error" });
+    }
+  };
+}
+
+exports.createHandler = createHandler;
+exports.createMemoryStore = createMemoryStore;
+exports.handler = createHandler();
+exports.normalizeWatch = normalizeWatch;

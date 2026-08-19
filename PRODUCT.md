@@ -32,8 +32,9 @@ GitHub Gist (state store — ID: 7e8d8f873715971f8989a25a2f22c089)
     └── calendar_{fid}.json  — pre-cached available dates per restaurant
 
 Netlify (magictablefinder.com, site ID: b1f7efc5-da94-4159-ade0-568de33ed24f)
-    ├── public/index.html — SPA frontend (profile login + create-watch form + date picker)
-    └── netlify/functions/api.js — Node.js Lambda, reads/writes Gist
+    ├── public/index.html — SPA frontend (email/password session + create-watch form + date picker)
+    ├── netlify/functions/api.js — Node.js Lambda: people identity + Gist watch I/O
+    └── Netlify Blobs (`mtf-users`) — hashed user accounts + sessions (not Gist, not WATCH_USERS)
 ```
 
 ---
@@ -142,8 +143,9 @@ xvfb-run -a python3 disney_bot.py --once
 All credentials live in `.env` (never committed). Key vars:
 
 ```
-WATCH_USERS — JSON mapping user IDs to {name,password,phone}
-API_SECRET — legacy shared login fallback
+WATCH_USERS — VPS + one-time Netlify seed for craig / Jessica {name,password,phone}. Not the live login directory.
+SESSION_SECRET — HMAC key for the `mtf_session` httpOnly cookie. Set this in Netlify. If unset, the function derives a key from API_SECRET so an existing deploy does not lock owners out; rotate both.
+API_SECRET — legacy fallback only (session key derivation + old docs). Not sent by the SPA.
 GITHUB_TOKEN — PAT for Gist read/write
 GITHUB_GIST_ID — 7e8d8f873715971f8989a25a2f22c089
 TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN — Twilio API credentials
@@ -170,7 +172,9 @@ Operational alerts (session expired, recovery failed) route only to the admin vi
 
 Never print full phone numbers, tokens, passwords, or `.env` contents.
 
-Security note: an old slash-command example previously contained the live legacy `API_SECRET`. Treat that secret as exposed in git history and rotate it in Netlify, the VPS `.env`, and any local `.env` before relying on it for real access control. Prefer per-user `WATCH_USERS[*].password` over the legacy shared `API_SECRET`.
+Security note: an old slash-command example previously contained the live legacy `API_SECRET`. Treat that secret as exposed in git history and rotate it in Netlify, the VPS `.env`, and any local `.env`. Public login is email/password (or legacy id `craig` / `Jessica` during migrate) plus an httpOnly session cookie. Passwords are scrypt-hashed in Netlify Blobs. `GET /_api/profiles` is not a public directory.
+
+Keep `WATCH_USERS` on the VPS for `recipient_for()` fallback and admin operational alerts. Reservation alerts still use `recipient_phone` stamped on each watch at create time. New signups get a `user_*` id; do not rename existing `owner_id` values (`craig`, `Jessica`).
 
 ## Alert Semantics
 
@@ -197,7 +201,7 @@ Alert copy should list only newly opened slots. Do not group a new slot back int
 - Date selection is calendar-first on mobile: prominent `Choose Dates`, selected chips, explicit `Done`, manual date typing behind `Enter dates manually`.
 - Manual date input is a fallback/power-user path. Do not make users type `YYYY-MM-DD` as the default mobile flow.
 - Keep restaurant, party size, dates, meal periods, and time window visible before submit.
-- Preserve owner/profile clarity. Craig and Jessica should never wonder whose phone gets the alert.
+- Preserve owner/profile clarity. The signed-in account name in the header is whose phone gets the alert.
 - Do not expose phone numbers, Gist IDs, tokens, passwords, or internal Disney IDs in the UI.
 - **Twilio A2P 10DLC Compliance:** The UI must block watch creation until the user explicitly checks an unchecked SMS consent checkbox. The public `/privacy.html` and `/terms.html` pages must remain available and explicitly state that mobile opt-in data and SMS consent are not shared or sold.
 
@@ -232,8 +236,8 @@ Never force-push `main`. Never reset or delete Gist state unless explicitly requ
 ## Health Checks
 
 1. `journalctl -u disney-dining-bot.service -n 100` — look for successful Playwright polls and no notification errors.
-2. `curl -H "X-User-Id: craig" -H "X-API-Secret: <password>" https://magictablefinder.com/_api/status` — check `session_status`, `last_poll_at`, and `last_errors`.
-3. `python3 scripts/smoke_test_api.py --user-id craig` and `--user-id Jessica` — verifies profiles, owner scoping, create/delete cleanup.
+2. Sign in at magictablefinder.com (or `POST /_api/login` with `{identifier, password}` and reuse the `mtf_session` cookie) then `GET /_api/status` — check `session_status`, `last_poll_at`, and `last_errors`.
+3. `python3 scripts/smoke_test_api.py --user-id craig` and `--user-id Jessica` — verifies session login, owner scoping, create/delete cleanup. Do not expect `GET /_api/profiles` to list users.
 4. Check Gist directly only when necessary: `https://gist.github.com/7e8d8f873715971f8989a25a2f22c089`
 
 ---
