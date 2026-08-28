@@ -494,11 +494,12 @@
   .landing-footer ul { display: flex; justify-content: center; gap: 20px; list-style: none; margin-bottom: 12px; flex-wrap: wrap; }
   @media (max-width: 640px) {
     .landing-header-inner {
-      grid-template-columns: auto 1fr;
+      grid-template-columns: 1fr auto;
       grid-template-areas:
         "mark signin"
         "promise promise";
     }
+    .landing-header-inner > .landing-go-signin { justify-self: end; }
     .landing-wordmark span.wordmark-name { display: none; }
     .landing-promise { text-align: left; font-size: 12px; line-height: 1.35; }
     .l-hero { padding: 40px 0 36px; }
