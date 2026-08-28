@@ -54,9 +54,12 @@ class LandingContractTest(unittest.TestCase):
         self.assertNotRegex(INDEX, r'id="login-pwd"[^>]*value="')
 
     def test_overlay_is_scrollable_landing_not_flex_box(self):
-        overlay_css = re.search(r"#login-overlay \{([^}]+)\}", INDEX)
+        overlay_css = re.search(
+            r"#login-overlay \{\s*position: fixed;[^}]+\}",
+            INDEX,
+        )
         self.assertIsNotNone(overlay_css)
-        block = overlay_css.group(1)
+        block = overlay_css.group(0)
         self.assertIn("overflow-y: auto", block)
         self.assertIn("display: block", block)
         self.assertNotIn("display: flex", block)
