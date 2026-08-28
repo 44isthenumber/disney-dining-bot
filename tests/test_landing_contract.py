@@ -29,13 +29,16 @@ class LandingContractTest(unittest.TestCase):
         self.assertIn('id="proof"', INDEX)
         self.assertIn('id="faq"', INDEX)
         self.assertIn('id="signin"', INDEX)
-        self.assertIn("Create a precise watch", INDEX)
+        self.assertIn("You select the restaurants and dining times you are interested in reserving.", INDEX)
+        self.assertIn("We'll keep watch for those reservations to open.", INDEX)
+        self.assertIn("We send you a text with the reservation link when it opens.", INDEX)
+        self.assertNotIn("Create a precise watch", INDEX)
         self.assertIn("We scan frequently", INDEX)
         self.assertIn("Frequent scans", INDEX)
-        self.assertIn("SMS only when a matching time newly opens", INDEX)
         self.assertIn("California Grill", INDEX)
         self.assertIn("Reply STOP to opt out", INDEX)
         self.assertIn("Reply HELP for help", INDEX)
+        self.assertIn("Book:", INDEX)
 
     def test_production_auth_ids_not_mock_ids(self):
         for auth_id in (
