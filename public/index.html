@@ -4,6 +4,15 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Magic Table Finder</title>
+<script>
+  if (typeof localStorage !== 'undefined' && localStorage.getItem('disneyApiSecret')) {
+    document.documentElement.classList.add('has-session');
+  }
+</script>
+<meta name="description" content="We'll text you when your Walt Disney World reservations open up. You log in. You book." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=Source+Sans+3:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet" />
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
@@ -12,51 +21,76 @@
     --green: #276749;
     --green-bg: #e3f9e5;
     --grey: #f0f0f0;
-    --border: #e0e0e0;
-    --text: #1a1a2e;
-    --muted: #777;
+    --border: #e4dcd0;
+    --text: #1c1917;
+    --muted: #78716c;
+    --ink: #1c1917;
+    --ink-hover: #2d2926;
+    --gold: #b0894a;
+    --paper: #f6f1e8;
+    --paper-card: #faf6f0;
+    --moss: #3f5c4a;
+    --font-serif: 'Fraunces', Georgia, 'Times New Roman', serif;
+    --font-sans: 'Source Sans 3', system-ui, -apple-system, sans-serif;
   }
-  body { font-family: system-ui, -apple-system, sans-serif; background: #f7f8fc; color: var(--text); }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: var(--font-sans);
+    background: var(--paper);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+  }
+  body.landing-open { overflow: hidden; }
 
-  /* ── Header ─── */
-  header {
-    background: #1a1a2e;
-    color: #eee;
+  html.has-session #login-overlay { display: none; }
+
+  /* ── App header (not the landing header) ─── */
+  #app-shell > header {
+    background: rgba(246, 241, 232, 0.94);
+    color: var(--ink);
     padding: 12px 20px;
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
     align-items: center;
+    border-bottom: 1px solid rgba(28,25,23,.12);
+    backdrop-filter: blur(8px);
   }
-  header h1 { font-size: 15px; font-weight: 700; white-space: nowrap; }
-  .hdr-sep { width: 1px; height: 20px; background: #444; flex-shrink: 0; }
+  #app-shell > header h1 {
+    font-family: var(--font-serif);
+    font-size: 17px;
+    font-weight: 500;
+    white-space: nowrap;
+    letter-spacing: -0.02em;
+  }
+  .hdr-sep { width: 1px; height: 20px; background: rgba(28,25,23,.16); flex-shrink: 0; }
   .hdr-field { display: flex; align-items: center; gap: 5px; }
-  .hdr-field label { font-size: 12px; color: #aaa; white-space: nowrap; }
+  .hdr-field label { font-size: 12px; color: var(--muted); white-space: nowrap; }
   .hdr-field input {
-    background: #2a2a4e; border: 1px solid #555; color: #eee;
+    background: #fff; border: 1px solid var(--border); color: var(--ink);
     padding: 4px 8px; border-radius: 4px; font-size: 12px;
   }
   .hdr-field input[type=date] { width: 120px; }
   .hdr-field input[type=text] { width: 120px; }
   .hdr-field select {
-    background: #2a2a4e; border: 1px solid #555; color: #eee;
+    background: #fff; border: 1px solid var(--border); color: var(--ink);
     padding: 4px 6px; border-radius: 4px; font-size: 12px;
   }
   #hdr-status { display: flex; align-items: center; gap: 6px; margin-left: auto; font-size: 12px; }
   #status-dot { width: 9px; height: 9px; border-radius: 50%; background: #888; flex-shrink: 0; }
-  #status-dot.ok   { background: #4caf50; }
-  #status-dot.warn { background: #ff9800; }
-  #status-dot.err  { background: #f44336; }
-  #status-dot.stale { background: #aaa; }
-  #status-text { color: #bbb; }
+  #status-dot.ok   { background: var(--moss); }
+  #status-dot.warn { background: #9a6526; }
+  #status-dot.err  { background: #c0392b; }
+  #status-dot.stale { background: #a8a29e; }
+  #status-text { color: var(--muted); }
   .owner-chip {
     display: inline-flex; align-items: center;
-    background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2);
-    padding: 2px 10px; border-radius: 20px; font-size: 12px; color: #ddd;
+    background: rgba(176,137,74,.12); border: 1px solid rgba(176,137,74,.35);
+    padding: 2px 10px; border-radius: 20px; font-size: 12px; color: var(--ink);
   }
 
   /* ── Tabs ─── */
-  .tabs { display: flex; background: #fff; border-bottom: 2px solid var(--border); padding: 0 20px; }
+  .tabs { display: flex; background: var(--paper-card); border-bottom: 1px solid var(--border); padding: 0 20px; }
   .tab-btn {
     padding: 12px 18px; font-size: 14px; font-weight: 500;
     border: none; background: none; cursor: pointer; color: var(--muted);
@@ -102,10 +136,10 @@
   .badge.watch { background: var(--green-bg); color: var(--green); }
   .card-btn {
     display: block; width: calc(100% - 20px); margin: 6px 10px 10px;
-    padding: 7px; background: var(--blue); color: #fff;
-    border: none; border-radius: 6px; font-size: 12px; cursor: pointer; text-align: center;
+    padding: 7px; background: var(--ink); color: var(--paper);
+    border: none; border-radius: 4px; font-size: 12px; cursor: pointer; text-align: center;
   }
-  .card-btn:hover { background: var(--blue-dark); }
+  .card-btn:hover { background: var(--ink-hover); }
   #rest-empty { text-align: center; color: #999; padding: 48px 24px; font-size: 14px; display: none; line-height: 1.8; }
   #rest-loading { text-align: center; color: #bbb; padding: 48px; font-size: 14px; }
 
@@ -131,12 +165,12 @@
 
   /* ── Create watch panel ─── */
   #create-watch {
-    margin-bottom: 20px; padding: 20px 22px; border: 1px solid #c3d4f7;
-    border-radius: 12px; background: #fff;
-    box-shadow: 0 2px 14px rgba(26,86,219,.09);
-    border-top: 3px solid var(--blue); overflow: visible;
+    margin-bottom: 20px; padding: 20px 22px; border: 1px solid var(--border);
+    border-radius: 4px; background: var(--paper-card);
+    box-shadow: 0 4px 24px rgba(28,25,23,.04);
+    border-top: 2px solid var(--gold); overflow: visible;
   }
-  #create-watch h2 { font-size: 18px; margin-bottom: 4px; }
+  #create-watch h2 { font-family: var(--font-serif); font-size: 22px; font-weight: 500; margin-bottom: 4px; }
   #create-watch .hint { color: var(--muted); font-size: 13px; margin-bottom: 14px; }
   .create-grid {
     display: grid;
@@ -166,11 +200,11 @@
   .date-input-row textarea { flex: 1; min-height: 72px; }
   #toggle-date-picker {
     display: block; width: 100%; max-width: 100%; min-width: 0;
-    padding: 13px 14px; border: 0; border-radius: 9px;
-    background: var(--blue); color: #fff; font-size: 15px; font-weight: 700;
-    cursor: pointer; text-align: center; box-shadow: 0 2px 8px rgba(26,86,219,.18);
+    padding: 13px 14px; border: 0; border-radius: 4px;
+    background: var(--ink); color: var(--paper); font-size: 15px; font-weight: 700;
+    cursor: pointer; text-align: center;
   }
-  #toggle-date-picker:hover { background: var(--blue-dark); }
+  #toggle-date-picker:hover { background: var(--ink-hover); }
   .manual-toggle {
     border: 0; background: none; color: var(--blue); cursor: pointer;
     font-size: 12px; font-weight: 600; align-self: flex-start; padding: 0;
@@ -213,7 +247,7 @@
     position: sticky; bottom: 0; background: #fafcff; padding-top: 8px;
   }
   #date-picker-done {
-    flex: 1; border: 0; border-radius: 8px; background: var(--blue); color: #fff;
+    flex: 1; border: 0; border-radius: 4px; background: var(--ink); color: var(--paper);
     padding: 10px 12px; font-weight: 700; cursor: pointer;
   }
   #date-picker-clear {
@@ -224,19 +258,19 @@
   .meal-options label { color: var(--text); font-size: 13px; display: inline-flex; align-items: center; gap: 4px; }
   .create-actions { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
   .sms-consent {
-    margin-top: 12px; padding: 11px 12px; border: 1px solid #dbe7ff;
-    border-radius: 10px; background: #f8fbff; color: var(--text);
+    margin-top: 12px; padding: 11px 12px; border: 1px solid var(--border);
+    border-radius: 4px; background: #fdfbf7; color: var(--text);
     font-size: 12px; line-height: 1.45;
   }
   .sms-consent label { display: flex; gap: 9px; align-items: flex-start; }
   .sms-consent input { width: auto; margin-top: 3px; flex-shrink: 0; }
   .sms-consent a { color: var(--blue); font-weight: 600; }
   #create-btn {
-    padding: 11px 24px; background: var(--blue); color: #fff; border: 0;
-    border-radius: 7px; font-size: 15px; font-weight: 600; cursor: pointer;
+    padding: 11px 24px; background: var(--ink); color: var(--paper); border: 0;
+    border-radius: 4px; font-size: 15px; font-weight: 600; cursor: pointer;
     letter-spacing: .01em; white-space: nowrap;
   }
-  #create-btn:hover { background: var(--blue-dark); }
+  #create-btn:hover { background: var(--ink-hover); }
   #create-btn:disabled { background: #aaa; cursor: default; }
   #create-msg { font-size: 13px; color: var(--green); }
   #create-msg.err { color: #e53e3e; }
@@ -316,7 +350,7 @@
   @media (max-width: 860px) {
     html, body { max-width: 100%; overflow-x: hidden; }
     body.date-picker-modal-open { overflow: hidden; }
-    header { gap: 6px; padding: 10px 14px; }
+    #app-shell > header { gap: 6px; padding: 10px 14px; }
     .hdr-sep { display: none; }
     .hdr-field[data-collapse-mobile] { display: none; }
     main { padding: 12px; }
@@ -359,73 +393,282 @@
     .watch-card { padding: 12px 14px; }
   }
 
-  /* ── Login overlay ─── */
+  /* ── Landing (scrollable overlay) ─── */
   #login-overlay {
     position: fixed; inset: 0; z-index: 99999;
-    background: #1a1a2e;
-    display: flex; align-items: center; justify-content: center;
+    background: var(--paper);
+    overflow-y: auto;
+    display: block;
   }
   #login-overlay.hidden { display: none; }
-  #login-box {
-    background: #fff; border-radius: 16px; padding: 40px 36px;
-    width: 340px; max-width: 92vw;
-    box-shadow: 0 24px 64px rgba(0,0,0,.5);
-    text-align: center;
+  #login-overlay a { color: var(--ink); text-decoration-color: var(--gold); text-underline-offset: 3px; }
+  #login-overlay .l-wrap { width: min(1120px, calc(100% - 40px)); margin: 0 auto; }
+  #login-overlay .l-narrow { width: min(720px, calc(100% - 40px)); margin: 0 auto; }
+  .landing-header {
+    position: sticky; top: 0; z-index: 2;
+    background: rgba(246,241,232,.94); backdrop-filter: blur(8px);
+    border-bottom: 1px solid rgba(28,25,23,.12);
+    padding: 14px 0;
   }
-  #login-box .login-icon { font-size: 48px; margin-bottom: 10px; }
-  #login-box h2 { font-size: 22px; font-weight: 700; color: #1a1a2e; margin-bottom: 4px; }
-  #login-box p { font-size: 13px; color: #888; margin-bottom: 24px; }
-  #login-box input[type=password], #login-box select {
-    width: 100%; padding: 11px 14px; border: 1.5px solid #ddd; border-radius: 8px;
-    font-size: 15px; margin-bottom: 12px; outline: none;
-    transition: border-color .15s;
-    background: #fff;
+  .landing-header-inner {
+    width: min(1120px, calc(100% - 32px)); margin: 0 auto;
+    display: grid; grid-template-columns: auto 1fr auto;
+    grid-template-areas: "mark promise signin";
+    gap: 12px; align-items: center;
   }
-  #login-box input[type=password]:focus { border-color: var(--blue); }
-  #login-btn {
-    width: 100%; padding: 11px; background: var(--blue); color: #fff;
-    border: none; border-radius: 8px; font-size: 15px; font-weight: 600;
-    cursor: pointer; transition: background .15s;
+  .landing-wordmark { grid-area: mark; }
+  .landing-promise { grid-area: promise; }
+  .landing-header-inner > .landing-go-signin { grid-area: signin; }
+  .landing-wordmark {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--font-serif); font-size: 17px; font-weight: 500;
+    color: var(--ink); text-decoration: none; white-space: nowrap;
   }
-  #login-btn:hover { background: var(--blue-dark); }
-  #login-btn:disabled { background: #aaa; cursor: default; }
-  #login-error { color: #e53e3e; font-size: 13px; margin-top: 10px; min-height: 18px; }
+  .landing-wordmark svg { color: var(--gold); flex-shrink: 0; }
+  .landing-promise {
+    margin: 0; text-align: center; font-size: 13px; color: var(--muted);
+    min-width: 0;
+  }
+  .l-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 10px 22px; border-radius: 2px; font-weight: 600; font-size: 14px;
+    letter-spacing: .03em; text-decoration: none; cursor: pointer; border: 1px solid transparent;
+    font-family: inherit;
+  }
+  .l-btn-primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .l-btn-primary:hover { background: var(--ink-hover); }
+  .l-btn-primary:disabled { background: #aaa; border-color: #aaa; cursor: default; }
+  .l-btn-secondary { background: transparent; color: var(--ink); border-color: rgba(28,25,23,.24); }
+  .l-btn-sm { padding: 6px 14px; font-size: 13px; }
+  .l-hero { padding: 72px 0 64px; text-align: center; }
+  .l-eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 12px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: var(--gold);
+  }
+  .l-hero h1 {
+    font-family: var(--font-serif); font-weight: 400; letter-spacing: -.02em;
+    font-size: clamp(2.1rem, 6vw, 3.6rem); line-height: 1.15; margin: 16px 0;
+  }
+  .l-hero .lead { color: var(--muted); font-size: clamp(1.05rem, 2vw, 1.25rem); line-height: 1.55; max-width: 36em; margin: 0 auto 28px; }
+  .l-hero-actions { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
+  .l-plate { margin: 36px auto 0; max-width: 320px; }
+  .l-section { padding: 72px 0; border-top: 1px solid rgba(28,25,23,.12); }
+  .l-section h2 { font-family: var(--font-serif); font-weight: 400; font-size: clamp(1.6rem, 3vw, 2.2rem); text-align: center; margin: 8px 0; }
+  .l-section .sub { text-align: center; color: var(--muted); margin-bottom: 36px; }
+  .l-steps { display: grid; gap: 16px; }
+  @media (min-width: 768px) { .l-steps { grid-template-columns: repeat(3, 1fr); } }
+  .l-step { background: var(--paper-card); border: 1px solid rgba(28,25,23,.12); padding: 28px 22px; }
+  .l-num { font-family: var(--font-serif); font-style: italic; font-size: 1.7rem; color: var(--gold); }
+  .l-step h3 { font-family: var(--font-serif); font-size: 1.15rem; font-weight: 400; line-height: 1.4; margin: 10px 0 0; }
+  .l-step p { color: var(--muted); font-size: 15px; line-height: 1.55; }
+  .l-trust { background: #ede7dc; border-top: 1px solid rgba(28,25,23,.12); border-bottom: 1px solid rgba(28,25,23,.12); padding: 22px 0; }
+  .l-trust ul { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 28px; list-style: none; }
+  .l-trust li { font-family: var(--font-serif); letter-spacing: .12em; text-transform: uppercase; font-size: 12px; }
+  .l-proof { display: grid; gap: 24px; }
+  @media (min-width: 768px) { .l-proof { grid-template-columns: 1fr 1fr; } }
+  .l-card { background: var(--paper-card); border: 1px solid rgba(28,25,23,.12); padding: 28px; }
+  .l-card h3 { font-family: var(--font-serif); font-size: 1.35rem; margin-bottom: 12px; }
+  .l-badge { float: right; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--moss); }
+  .l-dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; font-size: 15px; }
+  .l-dl dt { color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-size: 12px; }
+  .l-sms { border-left: 3px solid var(--gold); background: #fdfbf7; padding: 22px; }
+  .l-sms p { margin-top: 12px; line-height: 1.5; }
+  .l-faq { max-width: 720px; margin: 0 auto; }
+  .l-faq h3 { font-family: var(--font-serif); font-size: 1.2rem; font-weight: 500; margin: 20px 0 6px; }
+  .l-faq p { color: var(--muted); line-height: 1.55; }
+  .signin-box {
+    background: var(--paper-card); border: 1px solid rgba(28,25,23,.12);
+    padding: 32px; max-width: 420px; margin: 24px auto 0;
+  }
+  .signin-box label { display: block; font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  .signin-box select, .signin-box input[type=password] {
+    width: 100%; padding: 11px 14px; margin-bottom: 16px;
+    border: 1px solid rgba(28,25,23,.24); border-radius: 2px; background: #fdfbf7;
+    font-size: 15px; font-family: inherit; color: var(--ink);
+  }
+  .signin-box select:focus, .signin-box input:focus { outline: none; border-color: var(--gold); }
+  #login-btn { width: 100%; }
+  #login-error { color: #c0392b; font-size: 13px; min-height: 18px; margin-top: 10px; }
+  .signin-legal { font-size: 12px; color: var(--muted); text-align: center; line-height: 1.5; margin-top: 16px; }
+  .landing-footer { background: #ede7dc; border-top: 1px solid rgba(28,25,23,.12); padding: 36px 20px; text-align: center; color: var(--muted); font-size: 13px; }
+  .landing-footer ul { display: flex; justify-content: center; gap: 20px; list-style: none; margin-bottom: 12px; flex-wrap: wrap; }
+  @media (max-width: 640px) {
+    .landing-header-inner {
+      grid-template-columns: 1fr auto;
+      grid-template-areas:
+        "mark signin"
+        "promise promise";
+    }
+    .landing-header-inner > .landing-go-signin { justify-self: end; }
+    .landing-wordmark span.wordmark-name { display: none; }
+    .landing-promise { text-align: left; font-size: 12px; line-height: 1.35; }
+    .l-hero { padding: 40px 0 36px; }
+  }
 
-  /* ── Logout button in header ─── */
+  /* ── Logout ─── */
   #logout-btn {
-    background: none; border: 1px solid #555; color: #aaa;
-    padding: 3px 10px; border-radius: 5px; font-size: 11px; cursor: pointer;
-    transition: border-color .15s, color .15s;
+    background: none; border: 1px solid rgba(28,25,23,.24); color: var(--ink);
+    padding: 3px 10px; border-radius: 2px; font-size: 11px; cursor: pointer;
   }
-  #logout-btn:hover { border-color: #aaa; color: #fff; }
-  #profile-label { font-size: 12px; color: #bbb; }
+  #logout-btn:hover { border-color: var(--ink); }
+  #profile-label { font-size: 12px; color: var(--ink); }
 </style>
 </head>
 <body>
 
 <!-- ── Login overlay ─────────────────────────────────────────────── -->
-<div id="login-overlay">
-  <div id="login-box">
-    <div class="login-icon">🏰</div>
-    <h2>Magic Table Finder</h2>
-    <p>Disney dining alerts — choose your profile to get started.</p>
-    <select id="login-profile"></select>
-    <p style="font-size:11px;color:#aaa;margin:-4px 0 10px;text-align:left;line-height:1.5">Alerts go to this profile's phone number when a table opens.</p>
-    <input type="password" id="login-pwd" placeholder="Password" autocomplete="current-password" />
-    <button id="login-btn">Sign In</button>
-    <p style="font-size:11px;color:#aaa;margin:12px 0 0;line-height:1.6">
-      SMS alerts require active consent before watch creation.
-      <a href="/sms-consent.html" target="_blank" rel="noopener" style="color:#8fb4ff;font-weight:700">SMS consent flow</a> ·
-      <a href="/privacy.html" target="_blank" rel="noopener" style="color:#8fb4ff;font-weight:700">Privacy</a> ·
-      <a href="/terms.html" target="_blank" rel="noopener" style="color:#8fb4ff;font-weight:700">Terms</a>
-    </p>
-    <div id="login-error"></div>
+<div id="login-overlay" aria-hidden="false">
+  <header class="landing-header">
+    <div class="landing-header-inner">
+      <a href="#hero" class="landing-wordmark landing-nav">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/>
+          <path d="M12 3v3M12 18v3M3 12h3M18 12h3"/>
+        </svg>
+        <span class="wordmark-name">Magic Table Finder</span>
+      </a>
+      <p class="landing-promise">SMS when a matching table newly opens.</p>
+      <a href="#signin" class="l-btn l-btn-secondary l-btn-sm landing-nav landing-go-signin">Sign in</a>
+    </div>
+  </header>
+
+  <section class="l-hero" id="hero">
+    <div class="l-narrow">
+      <span class="l-eyebrow">Walt Disney World dining</span>
+      <h1>We monitor the openings.</h1>
+      <p class="lead">We'll text you when your Walt Disney World reservations open up. You log in. You book.</p>
+      <div class="l-hero-actions">
+        <a href="#signin" class="l-btn l-btn-primary landing-nav landing-go-signin">Sign in</a>
+        <a href="#how" class="l-btn l-btn-secondary landing-nav">See how it works</a>
+      </div>
+      <div class="l-plate" aria-hidden="true">
+        <svg class="plate-motif" viewBox="0 0 320 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <radialGradient id="candleGlow" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#B0894A" stop-opacity="0.32"/>
+              <stop offset="60%" stop-color="#B0894A" stop-opacity="0.08"/>
+              <stop offset="100%" stop-color="#F6F1E8" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+          <ellipse cx="160" cy="60" rx="140" ry="46" fill="url(#candleGlow)"/>
+          <ellipse cx="160" cy="60" rx="136" ry="42" stroke="#1C1917" stroke-opacity="0.14" stroke-width="1"/>
+          <ellipse cx="160" cy="60" rx="116" ry="34" stroke="#B0894A" stroke-opacity="0.35" stroke-width="1" stroke-dasharray="2 3"/>
+          <ellipse cx="160" cy="60" rx="86" ry="24" stroke="#1C1917" stroke-opacity="0.08" stroke-width="1"/>
+          <circle cx="160" cy="60" r="2.5" fill="#B0894A"/>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <section id="how" class="l-section">
+    <div class="l-narrow">
+      <span class="l-eyebrow" style="display:flex;justify-content:center">How it works</span>
+      <h2>You pick. We watch. You get a text.</h2>
+      <p class="sub">We scan frequently, around the clock.</p>
+      <div class="l-steps">
+        <article class="l-step">
+          <div class="l-num">01</div>
+          <h3>You select the restaurants and dining times you are interested in reserving.</h3>
+        </article>
+        <article class="l-step">
+          <div class="l-num">02</div>
+          <h3>We'll keep watch for those reservations to open.</h3>
+        </article>
+        <article class="l-step">
+          <div class="l-num">03</div>
+          <h3>We send you a text with the reservation link when it opens.</h3>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <div class="l-trust" aria-label="Product trust points">
+    <ul class="l-wrap">
+      <li>Watches</li>
+      <li>SMS</li>
+      <li>Frequent scans</li>
+      <li>Your phone only</li>
+    </ul>
   </div>
+
+  <section id="proof" class="l-section">
+    <div class="l-wrap">
+      <span class="l-eyebrow" style="display:flex;justify-content:center">Example</span>
+      <h2>A watch, then the text.</h2>
+      <p class="sub">A sample watch and the SMS sent when a matching opening appears.</p>
+      <div class="l-proof">
+        <div class="l-card">
+          <span class="l-badge">Watching</span>
+          <h3>California Grill</h3>
+          <dl class="l-dl">
+            <dt>Party</dt><dd>2</dd>
+            <dt>Date</dt><dd>Sep 18, 2026</dd>
+            <dt>Meal</dt><dd>Dinner</dd>
+            <dt>Window</dt><dd>7:00–8:30 PM</dd>
+          </dl>
+        </div>
+        <div class="l-sms">
+          <div class="l-eyebrow">Sample SMS · 7:15 PM</div>
+          <p>California Grill opened Sat 9/18, 7:15 PM, party of 2.<br>Book: disneyworld.disney.go.com/dine-res/restaurant/california-grill/<br>Reply STOP to opt out. Reply HELP for help.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="faq" class="l-section">
+    <div class="l-faq">
+      <h2>Questions</h2>
+      <h3>Do you text every open table?</h3>
+      <p>No. You get an SMS only when a time that matches your watch newly opens. Continuously open times stay quiet.</p>
+      <h3>Whose phone gets the alert?</h3>
+      <p>The signed-in profile’s phone. Craig’s watches alert Craig. Jessica’s watches alert Jessica.</p>
+      <h3>Is this an official Disney product?</h3>
+      <p>No. Magic Table Finder is independent and is not affiliated with or endorsed by The Walt Disney Company.</p>
+      <h3>Do I need to keep refreshing Disney?</h3>
+      <p>No. We scan frequently, around the clock. You get an SMS only when a matching time newly opens.</p>
+      <h3>When do you ask for SMS consent?</h3>
+      <p>When you create a watch — not when you sign in. The consent box starts unchecked. Reply STOP to opt out.</p>
+      <h3>What if nothing opens?</h3>
+      <p>You wait. We keep checking. We do not guarantee a table will open.</p>
+    </div>
+  </section>
+
+  <section id="signin" class="l-section">
+    <div class="l-narrow" style="text-align:center">
+      <span class="l-eyebrow">Private</span>
+      <h2>Sign in</h2>
+      <p class="sub">For Craig and Jessica. Alerts go to this profile’s phone.</p>
+      <form class="signin-box">
+        <label for="login-profile">Profile</label>
+        <select id="login-profile"></select>
+        <label for="login-pwd">Password</label>
+        <input type="password" id="login-pwd" placeholder="Password" autocomplete="current-password" />
+        <button type="submit" id="login-btn" class="l-btn l-btn-primary">Sign in</button>
+        <p class="signin-legal">
+          SMS consent is collected when you create a watch.
+          <a href="/privacy.html" target="_blank" rel="noopener">Privacy</a> ·
+          <a href="/terms.html" target="_blank" rel="noopener">Terms</a> ·
+          <a href="/sms-consent.html" target="_blank" rel="noopener">SMS consent</a>
+        </p>
+        <div id="login-error" role="alert"></div>
+      </form>
+    </div>
+  </section>
+
+  <footer class="landing-footer">
+    <ul>
+      <li><a href="/privacy.html">Privacy</a></li>
+      <li><a href="/terms.html">Terms</a></li>
+      <li><a href="/sms-consent.html">SMS consent</a></li>
+    </ul>
+    <p>Magic Table Finder is an independent dining alert tool and is not affiliated with, authorized by, or endorsed by The Walt Disney Company or Walt Disney World.</p>
+  </footer>
 </div>
 
+<div id="app-shell" aria-hidden="true">
 <!-- ── Header ──────────────────────────────────────────────────────── -->
 <header>
-  <h1>🏰 Magic Table Finder</h1>
+  <h1>Magic Table Finder</h1>
   <div class="hdr-sep"></div>
   <div class="hdr-field" data-collapse-mobile>
     <label>Trip</label>
@@ -463,7 +706,7 @@
 <main>
   <div id="create-watch">
     <h2>Create Watch</h2>
-    <p class="hint">You'll get an SMS when a matching table opens. The calendar is optional — just fill in the criteria below.</p>
+    <p class="hint">You'll get an SMS when a matching table newly opens. Choose one or more dates.</p>
     <form id="watch-form">
       <div class="create-grid">
         <label class="create-field restaurant-field">Restaurant
@@ -550,10 +793,11 @@
     <div id="watch-list">
       <h2>Active Watches <span id="watch-count"></span></h2>
       <div id="watches-grid"></div>
-      <div id="watches-empty">No active watches yet.<br><span style="font-size:13px">Create one above and you'll get an SMS when a slot opens.</span></div>
+      <div id="watches-empty">No watches yet. Create one above.</div>
     </div>
   </div>
 </main>
+</div>
 
 <!-- ── Calendar modal ───────────────────────────────────────────────── -->
 <div id="modal-overlay">
@@ -683,8 +927,16 @@ async function apiFetch(path, opts) {
     try { data = JSON.parse(text); } catch(e) { data = { detail: text }; }
   }
   if (res.status === 401) {
-    showLogin();
-    throw new Error((data && (data.detail || data.error)) || 'Invalid password');
+    var overlay = document.getElementById('login-overlay');
+    var landingOpen = overlay && !overlay.classList.contains('hidden')
+      && !document.documentElement.classList.contains('has-session');
+    if (!landingOpen) {
+      showLogin({
+        scrollToSignin: true,
+        message: (data && (data.detail || data.error)) || 'Session expired. Sign in to continue.',
+      });
+    }
+    throw new Error((data && (data.detail || data.error)) || 'Please sign in');
   }
   if (!res.ok) {
     var detail = data && (data.detail || data.error || (Array.isArray(data.details) && data.details.join(' ')));
@@ -695,16 +947,60 @@ async function apiFetch(path, opts) {
 
 // ── Login ────────────────────────────────────────────────────────────────────
 
-function showLogin() {
-  document.getElementById('login-overlay').classList.remove('hidden');
-  document.getElementById('login-pwd').value = '';
-  document.getElementById('login-error').textContent = '';
-  setTimeout(function() { document.getElementById('login-pwd').focus(); }, 50);
+function showLogin(opts) {
+  opts = opts || {};
+  var overlay = document.getElementById('login-overlay');
+  var pwd = document.getElementById('login-pwd');
+  var loginErr = document.getElementById('login-error');
+  var shell = document.getElementById('app-shell');
+  overlay.classList.remove('hidden');
+  overlay.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('landing-open');
+  document.documentElement.classList.remove('has-session');
+  if (shell) shell.setAttribute('aria-hidden', 'true');
+  pwd.value = '';
+  if (opts.message) {
+    loginErr.textContent = opts.message;
+  } else {
+    loginErr.textContent = '';
+  }
+  if (opts.scrollToSignin) {
+    var panel = document.getElementById('signin');
+    if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    window.setTimeout(function () { pwd.focus(); }, 200);
+  } else {
+    overlay.scrollTop = 0;
+  }
 }
 
 function hideLogin() {
-  document.getElementById('login-overlay').classList.add('hidden');
+  var overlay = document.getElementById('login-overlay');
+  var shell = document.getElementById('app-shell');
+  overlay.classList.add('hidden');
+  overlay.setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('landing-open');
+  document.documentElement.classList.add('has-session');
+  if (shell) shell.removeAttribute('aria-hidden');
 }
+
+function scrollLandingTo(id, focusPwd) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (focusPwd) {
+    window.setTimeout(function () { document.getElementById('login-pwd').focus(); }, 250);
+  }
+}
+
+document.querySelectorAll('.landing-nav').forEach(function (a) {
+  a.addEventListener('click', function (e) {
+    e.preventDefault();
+    var href = a.getAttribute('href') || '';
+    var id = href.replace('#', '');
+    var focusPwd = a.classList.contains('landing-go-signin') || id === 'signin';
+    scrollLandingTo(id, focusPwd);
+  });
+});
 
 async function loadProfiles() {
   const select = document.getElementById('login-profile');
@@ -721,9 +1017,9 @@ async function loadProfiles() {
   }
 }
 
-document.getElementById('login-btn').addEventListener('click', attemptLogin);
-document.getElementById('login-pwd').addEventListener('keydown', function(e) {
-  if (e.key === 'Enter') attemptLogin();
+document.getElementById('login-btn').closest('form').addEventListener('submit', function (e) {
+  e.preventDefault();
+  attemptLogin();
 });
 
 async function attemptLogin() {
@@ -755,7 +1051,7 @@ async function attemptLogin() {
 document.getElementById('logout-btn').addEventListener('click', function() {
   localStorage.removeItem('disneyApiSecret');
   localStorage.removeItem('disneyUserId');
-  showLogin();
+  showLogin({ scrollToSignin: true });
 });
 
 // ── Config inputs ────────────────────────────────────────────────────────────
@@ -779,9 +1075,11 @@ document.getElementById('logout-btn').addEventListener('click', function() {
 
   loadProfiles();
 
-  // Show login if no secret stored, otherwise validate silently
   if (!getSecret()) {
     showLogin();
+  } else {
+    hideLogin();
+    onLogin();
   }
 })();
 
@@ -790,12 +1088,13 @@ document.getElementById('logout-btn').addEventListener('click', function() {
 function friendlyPollTime(lastPollAt) {
   var d = new Date(lastPollAt);
   var diffMin = (Date.now() - d.getTime()) / 60000;
-  if (diffMin > 90) return 'Last checked ' + Math.round(diffMin / 60) + ' h ago — worker may be stalled';
+  if (diffMin > 90) return 'Last checked ' + Math.round(diffMin / 60) + ' h ago — needs attention';
   if (diffMin > 25) return 'Last checked ' + Math.round(diffMin) + ' min ago';
   return 'Last checked ' + d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
 async function refreshStatus() {
+  if (!getSecret()) return;
   const dot = document.getElementById('status-dot');
   const txt = document.getElementById('status-text');
   const profile = document.getElementById('profile-label');
@@ -809,14 +1108,14 @@ async function refreshStatus() {
       dot.className = needsAttention ? 'warn' : 'ok';
       const pollStr = s.last_poll_at ? ' · ' + friendlyPollTime(s.last_poll_at) : '';
       const watchStr = s.watches_count + ' watch' + (s.watches_count !== 1 ? 'es' : '');
-      txt.textContent = (authRequired ? 'Disney login required · ' : needsAttention ? 'Needs attention · ' : '') + watchStr + pollStr;
+      txt.textContent = (authRequired ? 'Disney login needed — try again shortly · ' : needsAttention ? 'Needs attention · ' : '') + watchStr + pollStr;
     } else {
       const rawStatus = s.session_status || s.token_status || 'unknown';
       const diffMin = s.last_poll_at ? (Date.now() - new Date(s.last_poll_at).getTime()) / 60000 : Infinity;
       dot.className = diffMin > 90 ? 'stale' : 'err';
-      txt.textContent = rawStatus === 'no_session' ? 'Disney session expired — re-seed on VPS'
+      txt.textContent = rawStatus === 'no_session' ? 'Disney login needed — try again shortly'
         : rawStatus === 'unknown' ? 'Status unknown'
-        : 'Worker issue: ' + rawStatus.replace(/_/g, ' ');
+        : 'Needs attention';
     }
   } catch(e) {
     dot.className = 'err';
@@ -910,8 +1209,6 @@ function filterAndRender() {
     clearTimeout(debounce); debounce = setTimeout(filterAndRender, 250);
   });
 });
-
-loadRestaurants();
 
 // ── Watch list ───────────────────────────────────────────────────────────────
 

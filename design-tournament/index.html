@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Magic Table Finder — Vision tournament</title>
+  <style>
+    :root { font-family: system-ui, sans-serif; color: #101827; background: #f4f6f8; }
+    body { margin: 0; padding: 32px 20px 64px; }
+    main { max-width: 920px; margin: 0 auto; }
+    h1 { font-size: 28px; letter-spacing: -0.04em; margin: 0 0 8px; }
+    .lede { color: #5b6573; line-height: 1.5; margin: 0 0 28px; }
+    .grid { display: grid; gap: 16px; }
+    a.card {
+      display: block; padding: 22px 24px; background: #fff; border-radius: 16px;
+      text-decoration: none; color: inherit; border: 1px solid #dce2ea;
+    }
+    a.card:hover { border-color: #101827; }
+    .kicker { font-size: 11px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; color: #ff5a36; }
+    h2 { margin: 6px 0 8px; font-size: 22px; letter-spacing: -0.03em; }
+    p { margin: 0; color: #5b6573; line-height: 1.45; }
+    .links { margin-top: 12px; font-size: 14px; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Pick a vision</h1>
+    <p class="lede">Three landing + logged-in mocks. Same product. Different temperature. Production at magictablefinder.com is unchanged.</p>
+    <div class="grid">
+      <a class="card" href="quiet-luxury/index.html">
+        <div class="kicker">Quiet Luxury</div>
+        <h2>The table is being watched.</h2>
+        <p>Editorial travel. Serif, warm paper, dusk gold. Calm confidence.</p>
+        <p class="links">Landing → · <span onclick="location.href='quiet-luxury/app.html?profile=craig'">App</span></p>
+      </a>
+      <a class="card" href="park-day-pulse/index.html">
+        <div class="kicker">Park Day Pulse</div>
+        <h2>The opening text, not the hunt.</h2>
+        <p>The SMS is the hero. Navy, lime CTA, coral for new openings.</p>
+        <p class="links">Landing →</p>
+      </a>
+      <a class="card" href="trusted-watch/index.html">
+        <div class="kicker">Trusted Watch</div>
+        <h2>Know it’s watching.</h2>
+        <p>Health + owner clarity. Elevated current product. Most implementable.</p>
+        <p class="links">Landing →</p>
+      </a>
+    </div>
+    <p class="lede" style="margin-top:24px">Logged-in mocks: <a href="quiet-luxury/app.html?profile=craig">Quiet Luxury app</a> · <a href="park-day-pulse/app.html?profile=craig">Park Day Pulse app</a> · <a href="trusted-watch/app.html?profile=craig">Trusted Watch app</a></p>
+  </main>
+</body>
+</html>
