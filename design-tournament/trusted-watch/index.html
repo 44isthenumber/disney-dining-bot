@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Magic Table Finder — Know it's watching</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- 1. Sticky header -->
+  <header class="site-header">
+    <div class="container site-header__inner">
+      <a href="#" class="wordmark" aria-label="Magic Table Finder home">
+        <span class="wordmark__mark" aria-hidden="true">
+          <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M8 2v12M4 6h8M4 10h8" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </span>
+        Magic Table Finder
+      </a>
+      <p class="header-promise">SMS when a matching table newly opens.</p>
+      <div class="header-actions">
+        <a href="#signin" class="btn btn--primary btn--sm">Sign in</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- 2. Hero -->
+    <section class="hero">
+      <div class="container hero__grid">
+        <div>
+          <span class="hero__eyebrow">Trusted Watch</span>
+          <h1>Know it's watching.</h1>
+          <p class="hero__sub">Precise Walt Disney World dining watches. SMS to the right person when a matching reservation newly opens.</p>
+          <div class="hero__actions">
+            <a href="#signin" class="btn btn--primary">Sign in</a>
+            <a href="#how" class="btn btn--secondary">See how it works</a>
+          </div>
+        </div>
+        <div class="hero__diagram" aria-hidden="true">
+          <div class="flow-diagram">
+            <div class="flow-step">
+              <div class="flow-step__icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+              </div>
+              <div class="flow-step__label">Watch</div>
+            </div>
+            <span class="flow-arrow" aria-hidden="true">→</span>
+            <div class="flow-step">
+              <div class="flow-step__icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v5h5M20 20v-5h-5"/><path d="M20 9a8 8 0 00-14-2M4 15a8 8 0 0014 2"/></svg>
+              </div>
+              <div class="flow-step__label">Poll</div>
+            </div>
+            <span class="flow-arrow" aria-hidden="true">→</span>
+            <div class="flow-step">
+              <div class="flow-step__icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+              </div>
+              <div class="flow-step__label">SMS</div>
+            </div>
+          </div>
+          <p class="flow-caption">We only text when a matching time newly opens — not every open table.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. How it works -->
+    <section id="how" class="section">
+      <div class="container">
+        <p class="section-label">How it works</p>
+        <h2 class="section-title">Three steps. No dashboard.</h2>
+        <div class="steps">
+          <article class="step-card">
+            <span class="step-card__num">1</span>
+            <h3>Create a precise watch</h3>
+            <p>Pick the restaurant, dates, party size, meal, and time window. Craig's watches go to Craig's phone.</p>
+          </article>
+          <article class="step-card">
+            <span class="step-card__num">2</span>
+            <h3>We check every 10 minutes</h3>
+            <p>A dedicated checker runs around the clock. You can see when it last looked — no guessing.</p>
+          </article>
+          <article class="step-card">
+            <span class="step-card__num">3</span>
+            <h3>SMS only when a matching time newly opens</h3>
+            <p>Already-open tables stay quiet. You get one alert when something new matches your watch.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. Trust strip -->
+    <div class="trust-strip">
+      <div class="container trust-strip__items">
+        <span>Watches</span>
+        <span class="trust-strip__sep" aria-hidden="true">·</span>
+        <span>SMS</span>
+        <span class="trust-strip__sep" aria-hidden="true">·</span>
+        <span>Every 10 min</span>
+        <span class="trust-strip__sep" aria-hidden="true">·</span>
+        <span>Your phone only</span>
+      </div>
+    </div>
+
+    <!-- 5. Proof -->
+    <section id="proof" class="section">
+      <div class="container">
+        <p class="section-label">Proof</p>
+        <h2 class="section-title">What you'll actually see</h2>
+        <div class="proof-grid">
+          <div class="proof-panel">
+            <p class="proof-panel__label">Create Watch preview</p>
+            <div class="mini-form" aria-hidden="true">
+              <div class="mini-field">
+                <label>Restaurant</label>
+                <input type="text" value="California Grill" readonly tabindex="-1">
+              </div>
+              <div class="mini-row">
+                <div class="mini-field">
+                  <label>Party</label>
+                  <input type="text" value="2" readonly tabindex="-1">
+                </div>
+                <div class="mini-field">
+                  <label>Date</label>
+                  <input type="text" value="Sep 18, 2026" readonly tabindex="-1">
+                </div>
+              </div>
+              <div class="mini-row">
+                <div class="mini-field">
+                  <label>Meal</label>
+                  <input type="text" value="Dinner" readonly tabindex="-1">
+                </div>
+                <div class="mini-field">
+                  <label>Time window</label>
+                  <input type="text" value="7:00–8:30 PM" readonly tabindex="-1">
+                </div>
+              </div>
+            </div>
+            <div class="mini-health" style="margin-top: 1rem;">
+              <span class="health-dot health-dot--healthy"></span>
+              Last checked 10:42 PM
+            </div>
+          </div>
+          <div>
+            <div class="proof-panel" style="margin-bottom: 1rem;">
+              <p class="proof-panel__label">Active watch</p>
+              <div class="watch-card">
+                <div class="watch-card__restaurant">California Grill</div>
+                <div class="watch-card__meta">
+                  <span>Party 2</span>
+                  <span>Sep 18, 2026</span>
+                  <span>Dinner</span>
+                  <span>7:00–8:30 PM</span>
+                </div>
+              </div>
+            </div>
+            <div class="proof-panel">
+              <p class="proof-panel__label">Sample alert</p>
+              <div class="sms-bubble">
+                California Grill opened Sat 9/18, 7:15 PM, party of 2. Reply STOP to opt out. Reply HELP for help.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6. FAQ -->
+    <section id="faq" class="section section--tight">
+      <div class="container">
+        <p class="section-label">FAQ</p>
+        <h2 class="section-title">Straight answers</h2>
+        <div class="faq-list">
+          <details class="faq-item">
+            <summary>Do you text every open table?</summary>
+            <div class="faq-item__answer">No. We only text when a matching reservation time newly opens. Tables that were already available stay quiet — this is an alert product, not a live availability board.</div>
+          </details>
+          <details class="faq-item">
+            <summary>Whose phone gets the alert?</summary>
+            <div class="faq-item__answer">The signed-in profile's phone. Craig's watches go to Craig's phone. Jessica's watches go to Jessica's phone. There is no shared household inbox.</div>
+          </details>
+          <details class="faq-item">
+            <summary>Is this an official Disney product?</summary>
+            <div class="faq-item__answer">No. Magic Table Finder is an independent tool for Walt Disney World dining watches. We are not affiliated with, endorsed by, or sponsored by The Walt Disney Company.</div>
+          </details>
+          <details class="faq-item">
+            <summary>How often do you check?</summary>
+            <div class="faq-item__answer">Every 10 minutes. You can see when the checker last ran — healthy, needs attention, or stale — right in the header.</div>
+          </details>
+          <details class="faq-item">
+            <summary>When do you ask for SMS consent?</summary>
+            <div class="faq-item__answer">When you create a watch, not at sign-in. You must check an explicit consent box before Create Watch is enabled. You can opt out anytime by replying STOP.</div>
+          </details>
+          <details class="faq-item">
+            <summary>What if nothing opens?</summary>
+            <div class="faq-item__answer">You wait. We keep checking, but we cannot guarantee a table will open. No alert means no new matching opening — not that we stopped watching.</div>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- 7. Sign-in -->
+    <section id="signin" class="section">
+      <div class="container">
+        <div class="signin-panel">
+          <h2>Sign in</h2>
+          <p class="signin-panel__hint">Choose your profile. Alerts go to that person's phone.</p>
+          <form id="signin-form">
+            <div class="form-group">
+              <label for="profile">Profile</label>
+              <select id="profile" name="profile" required>
+                <option value="craig">Craig</option>
+                <option value="jessica">Jessica</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="password">Password</label>
+              <input type="password" id="password" name="password" placeholder="Enter password" autocomplete="current-password">
+            </div>
+            <button type="submit" class="btn btn--primary" style="width: 100%;">Sign in</button>
+          </form>
+          <p class="signin-legal">
+            <a href="https://magictablefinder.com/privacy.html">Privacy</a> ·
+            <a href="https://magictablefinder.com/terms.html">Terms</a> ·
+            <a href="https://magictablefinder.com/sms-consent.html">SMS consent</a>
+          </p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 8. Footer -->
+  <footer class="site-footer">
+    <div class="container site-footer__inner">
+      <p class="site-footer__copy">Magic Table Finder · Independent Walt Disney World dining alerts</p>
+      <nav class="site-footer__links" aria-label="Legal">
+        <a href="https://magictablefinder.com/privacy.html">Privacy</a>
+        <a href="https://magictablefinder.com/terms.html">Terms</a>
+        <a href="https://magictablefinder.com/sms-consent.html">SMS consent</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script>
+    document.getElementById('signin-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var profile = document.getElementById('profile').value;
+      window.location.href = 'app.html?profile=' + encodeURIComponent(profile);
+    });
+  </script>
+</body>
+</html>
