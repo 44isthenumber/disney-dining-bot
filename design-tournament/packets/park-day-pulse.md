@@ -31,11 +31,11 @@ The guest is on a park day, phone in pocket, kids already in the stroller. When 
 
 ## Landing emphasis
 
-Lead with the SMS: restaurant, date, time, party, “Reply STOP to opt out.” Then three steps. Trust strip can be four compact stats-*labels* (not fake numbers): Watches · SMS · Every 10 min · Your phone only.
+Lead with the shared SMS fixture in the hero, then the three locked steps. Trust strip uses the four locked labels (not fake numbers). Sign-in is `#signin`.
 
 ## Logged-in emphasis
 
-Create Watch should feel fast on a phone: large Choose Dates, meal pills, time window, consent, Create Watch. Health is a live-feeling status: green = last checked recently. Owner (Craig vs Jessica) is unmissable because the wrong phone is a failed trip.
+Create Watch should feel fast on a phone: large Choose Dates, meal pills that multi-select (unchecked = Any meal), time window, consent, Create Watch. Health is a live-feeling status: green = last checked recently. Owner (Craig vs Jessica) is unmissable because the wrong phone is a failed trip.
 
 ## Risk to watch (do not fall into it)
 

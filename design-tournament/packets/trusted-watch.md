@@ -31,7 +31,7 @@ The guest has been burned by flaky bots and fan-site dashboards. They will trust
 
 ## Landing emphasis
 
-Show the actual job immediately: a stylized create-watch + a health line + an owner switch. FAQ should kill the dashboard misconception. Trust strip: owner-scoped, new openings only, 10-minute poll, SMS consent.
+Keep the shared eight-section landing IA. Put the stylized create-watch **and** health line in the proof section (not as a replacement landing). FAQ should kill the dashboard misconception. Trust strip uses the four locked labels. Sign-in is `#signin` only — no owner switch as a household dashboard.
 
 ## Logged-in emphasis
 

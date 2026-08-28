@@ -18,8 +18,10 @@ Score each vision 1–5 on every row. Winner is highest total. Ties break on **C
 - Castle-as-logo or official Disney marks
 - Fake quantitative metrics
 - Missing SMS consent on the create-watch mock
-- Missing Privacy / Terms / SMS consent footer links
+- Missing Privacy / Terms / SMS consent footer links (live magictablefinder.com URLs)
 - Phone numbers or internal IDs shown
+- Sign-in implies SMS opt-in (consent belongs on Create Watch)
+- Per-card owner column that implies a cross-owner household dashboard
 
 ## Judging note
 
