@@ -23,7 +23,9 @@ class LandingContractTest(unittest.TestCase):
         self.assertIn("--blue: #1a56db", INDEX)
 
     def test_locked_promise_and_headline(self):
-        self.assertIn("The table is being watched.", INDEX)
+        self.assertIn("We monitor the openings.", INDEX)
+        self.assertIn("We'll text you when your Walt Disney World reservations open up. You log in. You book.", INDEX)
+        self.assertNotIn("The table is being watched.", INDEX)
         self.assertIn("SMS when a matching table newly opens.", INDEX)
         self.assertIn('id="how"', INDEX)
         self.assertIn('id="proof"', INDEX)
