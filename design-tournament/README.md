@@ -11,10 +11,11 @@ Magic Table Finder landing + logged-in chrome bake-off.
 - Shared brief: [BRIEF.md](BRIEF.md)
 - Scoring: [RUBRIC.md](RUBRIC.md)
 
-Serve a team folder statically, for example:
+Open the judging index, then a team folder:
 
 ```bash
-python3 -m http.server 8788 --directory design-tournament/quiet-luxury
+python3 -m http.server 8788 --directory design-tournament
+# then http://127.0.0.1:8788/
 ```
 
 Legal footer links in mocks must use `https://magictablefinder.com/privacy.html` (and terms / sms-consent). Do not point at `/privacy.html` from a team-folder server.
