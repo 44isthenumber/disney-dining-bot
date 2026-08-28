@@ -30,7 +30,8 @@ class LandingContractTest(unittest.TestCase):
         self.assertIn('id="faq"', INDEX)
         self.assertIn('id="signin"', INDEX)
         self.assertIn("Create a precise watch", INDEX)
-        self.assertIn("We check every 10 minutes", INDEX)
+        self.assertIn("We scan frequently", INDEX)
+        self.assertIn("Frequent scans", INDEX)
         self.assertIn("SMS only when a matching time newly opens", INDEX)
         self.assertIn("California Grill", INDEX)
         self.assertIn("Reply STOP to opt out", INDEX)
@@ -86,6 +87,9 @@ class LandingContractTest(unittest.TestCase):
         self.assertNotIn("battery remain", lowered)
         self.assertNotIn("alert semantics", lowered)
         self.assertNotIn("🏰", INDEX)
+        self.assertNotIn("every 10 min", lowered)
+        self.assertNotIn("every 10 minutes", lowered)
+        self.assertNotIn("10-min", lowered)
 
     def test_primary_ctas_are_ink(self):
         for selector in ("#login-btn", "#create-btn", "#toggle-date-picker", "#date-picker-done"):
@@ -109,7 +113,7 @@ class LandingContractTest(unittest.TestCase):
             "Do you text every open table?",
             "Whose phone gets the alert?",
             "Is this an official Disney product?",
-            "How often do you check?",
+            "Do I need to keep refreshing Disney?",
             "When do you ask for SMS consent?",
             "What if nothing opens?",
         ):
