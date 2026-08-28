@@ -1,0 +1,496 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Create and manage a Magic Table Finder dining watch.">
+  <title>Your Watches — Magic Table Finder</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="app-body">
+  <a class="skip-link" href="#main">Skip to create watch</a>
+
+  <header class="app-header">
+    <div class="shell header-inner">
+      <a class="wordmark" href="app.html" aria-label="Magic Table Finder watches">
+        <span class="wordmark-mark" aria-hidden="true"></span>
+        <span>Magic Table Finder</span>
+      </a>
+      <div class="health-header" id="header-health" data-state="healthy">
+        <span class="health-dot" aria-hidden="true"></span>
+        <span id="header-health-text">Last checked 10:42 PM</span>
+      </div>
+      <div class="app-head-meta">
+        <span class="owner-chip" aria-label="Signed-in profile">
+          <span class="owner-name" data-owner>Craig</span>
+        </span>
+        <a class="lock-link" href="index.html">Lock</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-main" id="main">
+    <div class="shell">
+      <div class="app-intro">
+        <div>
+          <p class="section-kicker">Ready for the next opening</p>
+          <h1 class="app-title">Build a <span>precise</span> watch.</h1>
+          <p>Choose the exact meal window that works. We will text only when a matching time newly opens.</p>
+        </div>
+        <div class="owner-callout">
+          <strong><span data-owner>Craig</span>’s watch → <span data-owner>Craig</span>’s phone</strong>
+          New matching opening alerts stay with this profile.
+        </div>
+      </div>
+
+      <div class="app-layout">
+        <section class="panel create-panel" aria-labelledby="create-title">
+          <div class="panel-heading">
+            <div>
+              <h2 class="panel-title" id="create-title">Create Watch</h2>
+              <p>Start with the restaurant. Tighten the window only where your day needs it.</p>
+            </div>
+            <span class="step-chip">Primary task</span>
+          </div>
+
+          <form class="watch-form" id="watch-form">
+            <div class="form-grid">
+              <div class="form-field">
+                <label for="restaurant">Restaurant</label>
+                <select class="select" id="restaurant" required>
+                  <option>California Grill</option>
+                  <option>Space 220</option>
+                  <option>Be Our Guest Restaurant</option>
+                  <option>Topolino’s Terrace</option>
+                  <option>’Ohana</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label for="party">Party</label>
+                <select class="select" id="party">
+                  <option value="1">1 guest</option>
+                  <option value="2" selected>2 guests</option>
+                  <option value="3">3 guests</option>
+                  <option value="4">4 guests</option>
+                  <option value="5">5 guests</option>
+                  <option value="6">6 guests</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-section">
+              <span class="field-label">Dates</span>
+              <button class="date-button" id="choose-dates" type="button">Choose Dates</button>
+              <div class="selected-dates" id="selected-dates" aria-live="polite"></div>
+              <button class="manual-toggle" id="manual-toggle" type="button" aria-expanded="false">Enter dates manually</button>
+              <div class="manual-dates" id="manual-dates">
+                <label class="field-label" for="manual-date-input">Dates, separated by commas</label>
+                <input class="input" id="manual-date-input" type="text" placeholder="Sep 18, 2026">
+              </div>
+            </div>
+
+            <div class="form-section">
+              <span class="field-label">Meal period</span>
+              <p class="field-help">Choose more than one, or leave all unchecked for Any meal.</p>
+              <div class="meal-pills" id="meal-pills">
+                <label class="meal-pill"><input type="checkbox" value="Breakfast">Breakfast</label>
+                <label class="meal-pill"><input type="checkbox" value="Lunch">Lunch</label>
+                <label class="meal-pill"><input type="checkbox" value="Dinner">Dinner</label>
+              </div>
+            </div>
+
+            <div class="form-section">
+              <span class="field-label">Time window</span>
+              <p class="field-help">Optional. Leave both open to watch the full meal period.</p>
+              <div class="time-grid">
+                <div class="time-field">
+                  <label for="earliest">Earliest</label>
+                  <select class="select" id="earliest">
+                    <option value="">Any time</option>
+                    <option>5:00 PM</option>
+                    <option>5:30 PM</option>
+                    <option>6:00 PM</option>
+                    <option>6:30 PM</option>
+                    <option selected>7:00 PM</option>
+                    <option>7:30 PM</option>
+                  </select>
+                </div>
+                <div class="time-field">
+                  <label for="latest">Latest</label>
+                  <select class="select" id="latest">
+                    <option value="">Any time</option>
+                    <option>7:30 PM</option>
+                    <option>8:00 PM</option>
+                    <option selected>8:30 PM</option>
+                    <option>9:00 PM</option>
+                    <option>9:30 PM</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-section">
+              <label class="consent" for="sms-consent">
+                <input id="sms-consent" type="checkbox">
+                <span>I agree to receive SMS alerts from Magic Table Finder when matching Disney dining reservation openings are found. Message frequency varies based on my watch activity and reservation availability. Message and data rates may apply. Reply STOP to opt out. Reply HELP for help. Read the <a href="https://magictablefinder.com/privacy.html">Privacy Policy</a> and <a href="https://magictablefinder.com/terms.html">Terms</a>.</span>
+              </label>
+              <div class="submit-row">
+                <p class="submit-note">Consent starts unchecked. You stay in control of which watches can text you.</p>
+                <button class="btn btn-primary" id="create-watch" type="submit" disabled>Create Watch</button>
+              </div>
+            </div>
+          </form>
+        </section>
+
+        <aside class="sidebar">
+          <section class="panel health-panel" aria-labelledby="health-title">
+            <h2 class="side-title" id="health-title">Watch health</h2>
+            <div class="health-current" id="health-current" data-state="healthy">
+              <span class="health-dot" aria-hidden="true"></span>
+              <div>
+                <strong id="health-title-text">Checking normally</strong>
+                <p id="health-detail">Last checked 10:42 PM</p>
+              </div>
+            </div>
+            <p class="health-preview-label">Preview status treatments</p>
+            <div class="health-options" aria-label="Preview health states">
+              <button class="health-option active" type="button" data-health="healthy">Healthy</button>
+              <button class="health-option" type="button" data-health="attention">Needs attention</button>
+              <button class="health-option" type="button" data-health="stale">Stale</button>
+            </div>
+          </section>
+
+          <section class="panel watches-panel" aria-labelledby="watches-title">
+            <div class="watches-head">
+              <h2 class="side-title" id="watches-title">Your watches</h2>
+              <span class="watch-count" id="watch-count">1 ACTIVE</span>
+            </div>
+            <div class="watch-list" id="watch-list"></div>
+          </section>
+        </aside>
+      </div>
+    </div>
+  </main>
+
+  <div class="calendar-popover" id="calendar-popover" role="dialog" aria-modal="true" aria-labelledby="calendar-month">
+    <div class="calendar-card">
+      <div class="calendar-head">
+        <div class="calendar-month" id="calendar-month">September 2026</div>
+        <div class="calendar-nav">
+          <button class="icon-btn" id="prev-month" type="button" aria-label="Previous month">‹</button>
+          <button class="icon-btn" id="next-month" type="button" aria-label="Next month">›</button>
+        </div>
+      </div>
+      <div class="calendar-week" aria-hidden="true">
+        <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+      </div>
+      <div class="calendar-grid" id="calendar-grid"></div>
+      <div class="calendar-actions">
+        <span class="calendar-count" id="calendar-count">1 date selected</span>
+        <button class="btn btn-primary" id="calendar-done" type="button">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite">Watch created.</div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const owner = (params.get("profile") || "").toLowerCase() === "jessica" ? "Jessica" : "Craig";
+    const ownerNodes = document.querySelectorAll("[data-owner]");
+    const consent = document.getElementById("sms-consent");
+    const createButton = document.getElementById("create-watch");
+    const watchList = document.getElementById("watch-list");
+    const watchCount = document.getElementById("watch-count");
+    const toast = document.getElementById("toast");
+    const selectedDatesNode = document.getElementById("selected-dates");
+    const calendar = document.getElementById("calendar-popover");
+    const calendarGrid = document.getElementById("calendar-grid");
+    const calendarMonth = document.getElementById("calendar-month");
+    const calendarCount = document.getElementById("calendar-count");
+    const manualInput = document.getElementById("manual-date-input");
+    let viewYear = 2026;
+    let viewMonth = 8;
+    let selectedDates = new Set(["2026-09-18"]);
+    let watches = [];
+
+    ownerNodes.forEach((node) => {
+      node.textContent = owner;
+    });
+
+    function fixtureForProfile() {
+      if (owner === "Jessica") {
+        return {
+          restaurant: "Space 220",
+          dates: "Sep 19–20, 2026",
+          party: "Party 4",
+          meal: "Any meal",
+          window: ""
+        };
+      }
+
+      return {
+        restaurant: "California Grill",
+        dates: "Sep 18, 2026",
+        party: "Party 2",
+        meal: "Dinner",
+        window: "7:00–8:30 PM"
+      };
+    }
+
+    watches = [fixtureForProfile()];
+
+    function renderWatches() {
+      watchList.innerHTML = "";
+      watchCount.textContent = watches.length === 1 ? "1 ACTIVE" : `${watches.length} ACTIVE`;
+
+      if (watches.length === 0) {
+        watchList.innerHTML = '<p class="empty-state">No watches yet. Create one above.</p>';
+        return;
+      }
+
+      watches.forEach((watch, index) => {
+        const item = document.createElement("article");
+        item.className = "watch-item";
+        const detail = [watch.dates, watch.party, watch.meal, watch.window].filter(Boolean).join(" · ");
+        item.innerHTML = `
+          <h3>${watch.restaurant}</h3>
+          <p>${detail}</p>
+          <div class="watch-actions">
+            <span class="watching-label">Watching for new matches</span>
+            <button class="delete-watch" type="button" data-delete="${index}">Delete</button>
+          </div>
+        `;
+        watchList.appendChild(item);
+      });
+    }
+
+    watchList.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-delete]");
+      if (!button) return;
+      watches.splice(Number(button.dataset.delete), 1);
+      renderWatches();
+      showToast("Watch deleted.");
+    });
+
+    consent.addEventListener("change", () => {
+      createButton.disabled = !consent.checked;
+    });
+
+    function isoDate(year, month, day) {
+      return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    }
+
+    function readableDate(dateString) {
+      const [year, month, day] = dateString.split("-").map(Number);
+      return new Intl.DateTimeFormat("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric"
+      }).format(new Date(year, month - 1, day));
+    }
+
+    function renderSelectedDates() {
+      selectedDatesNode.innerHTML = "";
+      [...selectedDates].sort().forEach((date) => {
+        const chip = document.createElement("span");
+        chip.className = "selected-chip";
+        chip.innerHTML = `${readableDate(date)} <button type="button" data-remove-date="${date}" aria-label="Remove ${readableDate(date)}">×</button>`;
+        selectedDatesNode.appendChild(chip);
+      });
+    }
+
+    selectedDatesNode.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-remove-date]");
+      if (!button) return;
+      selectedDates.delete(button.dataset.removeDate);
+      renderSelectedDates();
+      renderCalendar();
+    });
+
+    function renderCalendar() {
+      const firstDay = new Date(viewYear, viewMonth, 1).getDay();
+      const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+      calendarMonth.textContent = new Intl.DateTimeFormat("en-US", {
+        month: "long",
+        year: "numeric"
+      }).format(new Date(viewYear, viewMonth, 1));
+      calendarGrid.innerHTML = "";
+
+      for (let i = 0; i < firstDay; i += 1) {
+        const empty = document.createElement("button");
+        empty.className = "calendar-day empty";
+        empty.type = "button";
+        empty.tabIndex = -1;
+        calendarGrid.appendChild(empty);
+      }
+
+      for (let day = 1; day <= daysInMonth; day += 1) {
+        const date = isoDate(viewYear, viewMonth, day);
+        const button = document.createElement("button");
+        button.className = `calendar-day${selectedDates.has(date) ? " selected" : ""}`;
+        button.type = "button";
+        button.textContent = day;
+        button.dataset.date = date;
+        button.setAttribute("aria-pressed", selectedDates.has(date) ? "true" : "false");
+        button.setAttribute("aria-label", readableDate(date));
+        calendarGrid.appendChild(button);
+      }
+
+      const count = selectedDates.size;
+      calendarCount.textContent = `${count} ${count === 1 ? "date" : "dates"} selected`;
+    }
+
+    calendarGrid.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-date]");
+      if (!button) return;
+      const date = button.dataset.date;
+      if (selectedDates.has(date)) {
+        selectedDates.delete(date);
+      } else {
+        selectedDates.add(date);
+      }
+      renderCalendar();
+    });
+
+    function openCalendar() {
+      calendar.classList.add("visible");
+      document.body.style.overflow = "hidden";
+      renderCalendar();
+      document.getElementById("calendar-done").focus();
+    }
+
+    function closeCalendar() {
+      calendar.classList.remove("visible");
+      document.body.style.overflow = "";
+      renderSelectedDates();
+      document.getElementById("choose-dates").focus();
+    }
+
+    document.getElementById("choose-dates").addEventListener("click", openCalendar);
+    document.getElementById("calendar-done").addEventListener("click", closeCalendar);
+    document.getElementById("prev-month").addEventListener("click", () => {
+      viewMonth -= 1;
+      if (viewMonth < 0) {
+        viewMonth = 11;
+        viewYear -= 1;
+      }
+      renderCalendar();
+    });
+    document.getElementById("next-month").addEventListener("click", () => {
+      viewMonth += 1;
+      if (viewMonth > 11) {
+        viewMonth = 0;
+        viewYear += 1;
+      }
+      renderCalendar();
+    });
+    calendar.addEventListener("click", (event) => {
+      if (event.target === calendar) closeCalendar();
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && calendar.classList.contains("visible")) closeCalendar();
+    });
+
+    const manualToggle = document.getElementById("manual-toggle");
+    const manualDates = document.getElementById("manual-dates");
+    manualToggle.addEventListener("click", () => {
+      const isVisible = manualDates.classList.toggle("visible");
+      manualToggle.setAttribute("aria-expanded", String(isVisible));
+      if (isVisible) manualInput.focus();
+    });
+    manualInput.addEventListener("change", () => {
+      const parsedDates = manualInput.value
+        .split(",")
+        .map((value) => new Date(value.trim()))
+        .filter((date) => !Number.isNaN(date.getTime()))
+        .map((date) => isoDate(date.getFullYear(), date.getMonth(), date.getDate()));
+      if (parsedDates.length > 0) {
+        selectedDates = new Set(parsedDates);
+        renderSelectedDates();
+      }
+    });
+
+    const healthStates = {
+      healthy: {
+        title: "Checking normally",
+        detail: "Last checked 10:42 PM",
+        header: "Last checked 10:42 PM"
+      },
+      attention: {
+        title: "Needs attention",
+        detail: "A recent check needs review. Your watches are still saved.",
+        header: "Needs attention"
+      },
+      stale: {
+        title: "Checks are delayed",
+        detail: "No recent check. We are keeping your watches in place.",
+        header: "Last check is stale"
+      }
+    };
+
+    document.querySelector(".health-options").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-health]");
+      if (!button) return;
+      const state = button.dataset.health;
+      const copy = healthStates[state];
+      document.querySelectorAll(".health-option").forEach((option) => option.classList.toggle("active", option === button));
+      document.getElementById("health-current").dataset.state = state;
+      document.getElementById("header-health").dataset.state = state;
+      document.getElementById("health-title-text").textContent = copy.title;
+      document.getElementById("health-detail").textContent = copy.detail;
+      document.getElementById("header-health-text").textContent = copy.header;
+    });
+
+    function compactDates() {
+      const sortedDates = [...selectedDates].sort();
+      if (sortedDates.length === 1) return readableDate(sortedDates[0]);
+      return sortedDates.map((date) => readableDate(date)).join(", ");
+    }
+
+    function selectedMeals() {
+      const checked = [...document.querySelectorAll("#meal-pills input:checked")].map((input) => input.value);
+      return checked.length ? checked.join(" + ") : "Any meal";
+    }
+
+    document.getElementById("watch-form").addEventListener("submit", (event) => {
+      event.preventDefault();
+      if (!consent.checked) return;
+      if (selectedDates.size === 0) {
+        showToast("Choose at least one date.");
+        openCalendar();
+        return;
+      }
+
+      const earliest = document.getElementById("earliest").value;
+      const latest = document.getElementById("latest").value;
+      watches.unshift({
+        restaurant: document.getElementById("restaurant").value,
+        dates: compactDates(),
+        party: `Party ${document.getElementById("party").value}`,
+        meal: selectedMeals(),
+        window: earliest || latest ? `${earliest || "Any"}–${latest || "Any"}` : ""
+      });
+      renderWatches();
+      showToast(`Watch created for ${owner}.`);
+      consent.checked = false;
+      createButton.disabled = true;
+    });
+
+    let toastTimer;
+    function showToast(message) {
+      window.clearTimeout(toastTimer);
+      toast.textContent = message;
+      toast.classList.add("visible");
+      toastTimer = window.setTimeout(() => toast.classList.remove("visible"), 2600);
+    }
+
+    renderSelectedDates();
+    renderCalendar();
+    renderWatches();
+  </script>
+</body>
+</html>
