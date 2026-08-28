@@ -23,7 +23,7 @@
     --grey: #f0f0f0;
     --border: #e4dcd0;
     --text: #1c1917;
-    --muted: #78716c;
+    --muted: #57534e;
     --ink: #1c1917;
     --ink-hover: #2d2926;
     --gold: #b0894a;
@@ -33,7 +33,10 @@
     --font-serif: 'Fraunces', Georgia, 'Times New Roman', serif;
     --font-sans: 'Source Sans 3', system-ui, -apple-system, sans-serif;
   }
-  html { scroll-behavior: smooth; }
+  html { scroll-behavior: smooth; color-scheme: light; }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+  }
   body {
     font-family: var(--font-sans);
     background: var(--paper);
@@ -397,12 +400,23 @@
   #login-overlay {
     position: fixed; inset: 0; z-index: 99999;
     background: var(--paper);
+    color: var(--ink);
+    color-scheme: light;
     overflow-y: auto;
     display: block;
   }
   #login-overlay.hidden { display: none; }
   #login-overlay a { color: var(--ink); text-decoration-color: var(--gold); text-underline-offset: 3px; }
-  #login-overlay a.l-btn-primary { color: var(--paper); }
+  #login-overlay .l-btn-primary,
+  #login-overlay a.l-btn-primary,
+  #login-overlay button.l-btn-primary {
+    background: var(--ink);
+    color: var(--paper);
+  }
+  #login-overlay .l-btn-primary:hover {
+    background: var(--ink-hover);
+    color: var(--paper);
+  }
   #login-overlay .l-wrap { width: min(1120px, calc(100% - 40px)); margin: 0 auto; }
   #login-overlay .l-narrow { width: min(720px, calc(100% - 40px)); margin: 0 auto; }
   .landing-header {
@@ -441,7 +455,7 @@
   .l-btn-primary:disabled { background: #aaa; border-color: #aaa; cursor: default; }
   .l-btn-secondary { background: transparent; color: var(--ink); border-color: rgba(28,25,23,.24); }
   .l-btn-sm { padding: 6px 14px; font-size: 13px; }
-  .l-hero { padding: 72px 0 64px; text-align: center; }
+  .l-hero { padding: 72px 0 64px; text-align: center; scroll-margin-top: 84px; }
   .l-eyebrow {
     display: inline-flex; align-items: center; gap: 8px;
     font-size: 12px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: var(--gold);
@@ -453,7 +467,7 @@
   .l-hero .lead { color: var(--muted); font-size: clamp(1.05rem, 2vw, 1.25rem); line-height: 1.55; max-width: 36em; margin: 0 auto 28px; }
   .l-hero-actions { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
   .l-plate { margin: 36px auto 0; max-width: 320px; }
-  .l-section { padding: 72px 0; border-top: 1px solid rgba(28,25,23,.12); }
+  .l-section { padding: 72px 0; border-top: 1px solid rgba(28,25,23,.12); scroll-margin-top: 84px; }
   .l-section h2 { font-family: var(--font-serif); font-weight: 400; font-size: clamp(1.6rem, 3vw, 2.2rem); text-align: center; margin: 8px 0; }
   .l-section .sub { text-align: center; color: var(--muted); margin-bottom: 36px; }
   .l-steps { display: grid; gap: 16px; }
@@ -473,24 +487,33 @@
   .l-dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; font-size: 15px; }
   .l-dl dt { color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-size: 12px; }
   .l-sms { border-left: 3px solid var(--gold); background: #fdfbf7; padding: 22px; }
-  .l-sms p { margin-top: 12px; line-height: 1.5; }
+  .l-sms p { margin-top: 12px; line-height: 1.5; overflow-wrap: anywhere; }
   .l-faq { max-width: 720px; margin: 0 auto; }
   .l-faq h3 { font-family: var(--font-serif); font-size: 1.2rem; font-weight: 500; margin: 20px 0 6px; }
   .l-faq p { color: var(--muted); line-height: 1.55; }
   .signin-box {
     background: var(--paper-card); border: 1px solid rgba(28,25,23,.12);
     padding: 32px; max-width: 420px; margin: 24px auto 0;
-    color: var(--ink); color-scheme: light;
+    color: var(--ink); color-scheme: light; text-align: left;
   }
   .signin-box label { display: block; font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
   .signin-box input[type=text], .signin-box input[type=password] {
     width: 100%; padding: 11px 14px; margin-bottom: 16px;
     border: 1px solid rgba(28,25,23,.24); border-radius: 2px; background: #fdfbf7;
     font-size: 15px; font-family: inherit; color: var(--ink);
+    color-scheme: light; -webkit-text-fill-color: var(--ink); caret-color: var(--ink);
   }
-  .signin-box input:focus { outline: none; border-color: var(--gold); }
+  .signin-box input:-webkit-autofill,
+  .signin-box input:-webkit-autofill:hover,
+  .signin-box input:-webkit-autofill:focus {
+    -webkit-text-fill-color: var(--ink);
+    caret-color: var(--ink);
+    box-shadow: 0 0 0 1000px #fdfbf7 inset;
+    transition: background-color 9999s ease-out;
+  }
+  .signin-box input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 2px rgba(176,137,74,.35); }
   #login-btn { width: 100%; background: var(--ink); color: var(--paper); }
-  #login-error { color: #c0392b; font-size: 13px; min-height: 18px; margin-top: 10px; }
+  #login-error { color: #c0392b; font-size: 13px; min-height: 18px; margin: 10px 0 0; }
   .signin-legal { font-size: 12px; color: var(--muted); text-align: center; line-height: 1.5; margin-top: 16px; }
   .landing-footer { background: #ede7dc; border-top: 1px solid rgba(28,25,23,.12); padding: 36px 20px; text-align: center; color: var(--muted); font-size: 13px; }
   .landing-footer ul { display: flex; justify-content: center; gap: 20px; list-style: none; margin-bottom: 12px; flex-wrap: wrap; }
@@ -505,6 +528,7 @@
     .landing-wordmark span.wordmark-name { display: none; }
     .landing-promise { text-align: left; font-size: 12px; line-height: 1.35; }
     .l-hero { padding: 40px 0 36px; }
+    .l-hero, .l-section { scroll-margin-top: 120px; }
   }
 
   /* ── Logout ─── */
@@ -522,21 +546,21 @@
 <div id="login-overlay" aria-hidden="false">
   <header class="landing-header">
     <div class="landing-header-inner">
-      <a href="#hero" class="landing-wordmark landing-nav">
+      <a href="#hero" class="landing-wordmark landing-nav" aria-label="Magic Table Finder">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
           <circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/>
           <path d="M12 3v3M12 18v3M3 12h3M18 12h3"/>
         </svg>
         <span class="wordmark-name">Magic Table Finder</span>
       </a>
-      <p class="landing-promise">Text when a matching table newly opens.</p>
+      <p class="landing-promise">We text you when a matching table newly opens.</p>
       <a href="#signin" class="l-btn l-btn-secondary l-btn-sm landing-nav landing-go-signin">Sign in</a>
     </div>
   </header>
 
   <section class="l-hero" id="hero">
     <div class="l-narrow">
-      <span class="l-eyebrow">Walt Disney World dining</span>
+      <span class="l-eyebrow">Private dining alerts</span>
       <h1>We monitor the openings.</h1>
       <p class="lead">We'll text you when your Walt Disney World reservations open up. You log in. You book.</p>
       <div class="l-hero-actions">
@@ -584,14 +608,14 @@
     </div>
   </section>
 
-  <div class="l-trust" aria-label="Product trust points">
+  <section class="l-trust" aria-label="Product trust points">
     <ul class="l-wrap">
-      <li>Watches</li>
-      <li>Text</li>
+      <li>New openings only</li>
+      <li>Text alerts</li>
       <li>Frequent scans</li>
       <li>Your phone only</li>
     </ul>
-  </div>
+  </section>
 
   <section id="proof" class="l-section">
     <div class="l-wrap">
@@ -611,7 +635,7 @@
         </div>
         <div class="l-sms">
           <div class="l-eyebrow">Sample text · 7:15 PM</div>
-          <p>California Grill opened Sat 9/18, 7:15 PM, party of 2.<br>Book: disneyworld.disney.go.com/dine-res/restaurant/california-grill/<br>Reply STOP to opt out. Reply HELP for help.</p>
+          <p>Disney Dining Alert!<br>New opening: California Grill<br>2026-09-18 at 7:15 PM | Party of 2 | Dinner<br>Book: disneyworld.disney.go.com/dine-res/restaurant/california-grill/<br>Reply STOP to opt out. Reply HELP for help.</p>
         </div>
       </div>
     </div>
@@ -621,13 +645,13 @@
     <div class="l-faq">
       <h2>Questions</h2>
       <h3>Do you text every open table?</h3>
-      <p>No. You get a text only when a time that matches your watch newly opens. Continuously open times stay quiet.</p>
+      <p>No. You get a text only when a time that matches your watch newly opens. Times that were already open stay quiet.</p>
       <h3>Whose phone gets the alert?</h3>
       <p>The signed-in account’s phone. Your watches text you, not someone else.</p>
       <h3>Is this an official Disney product?</h3>
       <p>No. Magic Table Finder is independent and is not affiliated with or endorsed by The Walt Disney Company.</p>
       <h3>Do I need to keep refreshing Disney?</h3>
-      <p>No. We scan frequently, around the clock. You get a text only when a matching time newly opens.</p>
+      <p>No. That's our job. We keep scanning so you don't have to.</p>
       <h3>When do you ask for text consent?</h3>
       <p>When you create a watch — not when you sign in. The consent box starts unchecked. Reply STOP to opt out.</p>
       <h3>What if nothing opens?</h3>
@@ -642,17 +666,17 @@
       <p class="sub">Alerts go to this account’s phone.</p>
       <form class="signin-box">
         <label for="login-profile">Username</label>
-        <input type="text" id="login-profile" name="username" placeholder="Username" autocomplete="username" autocapitalize="none" spellcheck="false" />
+        <input type="text" id="login-profile" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" />
         <label for="login-pwd">Password</label>
-        <input type="password" id="login-pwd" placeholder="Password" autocomplete="current-password" />
+        <input type="password" id="login-pwd" name="password" autocomplete="current-password" />
         <button type="submit" id="login-btn" class="l-btn l-btn-primary">Sign in</button>
+        <div id="login-error" role="alert"></div>
         <p class="signin-legal">
           Text consent is collected when you create a watch.
           <a href="/privacy.html" target="_blank" rel="noopener">Privacy</a> ·
           <a href="/terms.html" target="_blank" rel="noopener">Terms</a> ·
           <a href="/sms-consent.html" target="_blank" rel="noopener">Text consent</a>
         </p>
-        <div id="login-error" role="alert"></div>
       </form>
     </div>
   </section>
