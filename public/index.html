@@ -413,8 +413,12 @@
   .landing-header-inner {
     width: min(1120px, calc(100% - 32px)); margin: 0 auto;
     display: grid; grid-template-columns: auto 1fr auto;
+    grid-template-areas: "mark promise signin";
     gap: 12px; align-items: center;
   }
+  .landing-wordmark { grid-area: mark; }
+  .landing-promise { grid-area: promise; }
+  .landing-header-inner > .landing-go-signin { grid-area: signin; }
   .landing-wordmark {
     display: inline-flex; align-items: center; gap: 8px;
     font-family: var(--font-serif); font-size: 17px; font-weight: 500;
@@ -489,9 +493,14 @@
   .landing-footer { background: #ede7dc; border-top: 1px solid rgba(28,25,23,.12); padding: 36px 20px; text-align: center; color: var(--muted); font-size: 13px; }
   .landing-footer ul { display: flex; justify-content: center; gap: 20px; list-style: none; margin-bottom: 12px; flex-wrap: wrap; }
   @media (max-width: 640px) {
-    .landing-header-inner { grid-template-columns: 1fr auto; }
+    .landing-header-inner {
+      grid-template-columns: auto 1fr;
+      grid-template-areas:
+        "mark signin"
+        "promise promise";
+    }
     .landing-wordmark span.wordmark-name { display: none; }
-    .landing-promise { grid-column: 1 / -2; text-align: left; font-size: 12px; line-height: 1.35; }
+    .landing-promise { text-align: left; font-size: 12px; line-height: 1.35; }
     .l-hero { padding: 40px 0 36px; }
   }
 
@@ -631,7 +640,7 @@
       <span class="l-eyebrow">Private</span>
       <h2>Sign in</h2>
       <p class="sub">For Craig and Jessica. Alerts go to this profile’s phone.</p>
-      <form class="signin-box" id="login-form">
+      <form class="signin-box">
         <label for="login-profile">Profile</label>
         <select id="login-profile"></select>
         <label for="login-pwd">Password</label>
@@ -1010,7 +1019,7 @@ async function loadProfiles() {
   }
 }
 
-document.getElementById('login-form').addEventListener('submit', function (e) {
+document.getElementById('login-btn').closest('form').addEventListener('submit', function (e) {
   e.preventDefault();
   attemptLogin();
 });

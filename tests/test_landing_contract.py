@@ -43,9 +43,11 @@ class LandingContractTest(unittest.TestCase):
             'id="login-pwd"',
             'id="login-btn"',
             'id="login-error"',
-            'id="login-form"',
         ):
             self.assertIn(auth_id, INDEX)
+        self.assertIn('<form class="signin-box">', INDEX)
+        self.assertIn("closest('form')", INDEX)
+        self.assertNotIn('id="login-form"', INDEX)
         self.assertNotIn("profile-select", INDEX)
         self.assertNotIn("password-input", INDEX)
         self.assertNotIn("signin-form", INDEX)
