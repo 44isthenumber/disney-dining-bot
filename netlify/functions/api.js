@@ -14,6 +14,7 @@ const https = require("https");
 const path = require("path");
 const fs = require("fs");
 const crypto = require("crypto");
+const { findUser } = require("./user_lookup");
 
 // ── env ───────────────────────────────────────────────────────────────────────
 
@@ -317,8 +318,13 @@ function publicProfiles() {
 
 function currentUser(event) {
   const users = parseUsers();
-  const requested = event.headers["x-user-id"] || event.headers["X-User-Id"] || DEFAULT_OWNER_ID;
-  return users[requested] || users[DEFAULT_OWNER_ID] || Object.values(users)[0];
+  const requested = event.headers["x-user-id"] || event.headers["X-User-Id"] || "";
+  const found = findUser(users, requested);
+  if (found) return found;
+  if (!String(requested).trim()) {
+    return users[DEFAULT_OWNER_ID] || Object.values(users)[0] || null;
+  }
+  return null;
 }
 
 function watchRecordId(ownerId, facilityId, partySize, date) {
@@ -432,6 +438,7 @@ function checkSecret(event) {
   //   because it returns only a freshness boolean, no watch / owner data
   if (apiPath === "/profiles" || apiPath === "/health") return null;
   const user = currentUser(event);
+  if (!user) return response(401, { detail: "Unknown username" });
   const secret =
     event.headers["x-api-secret"] ||
     event.headers["X-Api-Secret"] ||

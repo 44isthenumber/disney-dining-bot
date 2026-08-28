@@ -402,6 +402,7 @@
   }
   #login-overlay.hidden { display: none; }
   #login-overlay a { color: var(--ink); text-decoration-color: var(--gold); text-underline-offset: 3px; }
+  #login-overlay a.l-btn-primary { color: var(--paper); }
   #login-overlay .l-wrap { width: min(1120px, calc(100% - 40px)); margin: 0 auto; }
   #login-overlay .l-narrow { width: min(720px, calc(100% - 40px)); margin: 0 auto; }
   .landing-header {
@@ -479,15 +480,16 @@
   .signin-box {
     background: var(--paper-card); border: 1px solid rgba(28,25,23,.12);
     padding: 32px; max-width: 420px; margin: 24px auto 0;
+    color: var(--ink); color-scheme: light;
   }
   .signin-box label { display: block; font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
-  .signin-box select, .signin-box input[type=password] {
+  .signin-box input[type=text], .signin-box input[type=password] {
     width: 100%; padding: 11px 14px; margin-bottom: 16px;
     border: 1px solid rgba(28,25,23,.24); border-radius: 2px; background: #fdfbf7;
     font-size: 15px; font-family: inherit; color: var(--ink);
   }
-  .signin-box select:focus, .signin-box input:focus { outline: none; border-color: var(--gold); }
-  #login-btn { width: 100%; }
+  .signin-box input:focus { outline: none; border-color: var(--gold); }
+  #login-btn { width: 100%; background: var(--ink); color: var(--paper); }
   #login-error { color: #c0392b; font-size: 13px; min-height: 18px; margin-top: 10px; }
   .signin-legal { font-size: 12px; color: var(--muted); text-align: center; line-height: 1.5; margin-top: 16px; }
   .landing-footer { background: #ede7dc; border-top: 1px solid rgba(28,25,23,.12); padding: 36px 20px; text-align: center; color: var(--muted); font-size: 13px; }
@@ -527,7 +529,7 @@
         </svg>
         <span class="wordmark-name">Magic Table Finder</span>
       </a>
-      <p class="landing-promise">SMS when a matching table newly opens.</p>
+      <p class="landing-promise">Text when a matching table newly opens.</p>
       <a href="#signin" class="l-btn l-btn-secondary l-btn-sm landing-nav landing-go-signin">Sign in</a>
     </div>
   </header>
@@ -585,7 +587,7 @@
   <div class="l-trust" aria-label="Product trust points">
     <ul class="l-wrap">
       <li>Watches</li>
-      <li>SMS</li>
+      <li>Text</li>
       <li>Frequent scans</li>
       <li>Your phone only</li>
     </ul>
@@ -595,7 +597,7 @@
     <div class="l-wrap">
       <span class="l-eyebrow" style="display:flex;justify-content:center">Example</span>
       <h2>A watch, then the text.</h2>
-      <p class="sub">A sample watch and the SMS sent when a matching opening appears.</p>
+      <p class="sub">A sample watch and the text sent when a matching opening appears.</p>
       <div class="l-proof">
         <div class="l-card">
           <span class="l-badge">Watching</span>
@@ -608,7 +610,7 @@
           </dl>
         </div>
         <div class="l-sms">
-          <div class="l-eyebrow">Sample SMS · 7:15 PM</div>
+          <div class="l-eyebrow">Sample text · 7:15 PM</div>
           <p>California Grill opened Sat 9/18, 7:15 PM, party of 2.<br>Book: disneyworld.disney.go.com/dine-res/restaurant/california-grill/<br>Reply STOP to opt out. Reply HELP for help.</p>
         </div>
       </div>
@@ -619,14 +621,14 @@
     <div class="l-faq">
       <h2>Questions</h2>
       <h3>Do you text every open table?</h3>
-      <p>No. You get an SMS only when a time that matches your watch newly opens. Continuously open times stay quiet.</p>
+      <p>No. You get a text only when a time that matches your watch newly opens. Continuously open times stay quiet.</p>
       <h3>Whose phone gets the alert?</h3>
-      <p>The signed-in profile’s phone. Craig’s watches alert Craig. Jessica’s watches alert Jessica.</p>
+      <p>The signed-in account’s phone. Your watches text you, not someone else.</p>
       <h3>Is this an official Disney product?</h3>
       <p>No. Magic Table Finder is independent and is not affiliated with or endorsed by The Walt Disney Company.</p>
       <h3>Do I need to keep refreshing Disney?</h3>
-      <p>No. We scan frequently, around the clock. You get an SMS only when a matching time newly opens.</p>
-      <h3>When do you ask for SMS consent?</h3>
+      <p>No. We scan frequently, around the clock. You get a text only when a matching time newly opens.</p>
+      <h3>When do you ask for text consent?</h3>
       <p>When you create a watch — not when you sign in. The consent box starts unchecked. Reply STOP to opt out.</p>
       <h3>What if nothing opens?</h3>
       <p>You wait. We keep checking. We do not guarantee a table will open.</p>
@@ -637,18 +639,18 @@
     <div class="l-narrow" style="text-align:center">
       <span class="l-eyebrow">Private</span>
       <h2>Sign in</h2>
-      <p class="sub">For Craig and Jessica. Alerts go to this profile’s phone.</p>
+      <p class="sub">Alerts go to this account’s phone.</p>
       <form class="signin-box">
-        <label for="login-profile">Profile</label>
-        <select id="login-profile"></select>
+        <label for="login-profile">Username</label>
+        <input type="text" id="login-profile" name="username" placeholder="Username" autocomplete="username" autocapitalize="none" spellcheck="false" />
         <label for="login-pwd">Password</label>
         <input type="password" id="login-pwd" placeholder="Password" autocomplete="current-password" />
         <button type="submit" id="login-btn" class="l-btn l-btn-primary">Sign in</button>
         <p class="signin-legal">
-          SMS consent is collected when you create a watch.
+          Text consent is collected when you create a watch.
           <a href="/privacy.html" target="_blank" rel="noopener">Privacy</a> ·
           <a href="/terms.html" target="_blank" rel="noopener">Terms</a> ·
-          <a href="/sms-consent.html" target="_blank" rel="noopener">SMS consent</a>
+          <a href="/sms-consent.html" target="_blank" rel="noopener">Text consent</a>
         </p>
         <div id="login-error" role="alert"></div>
       </form>
@@ -659,7 +661,7 @@
     <ul>
       <li><a href="/privacy.html">Privacy</a></li>
       <li><a href="/terms.html">Terms</a></li>
-      <li><a href="/sms-consent.html">SMS consent</a></li>
+      <li><a href="/sms-consent.html">Text consent</a></li>
     </ul>
     <p>Magic Table Finder is an independent dining alert tool and is not affiliated with, authorized by, or endorsed by The Walt Disney Company or Walt Disney World.</p>
   </footer>
@@ -706,7 +708,7 @@
 <main>
   <div id="create-watch">
     <h2>Create Watch</h2>
-    <p class="hint">You'll get an SMS when a matching table newly opens. Choose one or more dates.</p>
+    <p class="hint">You'll get a text when a matching table newly opens. Choose one or more dates.</p>
     <form id="watch-form">
       <div class="create-grid">
         <label class="create-field restaurant-field">Restaurant
@@ -760,7 +762,7 @@
         <label>
           <input type="checkbox" id="sms-consent" required>
           <span>
-            I agree to receive SMS alerts from Magic Table Finder when matching Disney dining reservation openings are found.
+            I agree to receive text alerts from Magic Table Finder when matching Disney dining reservation openings are found.
             Message frequency varies based on my watch activity and reservation availability. Message and data rates may apply.
             Reply STOP to opt out. Reply HELP for help.
             See <a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a> and
@@ -840,7 +842,7 @@
       <label class="modal-sms-consent">
         <input type="checkbox" id="modal-sms-consent">
         <span>
-          I agree to receive SMS alerts from Magic Table Finder for matching openings. Message frequency varies.
+          I agree to receive text alerts from Magic Table Finder for matching openings. Message frequency varies.
           Msg & data rates may apply. Reply STOP to opt out. Reply HELP for help.
           See <a href="/privacy.html" target="_blank" rel="noopener">Privacy</a> and
           <a href="/terms.html" target="_blank" rel="noopener">Terms</a>.
@@ -1002,19 +1004,10 @@ document.querySelectorAll('.landing-nav').forEach(function (a) {
   });
 });
 
-async function loadProfiles() {
-  const select = document.getElementById('login-profile');
-  try {
-    const res = await fetch('/_api/profiles');
-    const data = res.ok ? await res.json() : { profiles: [] };
-    const profiles = data.profiles && data.profiles.length ? data.profiles : [{ id: 'craig', name: 'Craig' }];
-    select.innerHTML = profiles.map(function(p) {
-      return '<option value="'+esc(p.id)+'">'+esc(p.name)+'</option>';
-    }).join('');
-    select.value = getUserId();
-  } catch(e) {
-    select.innerHTML = '<option value="craig">Craig</option>';
-  }
+function loadSavedUsername() {
+  var field = document.getElementById('login-profile');
+  if (!field) return;
+  field.value = localStorage.getItem('disneyUserId') || '';
 }
 
 document.getElementById('login-btn').closest('form').addEventListener('submit', function (e) {
@@ -1024,22 +1017,30 @@ document.getElementById('login-btn').closest('form').addEventListener('submit', 
 
 async function attemptLogin() {
   const pwd = document.getElementById('login-pwd').value.trim();
-  const userId = document.getElementById('login-profile').value || 'craig';
+  const userId = document.getElementById('login-profile').value.trim();
   const btn = document.getElementById('login-btn');
   const err = document.getElementById('login-error');
-  if (!pwd) return;
+  if (!userId || !pwd) {
+    err.textContent = 'Enter your username and password.';
+    if (!userId) document.getElementById('login-profile').focus();
+    else document.getElementById('login-pwd').focus();
+    return;
+  }
   btn.disabled = true; btn.textContent = 'Signing in…'; err.textContent = '';
   try {
     const res = await fetch('/_api/status', {
       headers: { 'X-API-Secret': pwd, 'X-User-Id': userId }
     });
     if (res.ok) {
+      var data = {};
+      try { data = await res.json(); } catch (e) {}
+      var resolvedId = (data.profile && data.profile.id) || userId;
       localStorage.setItem('disneyApiSecret', pwd);
-      localStorage.setItem('disneyUserId', userId);
+      localStorage.setItem('disneyUserId', resolvedId);
       hideLogin();
       onLogin();
     } else {
-      err.textContent = 'Incorrect password.';
+      err.textContent = 'Incorrect username or password.';
       document.getElementById('login-pwd').focus();
     }
   } catch(e) {
@@ -1073,7 +1074,7 @@ document.getElementById('logout-btn').addEventListener('click', function() {
     document.getElementById('party-size').value = this.value;
   });
 
-  loadProfiles();
+  loadSavedUsername();
 
   if (!getSecret()) {
     showLogin();
@@ -1406,7 +1407,7 @@ async function calAddWatch(dates) {
   var timeTo = document.getElementById('watch-time-to').value || null;
   try {
     if (!document.getElementById('modal-sms-consent').checked) {
-      throw new Error('Please confirm SMS consent before creating a watch.');
+      throw new Error('Please confirm text consent before creating a watch.');
     }
     setSmsConsentAccepted(true);
     var result = await apiFetch('/watches', {
@@ -1674,7 +1675,7 @@ document.getElementById('watch-form').addEventListener('submit', async function(
     const mealChecks = document.querySelectorAll('#watch-form input[name=meal-period]:checked');
     const mealPeriods = Array.from(mealChecks).map(c => c.value);
     if (!document.getElementById('sms-consent').checked) {
-      throw new Error('Please confirm SMS consent so we can send reservation alerts.');
+      throw new Error('Please confirm text consent so we can send reservation alerts.');
     }
     setSmsConsentAccepted(true);
     if (!restaurantId) throw new Error('Choose a restaurant first.');
@@ -1698,7 +1699,7 @@ document.getElementById('watch-form').addEventListener('submit', async function(
     };
     const result = await apiFetch('/watches', { method: 'POST', body: JSON.stringify(body) });
     const n = result.added.length;
-    msg.textContent = 'Watching ' + n + ' date' + (n !== 1 ? 's' : '') + ' — you\'ll get an SMS when a slot opens.';
+    msg.textContent = 'Watching ' + n + ' date' + (n !== 1 ? 's' : '') + ' — you\'ll get a text when a slot opens.';
     document.getElementById('watch-form').reset();
     syncSmsConsentControls();
     document.getElementById('party-size').value = getPartySize();

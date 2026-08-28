@@ -26,7 +26,8 @@ class LandingContractTest(unittest.TestCase):
         self.assertIn("We monitor the openings.", INDEX)
         self.assertIn("We'll text you when your Walt Disney World reservations open up. You log in. You book.", INDEX)
         self.assertNotIn("The table is being watched.", INDEX)
-        self.assertIn("SMS when a matching table newly opens.", INDEX)
+        self.assertIn("Text when a matching table newly opens.", INDEX)
+        self.assertNotIn("SMS when a matching table newly opens.", INDEX)
         self.assertIn('id="how"', INDEX)
         self.assertIn('id="proof"', INDEX)
         self.assertIn('id="faq"', INDEX)
@@ -51,6 +52,9 @@ class LandingContractTest(unittest.TestCase):
             'id="login-error"',
         ):
             self.assertIn(auth_id, INDEX)
+        self.assertIn('type="text" id="login-profile"', INDEX)
+        self.assertNotIn('<select id="login-profile">', INDEX)
+        self.assertNotIn("For Craig and Jessica", INDEX)
         self.assertIn('<form class="signin-box">', INDEX)
         self.assertIn("closest('form')", INDEX)
         self.assertNotIn('id="login-form"', INDEX)
@@ -79,7 +83,7 @@ class LandingContractTest(unittest.TestCase):
 
     def test_empty_watch_and_create_copy(self):
         self.assertIn("No watches yet. Create one above.", INDEX)
-        self.assertIn("You'll get an SMS when a matching table newly opens.", INDEX)
+        self.assertIn("You'll get a text when a matching table newly opens.", INDEX)
         self.assertNotIn("calendar is optional", INDEX.lower())
 
     def test_no_forbidden_copy(self):
@@ -95,6 +99,8 @@ class LandingContractTest(unittest.TestCase):
         self.assertNotIn("every 10 min", lowered)
         self.assertNotIn("every 10 minutes", lowered)
         self.assertNotIn("10-min", lowered)
+        overlay = INDEX.split('id="login-overlay"', 1)[1].split('id="app-shell"', 1)[0]
+        self.assertNotIn("SMS", overlay.replace("sms-consent.html", "").replace("sms-consent.html", ""))
 
     def test_primary_ctas_are_ink(self):
         for selector in ("#login-btn", "#create-btn", "#toggle-date-picker", "#date-picker-done"):
@@ -119,7 +125,7 @@ class LandingContractTest(unittest.TestCase):
             "Whose phone gets the alert?",
             "Is this an official Disney product?",
             "Do I need to keep refreshing Disney?",
-            "When do you ask for SMS consent?",
+            "When do you ask for text consent?",
             "What if nothing opens?",
         ):
             self.assertIn(question, INDEX)
