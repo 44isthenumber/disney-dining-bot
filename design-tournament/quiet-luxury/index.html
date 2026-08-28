@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Magic Table Finder — The Table is Being Watched</title>
+  <meta name="description" content="Private dining alerts for Walt Disney World. SMS when a matching table newly opens — not a feed of every open time.">
+  
+  <!-- Typography: Fraunces (Headlines) & Source Sans 3 (UI) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..600&family=Source+Sans+3:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- 1. Sticky Header -->
+  <header class="site-header">
+    <div class="container-wide header-inner">
+      <a href="#" class="wordmark">
+        <span class="wordmark-emblem" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+            <circle cx="12" cy="12" r="9"/>
+            <circle cx="12" cy="12" r="4"/>
+            <path d="M12 3v3M12 18v3M3 12h3M18 12h3"/>
+          </svg>
+        </span>
+        <span>Magic Table Finder</span>
+      </a>
+      
+      <div class="header-promise">
+        SMS when a matching table newly opens.
+      </div>
+      
+      <nav class="header-nav">
+        <a href="#signin" class="btn btn-secondary btn-sm">Sign in</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <!-- 2. Hero Section -->
+    <section class="section-hero">
+      <div class="container hero-content">
+        <span class="eyebrow eyebrow-center">Private Dining Alerts</span>
+        <h1 class="hero-title">The table is being watched.</h1>
+        <p class="lead hero-subhead">SMS when a matching Walt Disney World dining reservation opens — not a feed of every open time.</p>
+        
+        <div class="hero-actions">
+          <a href="#signin" class="btn btn-primary">Sign in</a>
+          <a href="#how" class="btn btn-secondary">See how it works</a>
+        </div>
+
+        <!-- Abstract dining atmosphere motif: plate rim & subtle warm glow -->
+        <div class="atmosphere-canvas" aria-hidden="true">
+          <svg class="plate-motif" viewBox="0 0 320 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <radialGradient id="candleGlow" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#B0894A" stop-opacity="0.32"/>
+                <stop offset="60%" stop-color="#B0894A" stop-opacity="0.08"/>
+                <stop offset="100%" stop-color="#F6F1E8" stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+            <ellipse cx="160" cy="60" rx="140" ry="46" fill="url(#candleGlow)"/>
+            <ellipse cx="160" cy="60" rx="136" ry="42" stroke="#1C1917" stroke-opacity="0.14" stroke-width="1"/>
+            <ellipse cx="160" cy="60" rx="116" ry="34" stroke="#B0894A" stroke-opacity="0.35" stroke-width="1" stroke-dasharray="2 3"/>
+            <ellipse cx="160" cy="60" rx="86" ry="24" stroke="#1C1917" stroke-opacity="0.08" stroke-width="1"/>
+            <circle cx="160" cy="60" r="2.5" fill="#B0894A"/>
+          </svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. How It Works (#how) -->
+    <section id="how" class="section">
+      <div class="container">
+        <div style="text-align: center;">
+          <span class="eyebrow eyebrow-center">The Method</span>
+          <h2>How it works</h2>
+          <p style="margin-top: 8px;">A disciplined, quiet check. We watch. You get a text.</p>
+        </div>
+
+        <div class="steps-grid">
+          <!-- Step 1 -->
+          <div class="step-item">
+            <div class="step-numeral">01</div>
+            <h3 class="step-title">Create a precise watch</h3>
+            <p class="step-desc">Choose your restaurant, exact party size, travel dates, and preferred dining window. We watch only what fits your itinerary.</p>
+          </div>
+
+          <!-- Step 2 -->
+          <div class="step-item">
+            <div class="step-numeral">02</div>
+            <h3 class="step-title">We check every 10 minutes</h3>
+            <p class="step-desc">A persistent background check runs around the clock. Your phone and battery remain completely undisturbed.</p>
+          </div>
+
+          <!-- Step 3 -->
+          <div class="step-item">
+            <div class="step-numeral">03</div>
+            <h3 class="step-title">SMS only when a matching time newly opens</h3>
+            <p class="step-desc">When a table opens, a single direct text is sent to your phone. Existing unreserved slots stay quiet.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. Trust Strip -->
+    <section class="trust-strip" aria-label="Product integrity">
+      <div class="container-wide">
+        <ul class="trust-items">
+          <li class="trust-item">Watches</li>
+          <li class="trust-item">SMS</li>
+          <li class="trust-item">Every 10 min</li>
+          <li class="trust-item">Your phone only</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- 5. Proof Section (#proof) -->
+    <section id="proof" class="section">
+      <div class="container">
+        <div style="text-align: center;">
+          <span class="eyebrow eyebrow-center">Quiet Proof</span>
+          <h2>In practice</h2>
+          <p style="margin-top: 8px;">A sample watch and the exact text sent when a matching opening appears.</p>
+        </div>
+
+        <div class="proof-container">
+          <!-- Watch Card Proof -->
+          <div class="proof-card">
+            <div class="proof-card-header">
+              <h3 class="proof-card-title">California Grill</h3>
+              <span class="proof-badge">Watching</span>
+            </div>
+            
+            <div class="proof-details">
+              <span class="proof-label">Party</span>
+              <span class="proof-val">2 Guests</span>
+              
+              <span class="proof-label">Date</span>
+              <span class="proof-val">Sep 18, 2026</span>
+              
+              <span class="proof-label">Meal</span>
+              <span class="proof-val">Dinner</span>
+              
+              <span class="proof-label">Window</span>
+              <span class="proof-val">7:00 – 8:30 PM</span>
+            </div>
+          </div>
+
+          <!-- Typeset SMS Proof -->
+          <div class="sms-quiet-box">
+            <div class="sms-header">
+              <span>Direct SMS Alert</span>
+              <span>7:15 PM</span>
+            </div>
+            <div class="sms-bubble">
+              California Grill opened Sat 9/18, 7:15 PM, party of 2. Reply STOP to opt out. Reply HELP for help.
+            </div>
+            <p class="sms-footer-note">Sent immediately to the watch owner’s phone upon detection.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6. FAQ Section (#faq) -->
+    <section id="faq" class="section">
+      <div class="container">
+        <div style="text-align: center; margin-bottom: var(--space-xl);">
+          <span class="eyebrow eyebrow-center">Clarity</span>
+          <h2>Frequently asked questions</h2>
+          <p style="margin-top: 8px;">Straight answers on our alert semantics and privacy.</p>
+        </div>
+
+        <div class="faq-list">
+          <div class="faq-item">
+            <h3 class="faq-question">1. Do you text every open table?</h3>
+            <p class="faq-answer">No. You only receive an SMS when a newly opened reservation matches your exact restaurant, party size, and dining window. Times that have been continuously open stay quiet.</p>
+          </div>
+
+          <div class="faq-item">
+            <h3 class="faq-question">2. Whose phone gets the alert?</h3>
+            <p class="faq-answer">Alerts are delivered exclusively to the phone number associated with the signed-in profile (Craig or Jessica). Each profile maintains its own distinct watches.</p>
+          </div>
+
+          <div class="faq-item">
+            <h3 class="faq-question">3. Is this an official Disney product?</h3>
+            <p class="faq-answer">No. Magic Table Finder is an independent, private alert utility created for personal trip planning and is not affiliated with, authorized, or endorsed by The Walt Disney Company.</p>
+          </div>
+
+          <div class="faq-item">
+            <h3 class="faq-question">4. How often do you check?</h3>
+            <p class="faq-answer">Our service performs a calm check every 10 minutes around the clock, evaluating Disney dining openings against your active criteria.</p>
+          </div>
+
+          <div class="faq-item">
+            <h3 class="faq-question">5. When do you ask for SMS consent?</h3>
+            <p class="faq-answer">We ask for explicit, unchecked SMS consent at the exact moment you create a watch, not when you sign in. You may opt out at any time by replying STOP.</p>
+          </div>
+
+          <div class="faq-item">
+            <h3 class="faq-question">6. What if nothing opens?</h3>
+            <p class="faq-answer">We continue watching quietly in the background. We never send empty messages or noisy status updates, and we do not guarantee a table if no opening is released.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 7. Sign-In Panel (#signin) -->
+    <section id="signin" class="section">
+      <div class="container">
+        <div style="text-align: center;">
+          <span class="eyebrow eyebrow-center">Access</span>
+          <h2>Sign in to your watches</h2>
+          <p style="margin-top: 8px;">Private access for Craig and Jessica.</p>
+        </div>
+
+        <div class="signin-box">
+          <form id="signin-form" onsubmit="handleSignIn(event)">
+            <div class="form-group">
+              <label class="form-label" for="profile-select">Profile</label>
+              <select id="profile-select" class="form-select" required>
+                <option value="craig" selected>Craig</option>
+                <option value="jessica">Jessica</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="password-input">Password</label>
+              <input type="password" id="password-input" class="form-input" placeholder="••••••••" value="demo-access" required>
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: var(--space-sm);">Sign in</button>
+          </form>
+
+          <div class="signin-legal-links">
+            By signing in, you access existing profile watches.<br>
+            <a href="https://magictablefinder.com/privacy.html" target="_blank" rel="noopener">Privacy Policy</a> · 
+            <a href="https://magictablefinder.com/terms.html" target="_blank" rel="noopener">Terms of Service</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 8. Footer with live legal URLs -->
+  <footer class="site-footer">
+    <div class="container-wide footer-inner">
+      <ul class="footer-links">
+        <li><a href="https://magictablefinder.com/privacy.html" target="_blank" rel="noopener">Privacy Policy</a></li>
+        <li><a href="https://magictablefinder.com/terms.html" target="_blank" rel="noopener">Terms of Service</a></li>
+        <li><a href="https://magictablefinder.com/sms-consent.html" target="_blank" rel="noopener">SMS Consent</a></li>
+      </ul>
+      <p class="footer-disclaimer">
+        Magic Table Finder is an independent reservation alert tool for personal trip planning and is not affiliated with, authorized by, or endorsed by The Walt Disney Company or Walt Disney World.
+      </p>
+    </div>
+  </footer>
+
+  <script>
+    function handleSignIn(event) {
+      event.preventDefault();
+      const profile = document.getElementById('profile-select').value || 'craig';
+      window.location.href = 'app.html?profile=' + encodeURIComponent(profile);
+    }
+  </script>
+</body>
+</html>
