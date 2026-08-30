@@ -88,6 +88,20 @@ assert.strictEqual(store.isReservedId("u_abc"), false);
     store.resetMemoryStore();
   }
 
+  await store.put({
+    id: first.id,
+    email: first.email,
+    stripe_customer_id: "cus_mem",
+    phone: "+1",
+  });
+  const byCus = await store.getByStripeCustomerId("cus_mem");
+  assert.strictEqual(byCus.id, first.id);
+  await store.putCheckout("cs_mem", { user_id: first.id, billable_id: "bill_1" });
+  const pending = await store.getCheckout("cs_mem");
+  assert.strictEqual(pending.billable_id, "bill_1");
+  await store.deleteCheckout("cs_mem");
+  assert.strictEqual(await store.getCheckout("cs_mem"), null);
+
   console.log("test_user_store ok");
 })().catch((err) => {
   console.error(err);

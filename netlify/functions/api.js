@@ -18,6 +18,7 @@ const { findUser } = require("./user_lookup");
 const { canCreateWatch, isInternalUser, publicIdentity } = require("./entitlement");
 const userStore = require("./user_store");
 const sessionAuth = require("./session_auth");
+const stripeBilling = require("./stripe_billing");
 
 // ── env ───────────────────────────────────────────────────────────────────────
 
@@ -59,6 +60,21 @@ function httpRequest(method, url, headers, body) {
 let _gistCache = null;
 let _gistCacheAt = 0;
 const GIST_TTL = 10000; // 10 s within a single warm Lambda
+
+let _watchWriter = null;
+let _watchMemory = null;
+function setWatchWriterForTests(fn) {
+  if (typeof fn === "function") {
+    _watchMemory = [];
+    _watchWriter = async (watches) => {
+      _watchMemory = watches;
+      await fn(watches);
+    };
+  } else {
+    _watchWriter = null;
+    _watchMemory = null;
+  }
+}
 
 async function _fetchGist() {
   const now = Date.now();
@@ -326,6 +342,7 @@ const PUBLIC_PATHS = new Set([
   "/auth/callback",
   "/auth/me",
   "/auth/logout",
+  "/billing/webhook",
 ]);
 
 function headerValue(event, name) {
@@ -393,10 +410,14 @@ function normalizeWatch(raw, userFallback = null) {
     time_to: raw.time_to || null,
     recipient_phone: raw.recipient_phone || profile.phone || "",
     created_at: raw.created_at || new Date().toISOString(),
+    billable_id: raw.billable_id || null,
   };
 }
 
 async function loadWatches() {
+  if (_watchMemory) {
+    return _watchMemory.filter((w) => w.facility_id && w.date).map((w) => normalizeWatch(w));
+  }
   const stored = await readJson("watches.json");
   if (stored && Array.isArray(stored.watches)) {
     return stored.watches.filter((w) => w.facility_id && w.date).map((w) => normalizeWatch(w));
@@ -425,6 +446,10 @@ async function loadWatches() {
 }
 
 async function saveWatches(watches) {
+  if (_watchWriter) {
+    await _watchWriter(watches);
+    return;
+  }
   await writeText("watches.json", JSON.stringify({
     schema_version: 1,
     updated_at: new Date().toISOString(),
@@ -450,6 +475,70 @@ function todayIsoInParkTime() {
 
 function isActiveWatch(watch, today = todayIsoInParkTime()) {
   return typeof watch.date === "string" && watch.date >= today;
+}
+
+function countActiveBillable(watches, ownerId) {
+  const ids = new Set();
+  for (const w of watches || []) {
+    if (w.owner_id !== ownerId) continue;
+    if (!w.billable_id) continue;
+    if (!isActiveWatch(w)) continue;
+    ids.add(w.billable_id);
+  }
+  return ids.size;
+}
+
+async function identityFor(user) {
+  let activeBillableCount;
+  if (user && !isInternalUser(user) && (user.planner_status === "active" || user.planner_status === "trialing")) {
+    try {
+      const watches = await loadWatches();
+      activeBillableCount = countActiveBillable(watches, user.id);
+    } catch {
+      activeBillableCount = undefined;
+    }
+  }
+  return publicIdentity(user, {
+    activeBillableCount,
+    stripeConfigured: stripeBilling.isConfigured("single_watch"),
+  });
+}
+
+async function appendWatchPayload(user, payload, billableId) {
+  const watches = await loadWatches();
+  const byId = new Map(watches.map((w) => [w.watch_id, w]));
+  const added = [];
+  for (const date of payload.dates || []) {
+    const wid = newWatchId();
+    byId.set(
+      wid,
+      normalizeWatch(
+        {
+          watch_id: wid,
+          owner_id: user.id,
+          billable_id: billableId || undefined,
+          facility_id: payload.facility_id,
+          name: payload.name,
+          slug: payload.slug,
+          party_size: payload.party_size,
+          meal_periods: payload.meal_periods,
+          booking_type: payload.booking_type,
+          date,
+          time_from: payload.time_from,
+          time_to: payload.time_to,
+          recipient_phone: user.phone || "",
+        },
+        user
+      )
+    );
+    added.push(wid);
+  }
+  await saveWatches([...byId.values()]);
+  return added;
+}
+
+function billingHelpers() {
+  return { loadWatches, saveWatches, appendWatchPayload };
 }
 
 // ── JWT expiry ────────────────────────────────────────────────────────────────
@@ -500,7 +589,7 @@ async function handleAuthCallback(event) {
 async function handleAuthMe(event) {
   const user = await resolveIdentity(event);
   if (!user) return response(401, { detail: "Please sign in" });
-  return response(200, { user: publicIdentity(user) });
+  return response(200, { user: await identityFor(user) });
 }
 
 function handleLogout(event) {
@@ -533,7 +622,7 @@ async function handlePatchMe(event, user) {
   }
   const phone = String(body.phone || "").trim().slice(0, 40);
   const updated = await userStore.put({ ...user, phone });
-  return response(200, { user: publicIdentity(updated) });
+  return response(200, { user: await identityFor(updated) });
 }
 
 // ── response helper ───────────────────────────────────────────────────────────
@@ -710,15 +799,6 @@ async function handleGetWatches(user) {
 }
 
 async function handlePostWatch(event, user) {
-  const gate = canCreateWatch(user);
-  if (!gate.ok) {
-    return response(gate.status || 402, {
-      detail: gate.detail,
-      code: gate.code,
-      can_create_watch: false,
-    });
-  }
-
   let body;
   try {
     body = JSON.parse(event.body || "{}");
@@ -736,6 +816,7 @@ async function handlePostWatch(event, user) {
     time_from = null,
     time_to = null,
     booking_type = "dining",
+    sms_consent,
   } = body;
 
   const errors = [];
@@ -831,30 +912,134 @@ async function handlePostWatch(event, user) {
     return response(422, { detail: errors.join(" ") });
   }
 
-  const watches = await loadWatches();
-  const byId = new Map(watches.map((w) => [w.watch_id, w]));
-  const added = [];
-  for (const date of normalizedDates) {
-    const wid = newWatchId();
-    byId.set(wid, normalizeWatch({
-      watch_id: wid,
-      owner_id: user.id,
-      facility_id: facilityId,
-      name: name || facilityId,
-      slug: slug || facilityId,
-      party_size: partySize,
-      meal_periods: normalizedMealPeriods,
-      booking_type: bookingType,
-      date,
-      time_from: timeFrom,
-      time_to: timeTo,
-      recipient_phone: user.phone || "",
-    }, user));
-    added.push(wid);
+  const consumer = !isInternalUser(user);
+  if (consumer && sms_consent !== true) {
+    return response(422, { detail: "Please confirm text consent so we can send reservation alerts." });
   }
-  await saveWatches([...byId.values()]);
+  if (consumer && !String(user.phone || "").trim()) {
+    return response(422, {
+      code: "phone_required",
+      detail: "Add a phone number so we can text you.",
+    });
+  }
+
+  let activeBillableCount;
+  try {
+    const existing = await loadWatches();
+    activeBillableCount = countActiveBillable(existing, user.id);
+  } catch {
+    activeBillableCount = undefined;
+  }
+  const gate = canCreateWatch(user, { activeBillableCount });
+  if (!gate.ok) {
+    return response(gate.status || 402, {
+      detail: gate.detail,
+      code: gate.code,
+      can_create_watch: false,
+    });
+  }
+
+  const payload = {
+    facility_id: facilityId,
+    name: name || facilityId,
+    slug: slug || facilityId,
+    party_size: partySize,
+    meal_periods: normalizedMealPeriods,
+    booking_type: bookingType,
+    dates: normalizedDates,
+    time_from: timeFrom,
+    time_to: timeTo,
+  };
+
+  if (gate.code === "single_watch") {
+    if (!stripeBilling.isConfigured("single_watch")) {
+      return response(503, {
+        code: "billing_unavailable",
+        detail: "Paid watches are not available yet.",
+      });
+    }
+    const billableId = stripeBilling.newBillableId();
+    const created = await stripeBilling.createCheckoutSession({
+      user,
+      sku: "single_watch",
+      billableId,
+    });
+    if (!created.ok) {
+      return response(created.status || 503, {
+        code: created.code,
+        detail: created.detail,
+      });
+    }
+    await userStore.putCheckout(created.session.id, {
+      user_id: user.id,
+      sku: "single_watch",
+      billable_id: billableId,
+      sms_consent: true,
+      watch: payload,
+      created_at: new Date().toISOString(),
+    });
+    return response(402, {
+      code: "checkout_required",
+      checkout_url: created.session.url,
+      can_create_watch: true,
+      detail: "Pay to start this watch.",
+    });
+  }
+
+  const billableId = gate.code === "planner" ? stripeBilling.newBillableId() : null;
+  const added = await appendWatchPayload(user, payload, billableId);
   return response(201, { added });
 }
+
+async function handleBillingCheckout(event, user) {
+  if (isInternalUser(user)) {
+    return response(403, { code: "internal_no_stripe", detail: "Internal accounts do not use Stripe." });
+  }
+  let body = {};
+  try {
+    body = JSON.parse(event.body || "{}");
+  } catch {
+    return response(400, { detail: "Invalid JSON body" });
+  }
+  if (body.sku !== "planner") {
+    return response(400, { detail: "sku must be planner" });
+  }
+  if (user.planner_status === "past_due" && user.stripe_customer_id) {
+    return response(402, {
+      code: "past_due",
+      detail: "Update billing to add watches. Existing watches keep alerting.",
+    });
+  }
+  const created = await stripeBilling.createCheckoutSession({ user, sku: "planner" });
+  if (!created.ok) {
+    return response(created.status || 503, { code: created.code, detail: created.detail });
+  }
+  return response(200, { checkout_url: created.session.url });
+}
+
+async function handleBillingPortal(user) {
+  const created = await stripeBilling.createPortalSession(user);
+  if (!created.ok) {
+    return response(created.status || 404, { code: created.code, detail: created.detail });
+  }
+  return response(200, { url: created.url });
+}
+
+async function handleBillingSync(event, user) {
+  let body = {};
+  try {
+    body = JSON.parse(event.body || "{}");
+  } catch {
+    body = {};
+  }
+  const result = await stripeBilling.syncSession(user, body.session_id, billingHelpers());
+  if (!result.ok) {
+    return response(result.status || 400, { code: result.code, detail: result.detail });
+  }
+  const fresh = await userStore.getById(user.id);
+  return response(200, { ok: true, user: await identityFor(fresh || user) });
+}
+
 
 async function handleDeleteWatch(watchIdStr, user) {
   const watches = await loadWatches();
@@ -883,6 +1068,10 @@ exports.handler = async function (event) {
     if (method === "GET" && p === "/auth/callback") return await handleAuthCallback(event);
     if (method === "GET" && p === "/auth/me") return await handleAuthMe(event);
     if (method === "POST" && p === "/auth/logout") return handleLogout(event);
+    if (method === "POST" && p === "/billing/webhook") {
+      const result = await stripeBilling.handleWebhook(event, billingHelpers());
+      return response(result.statusCode, result.body);
+    }
 
     const user = await resolveIdentity(event);
     if (!user) return response(401, { detail: "Please sign in" });
@@ -898,6 +1087,9 @@ exports.handler = async function (event) {
       return await handleDeleteWatch(decodeURIComponent(p.slice("/watches/".length)), user);
     }
     if (method === "PATCH" && p === "/me") return await handlePatchMe(event, user);
+    if (method === "POST" && p === "/billing/checkout") return await handleBillingCheckout(event, user);
+    if (method === "POST" && p === "/billing/portal") return await handleBillingPortal(user);
+    if (method === "POST" && p === "/billing/sync") return await handleBillingSync(event, user);
 
     return response(404, { detail: `Not found: ${method} ${p}` });
   } catch (err) {
@@ -913,4 +1105,6 @@ exports._test = {
   PUBLIC_PATHS,
   resolveIdentity,
   apiPath,
+  setWatchWriterForTests,
 };
+exports.setWatchWriterForTests = setWatchWriterForTests;

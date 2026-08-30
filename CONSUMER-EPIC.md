@@ -25,12 +25,150 @@ SMS when a **new matching** Walt Disney World reservation opening appears. Not a
 - Do not add Brunch to the poller, Disneyland, auto-booking, a free SMS tier, or a faster poll interval.
 - Do not advertise a minute-level poll interval on the public landing.
 - Do not make the Restaurants calendar the default logged-in surface.
-- Dollar amounts and the Planner watch cap stay **placeholders** until Craig sets them (cap placeholder: 8–10 concurrent billable watches for consumers).
+- Locked pricing (Craig 2026-08-30): Single Watch **$4.99** one-time; Planner **$14.99/month** for **4** active alerts. Do **not** put dollar amounts in `public/index.html`.
 - Auth, Stripe, Twilio, VPS, Gist cutover, destructive git: high-risk review (Codex). Stay off `main` unless Craig said deploy.
 
 ## Current slice
 
-**Slice 2 is the only slice to build now.** Stories US-2.1 through US-2.4. Slice 1 is shipped on `main`. Slices 3–4 are backlog; citing Stripe Checkout, Customer Portal, or Gist watch cutover in this PR is drift.
+**Slice 3 is the only slice to build now.** Stories US-3.1 through US-3.7. Slices 1–2 are shipped on `main` (identity + dining selection). Slice 4 is backlog. Do not open public marketing, change the poller, or merge to `main` unless Craig said deploy.
+
+---
+
+# Slice 3 — Stripe hybrid (build now)
+
+Logged-in consumers can **pay for one billable watch** (Single Watch) or **subscribe to Planner**, then get live SMS watches. Craig and Jessica stay unrestricted. Cloud tests inject a fake Stripe client. Never put `STRIPE_*` values in git or Cloud secrets.
+
+## Builder contract (read before coding)
+
+### Law: unpaid watches never reach Gist
+
+The VPS poller SMS-alerts every matching row in `watches.json`. **Do not write a consumer watch to Gist until payment is confirmed** by webhook or by server-side Checkout Session retrieve. Do not add `pending_payment` rows to `watches.json`. Do not change `disney_bot.py`, `watch_store.py`, or `notify.py`.
+
+Store the unpaid payload in Netlify Blobs (`mtf-users`) keyed `checkout:<session_id>`. Stripe metadata is too small for a full watch JSON. Metadata holds `user_id`, `sku`, and for `single_watch` sessions a short `billable_id` (UUID/hex — not watch JSON).
+
+### Entitlement (replaces Slice 2 always-402 for consumers)
+
+`canCreateWatch(user, opts?)` with `opts.activeBillableCount` for cap:
+
+| User | Result |
+|---|---|
+| missing | 401 `auth` |
+| internal (`craig` / `Jessica` / `kind=internal`) | `{ ok: true, code: 'internal' }` — never Stripe |
+| consumer `planner_status` `active` or `trialing`, `cancel_at_period_end` false, count `<` cap | `{ ok: true, code: 'planner' }` — POST writes Gist (201) |
+| consumer `planner_status` `active` or `trialing`, `cancel_at_period_end` true | `{ ok: false, code: 'canceling', status: 402 }` — no new watches; existing Gist dates keep alerting |
+| consumer `planner_status` `past_due` | `{ ok: false, code: 'past_due', status: 402 }` — no new watches; CTA is Portal; existing Gist dates keep alerting |
+| consumer at Planner cap | `{ ok: false, code: 'planner_cap', status: 402 }` |
+| consumer otherwise (`planner_status` `none` / `canceled`) | `{ ok: true, code: 'single_watch' }` — POST does **not** write Gist; starts Checkout |
+
+`publicIdentity` stays additive. Include: existing fields, `can_create_watch` (true iff `canCreateWatch.ok` **and** Stripe is configured when the mode needs it), `planner_status`, `cancel_at_period_end`, `has_stripe_customer`, `billing_mode` (`internal` \| `planner` \| `single_watch` \| `blocked`), `upgrade_prompt` (true when `single_watch_count >= 2` and not on live Planner). If `STRIPE_SECRET_KEY` or `STRIPE_PRICE_SINGLE_WATCH` is unset, consumers in `single_watch` mode become `blocked` / `billing_unavailable` (`can_create_watch` false). Planner mode still needs `STRIPE_PRICE_PLANNER` only for `/billing/checkout`, not for in-app 201 writes.
+
+Cap: `PLANNER_WATCH_CAP` env, default **4**. Count **billable watches** (D1), not `watches.json` date rows. Each paid Create Watch stamps one `billable_id` on every date row it writes. Count distinct `billable_id` for that `owner_id` where any date is still active (`isActiveWatch`). Missing `billable_id` does not count toward the consumer cap.
+
+### Stripe client (injectable)
+
+New `netlify/functions/stripe_billing.js`. `setStripeForTests(client)` in that file. **`api.js` exports `setWatchWriterForTests(fn)`** (default `saveWatches`) so `tests/test_consumer_auth_api.js` can assert zero Gist writes on checkout and one write on planner 201. Webhook apply uses the same injected writer. Production uses `new Stripe(process.env.STRIPE_SECRET_KEY)` only when that env is set. **Tests never call Stripe’s network.**
+
+Env (Netlify only, never git): `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_SINGLE_WATCH`, `STRIPE_PRICE_PLANNER`, optional `PLANNER_WATCH_CAP`. If secret or the needed price id is missing: HTTP **503** `{ code: 'billing_unavailable', detail: 'Paid watches are not available yet.' }` — never leak Stripe config JSON.
+
+### Checkout Session rules (US-3.1)
+
+Created only for a **consumer** session identity (cookie). Internal `X-User-Id` / `X-API-Secret` → **403** `{ code: 'internal_no_stripe' }` on `/billing/checkout`, `/billing/portal`, and on consumer Checkout from `POST /watches`.
+
+Session fields:
+
+- `client_reference_id` = app `user_id` (never `craig` / `Jessica`)
+- `customer` = existing `stripe_customer_id` when set
+- `customer_email` = session email **only** when `stripe_customer_id` is absent (never send both `customer` and `customer_email`)
+- `metadata.user_id`, `metadata.sku`
+- `success_url` = `{origin}/?paid=ok&session_id={CHECKOUT_SESSION_ID}`
+- `cancel_url` = `{origin}/?paid=cancel`
+- `client_reference_id` and metadata `user_id` must match the logged-in user
+
+Origin: `process.env.URL` or `https://magictablefinder.com`.
+
+### POST `/watches` (consumers)
+
+1. Validate the watch body with the **same** 422 rules as today (restaurant, party, dates, meals, times).
+2. Consumers **must** send `sms_consent: true`. Missing/false → **422** `{ detail: 'Please confirm text consent so we can send reservation alerts.' }` and **zero** Checkout + **zero** Gist. Stripe is not consent (D7). Internal users do not need this field.
+3. Consumers with no `phone` on the user record → **422** `{ code: 'phone_required', detail: 'Add a phone number so we can text you.' }` before Checkout.
+4. Load Gist watches for `user.id`, count distinct `billable_id` with at least one active date (`isActiveWatch`). Pass as `opts.activeBillableCount` to `canCreateWatch`. If `activeBillableCount` is omitted when planner cap applies, treat as **fail closed** (`planner_cap` / 402).
+5. Then `canCreateWatch(user, { activeBillableCount })`. If not ok → 402 with `code`, `detail`, `can_create_watch: false`, and `portal_url` omitted (Portal is a separate POST).
+6. If `code === 'planner'` → write Gist date rows with a new `billable_id`, `recipient_phone` = current `user.phone`, **201** `{ added }` as today.
+7. If `code === 'single_watch'` → mint one `billable_id` for this billable watch, then create Checkout `mode=payment` with `STRIPE_PRICE_SINGLE_WATCH` (one line item, flat, quantity 1 — do not multiply by date count). Persist pending payload at `checkout:<session.id>` including the validated watch, `sms_consent: true`, `user_id`, and the same `billable_id`. Put that `billable_id` in Session metadata. **Do not call `saveWatches`.** Return **402** `{ code: 'checkout_required', checkout_url, can_create_watch: true, detail: 'Pay to start this watch.' }`.
+8. Shared frontend `postWatch(body)` performs `fetch('/_api/watches', …)` (not generic `apiFetch`). On **402** with `code === 'checkout_required'` and `checkout_url`, call `window.location.assign(checkout_url)` and return (no throw). Other errors surface in UI. `apiFetch` may remain throw-on-error for other routes.
+
+Internal POST `/watches` remains 201/422/500 as today. Never Checkout. Never `sms_consent` requirement.
+
+### Webhooks (US-3.4)
+
+`POST /_api/billing/webhook` is a **public path** (no session cookie, no `X-API-Secret`). Handle it in `exports.handler` **after** `connectBlobsFromEvent` and **before** `resolveIdentity` (same band as `/auth/magic-link`). Verify `Stripe-Signature` against the **raw** body (`event.body`, base64-decode if `isBase64Encoded`) via `stripe.webhooks.constructEvent`. Invalid signature → **400**. Do not `JSON.parse` before verify.
+
+Handled types: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`. Unknown types → 200 no-op.
+
+`checkout.session.completed` can fire while `payment_status` is still `unpaid` (Klarna, bank debit). Apply the same paid-session gate as today (`isPaidCheckout`). Fulfill on `async_payment_succeeded` with the same handler as a paid `completed`. `async_payment_failed` → 200, no Gist write, pending blob left for retry.
+
+Idempotent on `event.id`: claim a blob key `stripe_event:<event.id>` (reuse `claimNonce` with that key). Duplicate → 200, no second Gist write.
+
+If `client_reference_id` or `metadata.user_id` is reserved (`craig` / `Jessica`, case-insensitive) **or** would `userStore.put` those ids: **200 no-op**, no Customer attach, no Gist write. Billing failures never SMS Jessica (D4).
+
+`checkout.session.completed` + `sku=single_watch`: load `checkout:<session.id>`; write Gist rows with `recipient_phone` from the consumer’s current `user.phone` at apply time (same as planner POST); stamp the stored `billable_id` on every date row; set `stripe_customer_id` from `session.customer`; increment `single_watch_count`; delete pending blob. Claim `stripe_event:<id>` **only after** a successful apply (or reserved-id no-op). If Gist write throws: **do not** claim the event id, **do not** delete the pending blob, return **500** so Stripe retries. `/billing/sync` is the user-facing retry. If pending blob is missing, read `metadata.billable_id` from the Session. If Gist already has active date rows for that `owner_id` + `billable_id`, treat as success (idempotent 200). If blob and metadata are both missing, return **500** so Stripe retries.
+
+`checkout.session.completed` + `sku=planner`: set `stripe_customer_id`, `planner_subscription_id`, `planner_status` from the Session/subscription (`active` / `trialing`). Do not write a watch from Planner checkout.
+
+Subscription/invoice events update `planner_status`, `planner_subscription_id`, `planner_current_period_end`, `cancel_at_period_end` on the consumer record looked up by `stripe_customer_id`. If no row matches, fall back to `metadata.user_id` or Subscription/Checkout `client_reference_id` (must match a consumer id; reserved `craig`/`Jessica` → 200 no-op). Never attach by email alone. `deleted` → `canceled`. `invoice.payment_failed` on the Planner subscription → `past_due`.
+
+Poller does not read Stripe. Entitlement for SMS is “row exists in Gist” plus existing STOP handling (unchanged).
+
+### Server retrieve (D3)
+
+`POST /_api/billing/sync` (session cookie required, consumer only): body `{ session_id }` optional. If `session_id` present, `stripe.checkout.sessions.retrieve` then apply the same mutation as `checkout.session.completed` (idempotent). If the user has `stripe_customer_id`, also retrieve the Planner subscription and refresh cache. Internal → 403. Browser `?paid=ok` **alone** must not flip entitlement; the frontend always calls `/billing/sync` then `/auth/me`.
+
+### Planner Checkout and Portal (US-3.3, US-3.5)
+
+`POST /_api/billing/checkout` body `{ sku: 'planner' }` → Session `mode=subscription`, `STRIPE_PRICE_PLANNER`, same bind rules. 403 for internal. 402 `past_due` should tell the user to use Portal, not a second subscription, if `stripe_customer_id` is set.
+
+`POST /_api/billing/portal` → Stripe Billing Portal session if `stripe_customer_id` set; else **404** `{ code: 'no_customer' }`. Return URL `{origin}/?billing=portal`. Do not enable pause.
+
+### Frontend (US-3.2, US-3.6, D7)
+
+Logged-in consumer with `can_create_watch` true (planner **or** single_watch): enable `#create-btn` / `#bulk-btn`, show SMS consent (unchecked unless remembered), collect consent before POST, send `sms_consent: true`.
+
+`billing_mode === 'blocked'`: keep Slice 2 lock (disable create, hide/disable consent, show banner). Copy by `code`:
+
+- `past_due`: “Update billing to add watches. Existing watches keep alerting.”
+- `canceling`: “Your Planner stays active until the period ends. You can’t add watches.”
+- `planner_cap`: “You’re at this month’s watch limit.”
+- `billing_unavailable`: “Paid watches are not available yet. You can browse restaurants now.”
+
+`billing_mode === 'single_watch'`: show `#billing-next-banner` **and** keep Create Watch enabled. Copy: “Pay once for this watch. You’ll go to Stripe to pay, then we’ll start watching. Paying is not text consent — check the box first.” Button label **Pay and watch**. Do not print dollar amounts.
+
+`billing_mode === 'planner'` or internal: hide paywall banner; button **Create Watch**.
+
+`#planner-checkout-btn` visible for consumers not on live Planner (`active`/`trialing`). `#billing-portal-btn` visible iff `has_stripe_customer`. `#upgrade-prompt` visible iff `upgrade_prompt` (after 2 Single Watch purchases). Planner button copy: “Start a monthly Planner” — no price number.
+
+Phone: `#consumer-phone` still saves via `PATCH /me`. Create Watch / calendar add if `!has_phone` → focus phone, do not POST.
+
+`smsConsentKey()` must use `mtfSessionUser.id` (not `getUserId()` / `disneyUserId`) for cookie consumers so consent does not bleed across guests.
+
+In `bootSession`, before `onLogin()`: if query has `paid=ok`, `POST /billing/sync` with `session_id` from query, then refresh `/auth/me`; strip `paid`/`session_id` via `replaceState`. If query has `billing=portal`, call `/billing/sync` without `session_id`, then refresh. Failure shows a non-blocking error; do not treat query params alone as entitlement (D3). `?paid=cancel`: message “Payment canceled. Your watch was not started.” Stay on My Watches after a successful paid sync.
+
+All Create Watch surfaces (`#watch-form`, `calAddWatch`, `watchAllGrey`) share one `postWatch(body)` helper. POST bodies include `sms_consent: true`. Banner for `single_watch` is driven by `billing_mode` (class or JS), not only `html:not(.can-create-watch)`, so it stays visible while Create Watch is enabled.
+
+### Privacy / Terms
+
+Name Stripe as the payment processor. State that Checkout is **not** SMS consent. Do not put secret keys in HTML.
+
+### Tests (every AC)
+
+- `tests/test_entitlement.js` — planner ok, single_watch ok, past_due/canceling/cap blocked, internal unchanged, `kind=consumer` on `craig` still not internal.
+- `tests/test_stripe_billing.js` — fake Stripe: bind fields, no Session for internal, no `customer`+`customer_email`, reserved id no-op, idempotent event id, unpaid payload not passed to watch writer, paid apply calls writer once, planner does not write watches.
+- `tests/test_consumer_auth_api.js` — cookie consumer POST without planner → 402 `checkout_required` + `checkout_url`, **zero** Gist (spy `setWatchWriterForTests`); with `sms_consent` false → 422; no phone → 422; planner user + injected writer → **201** and writer called once; webhook public; internal POST still not 402 `checkout_required`; `/billing/checkout` and `/billing/portal` 403 for `craig`.
+- `tests/test_landing_contract.py` — ids `#planner-checkout-btn`, `#billing-portal-btn`, `#upgrade-prompt`; copy “Pay once for this watch”; `checkout_url`; `sms_consent`; no `$` price in `index.html` for SKUs; `paid=ok`.
+- Existing Slice 1–2 gates stay green (update Slice 2 assertions that required consumer `can_create_watch === false` and `billing_required`).
+
+### Out of scope
+
+Live Stripe keys in Cloud, sending a real Checkout, public launch (Slice 4), poller/Disney session, `netlify.toml`, pause in Portal, putting `$` prices in `index.html`, Brunch, Disneyland, auto-book, free SMS, Goose/Claude Code.
 
 ---
 
@@ -119,7 +257,7 @@ As an agent, I can read why we are building this without inventing billing or au
 
 ---
 
-# Slice 2 — Consumer identity (build now)
+# Slice 2 — Consumer identity (shipped)
 
 Identity plumbing only. No Stripe Checkout, no Customer Portal, no webhooks, no consumer rows in `watches.json`. A consumer who signs in with email **must not** get a live SMS watch. Slice 4 still owns marketing launch and a global poller budget.
 
@@ -313,39 +451,116 @@ As a guest who clicks the email link, the function can use `mtf-users` and I lan
 
 ---
 
-# Slice 3 — Stripe hybrid (backlog)
+### User story US-3.1 — Bind Checkout to the logged-in user
 
-Do not implement in the Slice 2 PR. Prices are placeholders.
+As a paying guest, Checkout is created for **my** account after I am signed in, not for a guest email typed into Stripe.
 
-### US-3.1 Bind Checkout to the logged-in user
+**AC**
 
-Checkout Session created on the server with `client_reference_id` = `user_id`, `customer` = existing `stripe_customer_id` when present, `customer_email` only on first purchase and equal to session email. Internal users never get a Session.
+1. Fake Stripe `checkout.sessions.create` args include `client_reference_id` equal to the consumer `user_id`, `metadata.user_id` the same, `metadata.sku` `single_watch` or `planner`.
+2. When `user.stripe_customer_id` is set, args include `customer` and **omit** `customer_email`.
+3. When it is not set, args include `customer_email` equal to the session email and **omit** `customer`.
+4. Internal identity never receives a Session (403 `internal_no_stripe`). Webhook with `user_id` `craig` or `Jessica` is 200 no-op.
 
-### US-3.2 Single Watch purchase
+**Files:** `netlify/functions/stripe_billing.js`, `netlify/functions/api.js`, `tests/test_stripe_billing.js`, `tests/test_consumer_auth_api.js`.
 
-As a consumer without live Planner, Create Watch starts Checkout `mode=payment` for one billable watch (D1). Watch stays `pending_payment` until webhook (or server retrieve) marks it paid. Active until last date passes.
+### User story US-3.2 — Single Watch purchase
 
-### US-3.3 Planner subscription
+As a consumer without live Planner, I create a watch, agree to SMS, pay once, then that billable watch goes live.
 
-As a consumer who keeps adding restaurants, I subscribe (`mode=subscription`). While `active` or `trialing`, I create watches in-app under the cap with no per-watch Checkout.
+**AC**
 
-### US-3.4 Entitlement cache
+1. Cookie consumer, `sms_consent: true`, phone on file, planner none → POST `/watches` **402** `checkout_required` with `checkout_url` starting `https://`; watch writer **not** called.
+2. Same request with `sms_consent` false/missing → 422, no Checkout.
+3. No phone → 422 `phone_required`, no Checkout.
+4. Fake `checkout.session.completed` (or `/billing/sync`) writes one `billable_id` across all dates in the pending payload; writer called once; quantity on the Price is 1 regardless of date count.
+5. Frontend: `Pay and watch`, `checkout_url`, `sms_consent` in the POST body, `postWatch` used by form + calendar + bulk (not generic `apiFetch` for that POST). `smsConsentKey()` uses `mtfSessionUser.id` for consumers.
+6. In `bootSession`, `?paid=ok` calls `POST /billing/sync` with `session_id` before `onLogin()`; query is not entitlement.
 
-Site stores `stripe_customer_id`, `planner_status`, `planner_subscription_id`, `planner_current_period_end`, `cancel_at_period_end`. Webhooks: `checkout.session.completed`, `customer.subscription.created|updated|deleted`, `invoice.paid`, `invoice.payment_failed`. Idempotent on `event.id`. `past_due`: no new watches; existing paid dates keep alerting; CTA is Portal. Poller SMS uses this cache, not the browser.
+**Files:** `netlify/functions/api.js`, `netlify/functions/stripe_billing.js`, `public/index.html`, `tests/test_consumer_auth_api.js`, `tests/test_stripe_billing.js`, `tests/test_landing_contract.py`.
 
-### US-3.5 Customer Portal
+### User story US-3.3 — Planner subscription
 
-Manage billing exists only if `stripe_customer_id` is set. Portal: card, invoices, cancel at period end. Return URL server-refreshes subscription. Do not enable pause until pause has a watch rule.
+As a consumer who keeps adding restaurants, I subscribe once and create watches in-app under the cap.
 
-### US-3.6 Upgrade prompt
+**AC**
 
-After a second (or third) Single Watch in a trip, show spend vs Planner monthly and offer subscribe Checkout on the same Customer.
+1. POST `/billing/checkout` `{ sku: 'planner' }` → fake Session `mode=subscription` with `STRIPE_PRICE_PLANNER`.
+2. User with `planner_status` `active` or `trialing`, under cap, `cancel_at_period_end` false → POST `/watches` with consent + phone **201** path (writer called, no Checkout).
+3. At cap → 402 `planner_cap`, no write. Before returning `planner_cap`, handler must load Gist and pass `activeBillableCount` (test: cap asserted only when count ≥ `PLANNER_WATCH_CAP`).
 
-### US-3.7 Cancel and STOP
+**Files:** `netlify/functions/entitlement.js`, `netlify/functions/stripe_billing.js`, `netlify/functions/api.js`, `public/index.html`, tests above.
 
-Cancel at period end: no new watches; dates still in the paid period keep alerting. STOP opts out of SMS even if paid.
+### User story US-3.4 — Entitlement cache and webhooks
 
-**Files (when opened):** Netlify Stripe routes, webhook, frontend paywall, entitlement tests, Privacy/Terms Stripe processor language. High-risk: Stripe. Test mode only in Cloud.
+As the site, Stripe events (not the browser query string) decide whether a consumer is on Planner.
+
+**AC**
+
+1. Consumer record fields: `stripe_customer_id`, `planner_status`, `planner_subscription_id`, `planner_current_period_end`, `cancel_at_period_end`, `single_watch_count`.
+2. Webhook verifies signature on raw body; bad sig → 400.
+3. Duplicate `event.id` → 200, writer not called twice.
+4. `past_due` / `canceling` → `can_create_watch` false; tests do not require deleting Gist rows.
+5. `/auth/me` `can_create_watch` is true for `billing_mode` `single_watch` (Checkout path) and `planner` / `internal`. It is false for `blocked`. `?paid=ok` without `/billing/sync` does not set `planner_status` or write Gist.
+
+**Files:** `netlify/functions/entitlement.js`, `netlify/functions/stripe_billing.js`, `netlify/functions/api.js`, `netlify/functions/user_store.js` (emptyRecord fields + checkout blob helpers if needed), tests.
+
+### User story US-3.5 — Customer Portal
+
+As a consumer who already has a Stripe Customer, I manage card and cancel at period end.
+
+**AC**
+
+1. POST `/billing/portal` with `stripe_customer_id` → `{ url }` from fake portal sessions.
+2. Without customer → 404 `no_customer`.
+3. Internal → 403.
+4. `#billing-portal-btn` in HTML, shown when `has_stripe_customer`. No pause language.
+
+**Files:** `netlify/functions/stripe_billing.js`, `netlify/functions/api.js`, `public/index.html`, tests.
+
+### User story US-3.6 — Upgrade prompt
+
+As a guest on my second Single Watch, I see an offer to start Planner (no dollar figure).
+
+**AC**
+
+1. `single_watch_count >= 2` and not live Planner → `upgrade_prompt` true and `#upgrade-prompt` visible.
+2. Copy must not include `$` or a numeric monthly price.
+3. CTA uses `#planner-checkout-btn` / POST `/billing/checkout`.
+
+**Files:** `netlify/functions/entitlement.js`, `public/index.html`, `tests/test_entitlement.js`, `tests/test_landing_contract.py`.
+
+### User story US-3.7 — Cancel vs STOP
+
+Cancel at period end blocks **new** watches; existing paid dates keep alerting. STOP remains poller/Twilio behavior (do not edit `notify.py`).
+
+**AC**
+
+1. `cancel_at_period_end` true with `planner_status` active → `canCreateWatch` `canceling`, 402, no Gist write.
+2. Privacy/Terms: Stripe processor + Checkout is not SMS consent; STOP still opts out.
+3. No poller file changes.
+
+**Files:** `netlify/functions/entitlement.js`, `public/privacy.html`, `public/terms.html`, tests.
+
+# Slice 3 files that will change
+
+- `CONSUMER-EPIC.md` (this file)
+- `PRODUCT.md`
+- `public/index.html`
+- `public/privacy.html`
+- `public/terms.html`
+- `netlify/functions/api.js`
+- `netlify/functions/entitlement.js`
+- `netlify/functions/user_store.js`
+- `netlify/functions/stripe_billing.js` (new)
+- `netlify/functions/package.json` (add `stripe`)
+- `tests/test_entitlement.js`
+- `tests/test_stripe_billing.js` (new)
+- `tests/test_consumer_auth_api.js`
+- `tests/test_landing_contract.py` (additive IDs / copy)
+- `tests/test_user_store.js` only if checkout blob helpers land here
+
+Do not change: `disney_bot.py`, `watch_store.py`, `notify.py`, `netlify.toml`, Gist files, `.env`, `DISNEY_HEADLESS`, recovery cooldown. Do not add Cloud secrets for Stripe.
 
 ---
 

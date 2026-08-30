@@ -17,13 +17,13 @@ Do not regress this into a generic availability dashboard. Alerts are for **newl
 
 ## Consumer direction
 
-Public launch is in progress. Tracking spec: [CONSUMER-EPIC.md](CONSUMER-EPIC.md). **Slice 2 (current):** email magic-link + session cookie + Netlify Blobs user store (`mtf-users`). Consumers cannot create live watches until Slice 3 Stripe. Do not implement Checkout, Portal, or webhooks unless you are on Slice 3. Do not put consumer accounts in Gist or `WATCH_USERS`. Do not clear `open_slots.json` or `seen_slots.json`.
+Public launch is in progress. Tracking spec: [CONSUMER-EPIC.md](CONSUMER-EPIC.md). **Slice 3 (current):** Stripe hybrid — Single Watch Checkout (`mode=payment`) and Planner (`mode=subscription`). Webhooks (plus server Session retrieve) own entitlement. Unpaid consumer watches never go in `watches.json`. Craig and Jessica stay off Stripe. Do not put live `STRIPE_*` values in git or Cloud secrets. Do not put consumer accounts in `WATCH_USERS`. Do not clear `open_slots.json` or `seen_slots.json`.
 
 **Billable watch (locked):** one restaurant + party + meal periods + optional time window + one or more dates. Never treat one `watches.json` date row as a paid alert.
 
 **Identity (Slice 2):** Consumers sign in with an email magic link (`POST /_api/auth/magic-link`, `GET /_api/auth/callback`). Session is httpOnly cookie `mtf_session`. Craig and Jessica keep private `WATCH_USERS` username+password (`X-User-Id` + `X-API-Secret`). Consumer records live in Netlify Blobs store `mtf-users`, not Gist. Env (values never in git): `MAGIC_LINK_SECRET`, `RESEND_API_KEY`, `MAGIC_LINK_FROM`.
 
-**Hybrid billing (locked, not shipped):** Single Watch is a one-time Stripe Checkout (`mode=payment`) for one billable watch, flat price, until the last date passes. Planner is a monthly subscription for people who keep adding watches. Same Stripe Customer. Checkout is created only after login. Stripe webhooks own consumer active/inactive. Craig and Jessica (`craig`, `Jessica`) stay unrestricted: no Stripe, no cap, no Checkout. Until Slice 3, `can_create_watch` is false for consumers (HTTP 402 `billing_required`).
+**Hybrid billing (Slice 3):** Single Watch is a one-time Stripe Checkout (`mode=payment`) for one billable watch, **$4.99**, until the last date passes. Planner is **$14.99/month** for up to **4** active alerts. Same Stripe Customer. Checkout is created only after login. Stripe webhooks own consumer active/inactive. Craig and Jessica (`craig`, `Jessica`) stay unrestricted: no Stripe, no cap, no Checkout. Consumers without Planner get HTTP 402 `checkout_required` + `checkout_url` (not a Gist write). Live Planner under cap writes watches in-app (201). Do not put dollar amounts in `public/index.html`.
 
 **Competitive notes (dining selection):**
 

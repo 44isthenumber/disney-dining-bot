@@ -561,6 +561,7 @@
     text-transform: uppercase; color: var(--muted); text-align: center;
   }
   html.has-session:not(.can-create-watch) #billing-next-banner { display: block; }
+  html.has-session.single-watch-billing #billing-next-banner { display: block; }
   #billing-next-banner {
     display: none;
     background: #fdfbf7;
@@ -571,7 +572,16 @@
     font-size: 14px;
     line-height: 1.45;
   }
-  #billing-next-banner.visible { display: block; }
+  #billing-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
+  #billing-actions[hidden], #upgrade-prompt[hidden] { display: none !important; }
+  #planner-checkout-btn, #billing-portal-btn {
+    background: transparent; color: var(--ink); border: 1px solid rgba(28,25,23,.24);
+    padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  #upgrade-prompt {
+    background: #fdfbf7; border: 1px solid rgba(176,137,74,.45);
+    color: var(--ink); padding: 12px 14px; margin: 0 0 12px; font-size: 14px; line-height: 1.45;
+  }
   .sms-consent.entitlement-locked, .modal-sms-consent.entitlement-locked { display: none; }
   .signin-legal { font-size: 12px; color: var(--muted); text-align: center; line-height: 1.5; margin-top: 16px; }
   .landing-footer { background: #ede7dc; border-top: 1px solid rgba(28,25,23,.12); padding: 36px 20px; text-align: center; color: var(--muted); font-size: 13px; }
@@ -788,7 +798,12 @@
 <main>
   <div id="create-watch">
     <h2>Create Watch</h2>
-    <p id="billing-next-banner">Paid watches are next. You can browse restaurants now.</p>
+    <p id="billing-next-banner">Pay once for this watch. You'll go to Stripe to pay, then we'll start watching. Paying is not text consent — check the box first.</p>
+    <p id="upgrade-prompt" hidden>You're on your second watch. A monthly Planner lets you add more without paying per watch.</p>
+    <div id="billing-actions" hidden>
+      <button type="button" id="planner-checkout-btn">Start a monthly Planner</button>
+      <button type="button" id="billing-portal-btn" hidden>Manage billing</button>
+    </div>
     <p class="hint">You'll get a text when a matching table newly opens. Choose one or more dates.</p>
     <form id="watch-form">
       <div class="create-grid">
@@ -960,7 +975,10 @@ function canCreateWatchNow() {
 function getTripStart() { return localStorage.getItem('disneyTripStart') || ''; }
 function getTripEnd() { return localStorage.getItem('disneyTripEnd') || ''; }
 function getPartySize() { return parseInt(document.getElementById('party-size').value, 10) || 2; }
-function smsConsentKey() { return 'disneySmsConsent:' + getUserId(); }
+function smsConsentKey() {
+  if (mtfSessionUser && mtfSessionUser.id) return 'disneySmsConsent:' + mtfSessionUser.id;
+  return 'disneySmsConsent:' + getUserId();
+}
 function hasSmsConsent() { return localStorage.getItem(smsConsentKey()) === 'true'; }
 
 function syncSmsConsentControls() {
@@ -1051,6 +1069,43 @@ async function apiFetch(path, opts) {
   }
   if (!res.ok) {
     var detail = data && (data.detail || data.error || (Array.isArray(data.details) && data.details.join(' ')));
+    throw new Error(detail || (res.status + ' ' + res.statusText));
+  }
+  return data;
+}
+
+async function postWatch(body) {
+  var headers = { 'Content-Type': 'application/json' };
+  var secret = getSecret();
+  var userId = getUserId();
+  if (!(mtfSessionUser && mtfSessionUser.kind === 'consumer')) {
+    if (secret) headers['X-API-Secret'] = secret;
+    if (userId) headers['X-User-Id'] = userId;
+  }
+  const res = await fetch('/_api/watches', {
+    method: 'POST',
+    credentials: 'include',
+    headers: headers,
+    body: JSON.stringify(body)
+  });
+  var data = null;
+  var text = await res.text();
+  if (text) {
+    try { data = JSON.parse(text); } catch(e) { data = { detail: text }; }
+  }
+  if (res.status === 402 && data && data.code === 'checkout_required' && data.checkout_url) {
+    window.location.assign(data.checkout_url);
+    return { redirected: true };
+  }
+  if (res.status === 401) {
+    showLogin({
+      scrollToSignin: true,
+      message: (data && (data.detail || data.error)) || 'Session expired. Sign in to continue.',
+    });
+    throw new Error((data && (data.detail || data.error)) || 'Please sign in');
+  }
+  if (!res.ok) {
+    var detail = data && (data.detail || data.error);
     throw new Error(detail || (res.status + ' ' + res.statusText));
   }
   return data;
@@ -1157,7 +1212,10 @@ async function attemptMagicLink() {
 
 function applyEntitlementUI() {
   var allowed = canCreateWatchNow();
+  var mode = (mtfSessionUser && mtfSessionUser.billing_mode) || (allowed ? 'internal' : 'blocked');
+  var code = (mtfSessionUser && mtfSessionUser.billing_code) || '';
   document.documentElement.classList.toggle('can-create-watch', allowed);
+  document.documentElement.classList.toggle('single-watch-billing', mode === 'single_watch');
   var banner = document.getElementById('billing-next-banner');
   var createBtn = document.getElementById('create-btn');
   var bulkBtn = document.getElementById('bulk-btn');
@@ -1165,8 +1223,27 @@ function applyEntitlementUI() {
   var modalSms = document.getElementById('modal-sms-consent');
   var smsWrap = sms && sms.closest('.sms-consent');
   var modalWrap = modalSms && modalSms.closest('label');
-  if (banner) banner.classList.toggle('visible', !allowed);
-  if (createBtn) createBtn.disabled = !allowed;
+  var bannerCopy = {
+    past_due: 'Update billing to add watches. Existing watches keep alerting.',
+    canceling: "Your Planner stays active until the period ends. You can't add watches.",
+    planner_cap: "You're at this month's watch limit.",
+    billing_unavailable: 'Paid watches are not available yet. You can browse restaurants now.'
+  };
+  if (banner) {
+    if (mode === 'single_watch') {
+      banner.classList.add('visible');
+      banner.textContent = "Pay once for this watch. You'll go to Stripe to pay, then we'll start watching. Paying is not text consent — check the box first.";
+    } else if (mode === 'blocked') {
+      banner.classList.add('visible');
+      banner.textContent = bannerCopy[code] || 'Paid watches are not available yet. You can browse restaurants now.';
+    } else {
+      banner.classList.remove('visible');
+    }
+  }
+  if (createBtn) {
+    createBtn.disabled = !allowed;
+    createBtn.textContent = mode === 'single_watch' ? 'Pay and watch' : 'Create Watch';
+  }
   if (bulkBtn) bulkBtn.disabled = !allowed;
   if (sms) {
     sms.required = allowed;
@@ -1182,6 +1259,24 @@ function applyEntitlementUI() {
   var phoneWrap = document.getElementById('consumer-phone-wrap');
   if (phoneWrap) {
     phoneWrap.hidden = !(mtfSessionUser && mtfSessionUser.kind === 'consumer');
+  }
+  var phone = document.getElementById('consumer-phone');
+  if (phone && mtfSessionUser && mtfSessionUser.kind === 'consumer' && mtfSessionUser.has_phone === false) {
+    /* keep whatever they typed */
+  }
+  var billingActions = document.getElementById('billing-actions');
+  var plannerBtn = document.getElementById('planner-checkout-btn');
+  var portalBtn = document.getElementById('billing-portal-btn');
+  var upgrade = document.getElementById('upgrade-prompt');
+  if (billingActions) {
+    var showPlanner = Boolean(mtfSessionUser && mtfSessionUser.kind === 'consumer' && mtfSessionUser.planner_status !== 'active' && mtfSessionUser.planner_status !== 'trialing');
+    var showPortal = Boolean(mtfSessionUser && mtfSessionUser.has_stripe_customer);
+    billingActions.hidden = !(showPlanner || showPortal);
+    if (plannerBtn) plannerBtn.hidden = !showPlanner;
+    if (portalBtn) portalBtn.hidden = !showPortal;
+  }
+  if (upgrade) {
+    upgrade.hidden = !(mtfSessionUser && mtfSessionUser.upgrade_prompt);
   }
 }
 
@@ -1287,8 +1382,45 @@ async function bootSession() {
       }
       writeUiCookie();
       hideLogin();
+      var paid = params.get('paid');
+      var billingQ = params.get('billing');
+      var sessionId = params.get('session_id');
+      var paidNote = '';
+      if (paid === 'ok' || billingQ === 'portal') { // Checkout return ?paid=ok
+        try {
+          var syncRes = await fetch('/_api/billing/sync', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(paid === 'ok' && sessionId ? { session_id: sessionId } : {})
+          });
+          if (!syncRes.ok) {
+            paidNote = 'We could not confirm payment yet. Refresh in a moment.';
+          } else {
+            var me2 = await fetch('/_api/auth/me', { credentials: 'include' });
+            if (me2.ok) {
+              var d2 = await me2.json();
+              mtfSessionUser = d2.user || mtfSessionUser;
+            }
+          }
+        } catch (syncErr) {
+          paidNote = 'We could not confirm payment yet. Refresh in a moment.';
+        }
+        if (window.history && window.history.replaceState) {
+          window.history.replaceState({}, '', window.location.pathname);
+        }
+      } else if (paid === 'cancel') {
+        paidNote = 'Payment canceled. Your watch was not started.';
+        if (window.history && window.history.replaceState) {
+          window.history.replaceState({}, '', window.location.pathname);
+        }
+      }
       onLogin();
       if (signin === 'ok') stripSigninQuery();
+      if (paidNote) {
+        var createMsg = document.getElementById('create-msg');
+        if (createMsg) createMsg.textContent = paidNote;
+      }
       return;
     }
   } catch (e) { /* fall through */ }
@@ -1648,7 +1780,7 @@ function renderCalendar() {
       if (cal.pending) return;
       if (el.classList.contains('watched')) calRemoveWatch(el.dataset.date);
       else if (!canCreateWatchNow()) {
-        document.getElementById('modal-msg').textContent = 'Paid watches are next. You can browse restaurants now.';
+        document.getElementById('modal-msg').textContent = (document.getElementById('billing-next-banner') && document.getElementById('billing-next-banner').textContent) || 'Paid watches are not available yet.';
       } else {
         calAddWatch([el.dataset.date]);
       }
@@ -1658,7 +1790,12 @@ function renderCalendar() {
 
 async function calAddWatch(dates) {
   if (!canCreateWatchNow()) {
-    document.getElementById('modal-msg').textContent = 'Paid watches are next. You can browse restaurants now.';
+    document.getElementById('modal-msg').textContent = (document.getElementById('billing-next-banner') && document.getElementById('billing-next-banner').textContent) || 'Paid watches are not available yet.';
+    return;
+  }
+  if (mtfSessionUser && mtfSessionUser.kind === 'consumer' && !mtfSessionUser.has_phone && !(document.getElementById('consumer-phone').value || '').trim()) {
+    document.getElementById('modal-msg').textContent = 'Add a phone number so we can text you.';
+    document.getElementById('consumer-phone').focus();
     return;
   }
   cal.pending = true;
@@ -1671,9 +1808,7 @@ async function calAddWatch(dates) {
       throw new Error('Please confirm text consent before creating a watch.');
     }
     setSmsConsentAccepted(true);
-    var result = await apiFetch('/watches', {
-      method: 'POST',
-      body: JSON.stringify({
+    var result = await postWatch({
         facility_id: cal.facilityId, name: cal.name, slug: cal.slug,
         party_size: cal.partySize,
         meal_periods: meal === 'ALL' ? ['ALL'] : [meal],
@@ -1681,8 +1816,9 @@ async function calAddWatch(dates) {
         time_from: timeFrom,
         time_to: timeTo,
         dates: dates,
-      })
-    });
+        sms_consent: true,
+      });
+    if (result && result.redirected) return;
     dates.forEach(function(d) { cal.watched.add(d); });
     if (result && result.added) {
       result.added.forEach(function(id, idx) {
@@ -1727,7 +1863,7 @@ async function calRemoveWatch(date) {
 
 async function watchAllGrey() {
   if (!canCreateWatchNow()) {
-    document.getElementById('modal-msg').textContent = 'Paid watches are next. You can browse restaurants now.';
+    document.getElementById('modal-msg').textContent = (document.getElementById('billing-next-banner') && document.getElementById('billing-next-banner').textContent) || 'Paid watches are not available yet.';
     return;
   }
   var dates = [];
@@ -2093,9 +2229,16 @@ document.getElementById('watch-form').addEventListener('submit', async function(
   const msg = document.getElementById('create-msg');
   if (!canCreateWatchNow()) {
     msg.className = 'err';
-    msg.textContent = 'Paid watches are next. You can browse restaurants now.';
+    msg.textContent = (document.getElementById('billing-next-banner') && document.getElementById('billing-next-banner').textContent) || 'Paid watches are not available yet.';
     return;
   }
+  if (mtfSessionUser && mtfSessionUser.kind === 'consumer' && !mtfSessionUser.has_phone && !(document.getElementById('consumer-phone').value || '').trim()) {
+    msg.className = 'err';
+    msg.textContent = 'Add a phone number so we can text you.';
+    document.getElementById('consumer-phone').focus();
+    return;
+  }
+  var payLabel = (mtfSessionUser && mtfSessionUser.billing_mode === 'single_watch') ? 'Pay and watch' : 'Create Watch';
   btn.disabled = true; btn.textContent = 'Creating…'; msg.textContent = ''; msg.className = '';
   try {
     const restaurantId = document.getElementById('restaurant-select').value;
@@ -2126,9 +2269,11 @@ document.getElementById('watch-form').addEventListener('submit', async function(
       meal_periods: specialty ? ['ALL'] : (mealPeriods.length ? mealPeriods : ['ALL']),
       booking_type: specialty ? 'scheduled_activity' : 'dining',
       time_from: timeFrom,
-      time_to: timeTo
+      time_to: timeTo,
+      sms_consent: true
     };
-    const result = await apiFetch('/watches', { method: 'POST', body: JSON.stringify(body) });
+    const result = await postWatch(body);
+    if (result && result.redirected) return;
     const n = result.added.length;
     msg.textContent = 'Watching ' + n + ' date' + (n !== 1 ? 's' : '') + ' — you\'ll get a text when a slot opens.';
     document.getElementById('watch-form').reset();
@@ -2155,7 +2300,8 @@ document.getElementById('watch-form').addEventListener('submit', async function(
     msg.className = 'err';
     msg.textContent = 'Error: ' + e.message;
   } finally {
-    btn.disabled = false; btn.textContent = 'Create Watch';
+    btn.disabled = false;
+    btn.textContent = (mtfSessionUser && mtfSessionUser.billing_mode === 'single_watch') ? 'Pay and watch' : 'Create Watch';
   }
 });
 
@@ -2170,11 +2316,37 @@ function onLogin() {
   loadWatches();
 }
 
+async function startPlannerCheckout() {
+  try {
+    const data = await apiFetch('/billing/checkout', { method: 'POST', body: JSON.stringify({ sku: 'planner' }) });
+    if (data && data.checkout_url) window.location.assign(data.checkout_url);
+  } catch (e) {
+    var msg = document.getElementById('create-msg');
+    if (msg) { msg.className = 'err'; msg.textContent = e.message || 'Could not start Planner checkout.'; }
+  }
+}
+
+async function openBillingPortal() {
+  try {
+    const data = await apiFetch('/billing/portal', { method: 'POST', body: JSON.stringify({}) });
+    if (data && data.url) window.location.assign(data.url);
+  } catch (e) {
+    var msg = document.getElementById('create-msg');
+    if (msg) { msg.className = 'err'; msg.textContent = e.message || 'Could not open billing portal.'; }
+  }
+}
+
+document.getElementById('planner-checkout-btn').addEventListener('click', startPlannerCheckout);
+document.getElementById('billing-portal-btn').addEventListener('click', openBillingPortal);
 document.getElementById('consumer-phone').addEventListener('change', async function() {
   if (!mtfSessionUser || mtfSessionUser.kind !== 'consumer') return;
   try {
-    await apiFetch('/me', { method: 'PATCH', body: JSON.stringify({ phone: this.value }) });
-  } catch (e) { /* phone is optional */ }
+    const data = await apiFetch('/me', { method: 'PATCH', body: JSON.stringify({ phone: this.value }) });
+    if (data && data.user) {
+      mtfSessionUser = data.user;
+      applyEntitlementUI();
+    }
+  } catch (e) { /* saved on next create if this fails */ }
 });
 
 bootSession();
