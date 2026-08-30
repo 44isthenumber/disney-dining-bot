@@ -60,6 +60,27 @@ function memoryBackend() {
     async isUsed(nonce) {
       return used.has(String(nonce));
     },
+    async claimNonce(nonce) {
+      const key = String(nonce);
+      if (used.has(key)) return false;
+      used.set(key, "1");
+      return true;
+    },
+    upsertByEmail(email, extra = {}) {
+      const normalized = normalizeEmail(email);
+      const existingId = emails.get(normalized);
+      if (existingId) {
+        const current = ids.get(existingId) || emptyRecord({ id: existingId, email: normalized });
+        const merged = { ...current, ...extra, id: existingId, email: normalized, kind: "consumer" };
+        ids.set(existingId, merged);
+        return merged;
+      }
+      const id = newConsumerId();
+      const rec = emptyRecord({ id, email: normalized, ...extra });
+      emails.set(normalized, id);
+      ids.set(id, rec);
+      return rec;
+    },
     _reset() {
       ids.clear();
       emails.clear();
@@ -93,6 +114,40 @@ function blobBackend() {
     async isUsed(nonce) {
       const raw = await store.get(`used:${nonce}`);
       return Boolean(raw);
+    },
+    async claimNonce(nonce) {
+      try {
+        await store.set(`used:${nonce}`, "1", { onlyIfNew: true });
+        return true;
+      } catch {
+        const existing = await store.get(`used:${nonce}`);
+        if (existing) return false;
+        throw new Error("blob claimNonce failed");
+      }
+    },
+    async upsertByEmail(email, extra = {}) {
+      const normalized = normalizeEmail(email);
+      const existing = await this.getByEmail(normalized);
+      if (existing) {
+        const merged = { ...existing, ...extra, id: existing.id, email: normalized, kind: "consumer" };
+        await this.put(merged);
+        return merged;
+      }
+      const id = newConsumerId();
+      const rec = emptyRecord({ id, email: normalized, ...extra });
+      try {
+        await store.set(`email:${normalized}`, id, { onlyIfNew: true });
+      } catch {
+        const raced = await this.getByEmail(normalized);
+        if (raced) {
+          const merged = { ...raced, ...extra, id: raced.id, email: normalized, kind: "consumer" };
+          await this.put(merged);
+          return merged;
+        }
+        throw new Error("blob upsertByEmail failed");
+      }
+      await store.set(`id:${id}`, JSON.stringify(rec));
+      return rec;
     },
   };
 }
@@ -150,6 +205,10 @@ async function put(record) {
 async function upsertByEmail(email, extra = {}) {
   const normalized = normalizeEmail(email);
   if (!normalized) throw new Error("email required");
+  const backend = getBackend();
+  if (typeof backend.upsertByEmail === "function") {
+    return backend.upsertByEmail(normalized, extra);
+  }
   const existing = await getByEmail(normalized);
   if (existing) {
     const merged = { ...existing, ...extra, id: existing.id, email: normalized, kind: "consumer" };
@@ -162,6 +221,16 @@ async function upsertByEmail(email, extra = {}) {
       ...extra,
     })
   );
+}
+
+async function claimNonce(nonce) {
+  const backend = getBackend();
+  if (typeof backend.claimNonce === "function") {
+    return backend.claimNonce(nonce);
+  }
+  if (await backend.isUsed(nonce)) return false;
+  await backend.markUsed(nonce);
+  return true;
 }
 
 async function markNonceUsed(nonce) {
@@ -181,6 +250,7 @@ module.exports = {
   getByEmail,
   put,
   upsertByEmail,
+  claimNonce,
   markNonceUsed,
   isNonceUsed,
   resetMemoryStore,

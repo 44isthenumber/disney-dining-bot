@@ -64,6 +64,14 @@ auth.setMagicLinkSender(async (email, url) => {
   const reused = await auth.consumeMagicToken(sent[0].url.split("token=")[1]);
   assert.strictEqual(reused.ok, false);
 
+  const mintedRace = auth.mintMagicToken("race-token@example.com");
+  const [c1, c2] = await Promise.all([
+    auth.consumeMagicToken(mintedRace.token),
+    auth.consumeMagicToken(mintedRace.token),
+  ]);
+  assert.strictEqual([c1, c2].filter((r) => r.ok).length, 1);
+  assert.strictEqual([c1, c2].filter((r) => !r.ok).length, 1);
+
   const parsed = auth.parseCookies({
     headers: { cookie: `mtf_session=${consumed.session}; mtf_ui=1` },
   });

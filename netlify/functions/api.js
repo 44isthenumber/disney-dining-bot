@@ -606,6 +606,7 @@ async function handleStatus(user) {
   const activeWatches = watches.filter((w) => isActiveWatch(w));
   const userWatches = activeWatches.filter((w) => w.owner_id === user.id);
   const userExpiredWatches = watches.filter((w) => w.owner_id === user.id && !isActiveWatch(w));
+  const totalForViewer = isInternalUser(user) ? activeWatches.length : userWatches.length;
 
   return response(200, {
     profile: {
@@ -626,7 +627,7 @@ async function handleStatus(user) {
     slots_found_last_poll: botState.slots_found_last_poll ?? null,
     watches_count: userWatches.length,
     expired_watches_count: userExpiredWatches.length,
-    total_watches_count: activeWatches.length,
+    total_watches_count: totalForViewer,
     restaurants_indexed: restaurantsIndexed,
   });
 }

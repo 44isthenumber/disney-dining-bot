@@ -3,11 +3,21 @@
 const BILLING_REQUIRED_DETAIL =
   "Paid watches are next. You can browse restaurants now.";
 
+function watchUserIds() {
+  const raw = process.env.WATCH_USERS || process.env.DISNEY_USERS || "";
+  if (!raw.trim()) return new Set();
+  try {
+    return new Set(Object.keys(JSON.parse(raw)));
+  } catch {
+    return new Set();
+  }
+}
+
 function isInternalUser(user) {
   if (!user || !user.id) return false;
   if (user.kind === "consumer") return false;
   if (user.kind === "internal") return true;
-  return false;
+  return watchUserIds().has(user.id);
 }
 
 function canCreateWatch(user) {

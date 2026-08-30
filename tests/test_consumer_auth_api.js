@@ -111,6 +111,7 @@ function cookieHeaderFrom(res) {
   );
   assert.strictEqual(status.status, 200);
   assert.strictEqual(status.body.profile.id, me.body.user.id);
+  assert.strictEqual(status.body.total_watches_count, status.body.watches_count);
 
   const watches = parse(
     await handler(
@@ -195,6 +196,24 @@ function cookieHeaderFrom(res) {
   assert.strictEqual(internalMe.status, 200);
   assert.strictEqual(internalMe.body.user.kind, "internal");
   assert.strictEqual(internalMe.body.user.can_create_watch, true);
+
+  const internalPost = parse(
+    await handler(
+      ev("POST", "/_api/watches", {
+        headers: { "X-User-Id": "craig", "X-API-Secret": "craig-secret" },
+        body: {
+          facility_id: "90002686",
+          name: "Test",
+          slug: "test",
+          party_size: 2,
+          dates: ["2099-01-01"],
+          meal_periods: ["DINNER"],
+        },
+      })
+    )
+  );
+  assert.notStrictEqual(internalPost.status, 402);
+  assert.ok(internalPost.status === 201 || internalPost.status === 500);
 
   const patchConsumer = parse(
     await handler(

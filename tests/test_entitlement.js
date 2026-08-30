@@ -16,6 +16,14 @@ const consumer = {
   planner_status: "none",
 };
 
+process.env.WATCH_USERS = JSON.stringify({
+  craig: { name: "Craig", password: "x" },
+  Jessica: { name: "Jessica", password: "y" },
+});
+
+assert.strictEqual(isInternalUser({ id: "craig" }), true);
+assert.strictEqual(isInternalUser({ id: "Jessica" }), true);
+
 assert.strictEqual(isInternalUser(internal), true);
 assert.strictEqual(isInternalUser(jessica), true);
 assert.strictEqual(isInternalUser(consumer), false);

@@ -560,6 +560,7 @@
     margin: 28px 0 10px; font-size: 12px; font-weight: 600; letter-spacing: .08em;
     text-transform: uppercase; color: var(--muted); text-align: center;
   }
+  html.has-session:not(.can-create-watch) #billing-next-banner { display: block; }
   #billing-next-banner {
     display: none;
     background: #fdfbf7;
@@ -844,7 +845,7 @@
       </div>
       <div class="sms-consent">
         <label>
-          <input type="checkbox" id="sms-consent" required>
+          <input type="checkbox" id="sms-consent" disabled>
           <span>
             I agree to receive text alerts from Magic Table Finder when matching Disney dining reservation openings are found.
             Message frequency varies based on my watch activity and reservation availability. Message and data rates may apply.
@@ -855,7 +856,7 @@
         </label>
       </div>
       <div class="create-actions">
-        <button type="submit" id="create-btn">Create Watch</button>
+        <button type="submit" id="create-btn" disabled>Create Watch</button>
         <div id="create-msg" role="status"></div>
       </div>
     </form>
@@ -935,7 +936,7 @@
       <small>Click a date below to watch only openings matching this meal and time window.</small>
     </div>
     <div id="cal-grid"></div>
-    <button id="bulk-btn">Watch all unavailable dates this month with these criteria</button>
+    <button id="bulk-btn" disabled>Watch all unavailable dates this month with these criteria</button>
     <div id="modal-msg"></div>
   </div>
 </div>
@@ -963,6 +964,13 @@ function smsConsentKey() { return 'disneySmsConsent:' + getUserId(); }
 function hasSmsConsent() { return localStorage.getItem(smsConsentKey()) === 'true'; }
 
 function syncSmsConsentControls() {
+  if (!canCreateWatchNow()) {
+    ['sms-consent', 'modal-sms-consent'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.checked = false;
+    });
+    return;
+  }
   var accepted = hasSmsConsent();
   ['sms-consent', 'modal-sms-consent'].forEach(function(id) {
     var el = document.getElementById(id);
@@ -971,6 +979,7 @@ function syncSmsConsentControls() {
 }
 
 function setSmsConsentAccepted(accepted) {
+  if (!canCreateWatchNow()) return;
   if (accepted) localStorage.setItem(smsConsentKey(), 'true');
   else localStorage.removeItem(smsConsentKey());
   syncSmsConsentControls();
@@ -981,10 +990,14 @@ function bindSmsConsentMemory() {
     var el = document.getElementById(id);
     if (!el) return;
     el.addEventListener('change', function() {
+      if (!canCreateWatchNow()) {
+        el.checked = false;
+        return;
+      }
       setSmsConsentAccepted(el.checked);
     });
   });
-  syncSmsConsentControls();
+  if (canCreateWatchNow()) syncSmsConsentControls();
 }
 
 function fmtTime(t) {
@@ -1053,6 +1066,7 @@ function showLogin(opts) {
   overlay.setAttribute('aria-hidden', 'false');
   document.body.classList.add('landing-open');
   document.documentElement.classList.remove('has-session');
+  document.documentElement.classList.remove('can-create-watch');
   if (shell) shell.setAttribute('aria-hidden', 'true');
   pwd.value = '';
   if (opts.message) {
@@ -1141,6 +1155,7 @@ async function attemptMagicLink() {
 
 function applyEntitlementUI() {
   var allowed = canCreateWatchNow();
+  document.documentElement.classList.toggle('can-create-watch', allowed);
   var banner = document.getElementById('billing-next-banner');
   var createBtn = document.getElementById('create-btn');
   var bulkBtn = document.getElementById('bulk-btn');
@@ -1231,7 +1246,9 @@ document.getElementById('logout-btn').addEventListener('click', function() {
 })();
 
 async function bootSession() {
-  if ((window.location.search || '').indexOf('signin=invalid') !== -1) {
+  // Redirect from GET /_api/auth/callback uses ?signin=invalid
+  var params = new URLSearchParams(window.location.search);
+  if (params.get('signin') === 'invalid') {
     showLogin({
       scrollToSignin: true,
       message: 'That sign-in link is invalid or expired. Request a new one.',

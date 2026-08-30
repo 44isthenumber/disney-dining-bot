@@ -21,6 +21,12 @@ assert.strictEqual(store.isReservedId("u_abc"), false);
   const again = await store.upsertByEmail("guest@example.com");
   assert.strictEqual(again.id, first.id);
 
+  const [r1, r2] = await Promise.all([
+    store.upsertByEmail("race@example.com"),
+    store.upsertByEmail("RACE@example.com"),
+  ]);
+  assert.strictEqual(r1.id, r2.id);
+
   const byId = await store.getById(first.id);
   assert.strictEqual(byId.email, "guest@example.com");
 

@@ -5,8 +5,7 @@ const https = require("https");
 const {
   normalizeEmail,
   upsertByEmail,
-  markNonceUsed,
-  isNonceUsed,
+  claimNonce,
 } = require("./user_store");
 
 const MAGIC_TTL_SEC = 900;
@@ -221,8 +220,8 @@ async function requestMagicLink(email) {
 async function consumeMagicToken(token) {
   const data = verifyMagicToken(token);
   if (!data) return { ok: false, reason: "invalid" };
-  if (await isNonceUsed(data.nonce)) return { ok: false, reason: "reused" };
-  await markNonceUsed(data.nonce);
+  const claimed = await claimNonce(data.nonce);
+  if (!claimed) return { ok: false, reason: "reused" };
   const user = await upsertByEmail(data.email);
   const session = mintSessionToken(user.id);
   if (!session) return { ok: false, reason: "invalid" };
