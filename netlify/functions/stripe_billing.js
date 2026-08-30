@@ -189,7 +189,7 @@ async function applySingleWatchSession(session, helpers) {
   }
 
   if (gistHasBillable(watches, ownerId, billableId)) {
-    await finishAccount({ increment: Boolean(pending) && Number(user.single_watch_count || 0) === 0 });
+    await finishAccount({ increment: Boolean(pending) });
     return { skipped: "already_written" };
   }
   if (!pending || !pending.watch) {

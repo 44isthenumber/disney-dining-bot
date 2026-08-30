@@ -194,7 +194,7 @@ function fakeStripe() {
   assert.strictEqual(writes.length, 2);
 
   const repairUser = await store.upsertByEmail("repair@example.com");
-  await store.put({ ...repairUser, phone: "+15550000" });
+  await store.put({ ...repairUser, phone: "+15550000", single_watch_count: 2 });
   await store.putCheckout("cs_repair", {
     user_id: repairUser.id,
     billable_id: "bill_repair",
@@ -218,6 +218,7 @@ function fakeStripe() {
   );
   const repaired = await store.getById(repairUser.id);
   assert.strictEqual(repaired.stripe_customer_id, "cus_repair");
+  assert.strictEqual(repaired.single_watch_count, 3);
   assert.strictEqual(await store.getCheckout("cs_repair"), null);
 
   const plannerUser = await store.upsertByEmail("plan@example.com");
