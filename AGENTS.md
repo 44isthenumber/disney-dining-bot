@@ -62,6 +62,7 @@ python3 scripts/smoke_test_api.py --user-id craig
 | What | Where |
 |---|---|
 | Product / ops brief | `PRODUCT.md` |
+| Consumer epic / user stories | `CONSUMER-EPIC.md` |
 | VPS deploy | `VPS_DEPLOYMENT.md` |
 | Troubleshooting | `TROUBLESHOOTING.md` |
 | Reliability skill | `.cursor/skills/magic-table-reliability/SKILL.md` |

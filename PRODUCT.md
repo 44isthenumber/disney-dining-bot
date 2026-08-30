@@ -15,6 +15,20 @@ The product promise is narrow and important:
 
 Do not regress this into a generic availability dashboard. Alerts are for **newly opened matching reservation times**, not summaries of every currently available time.
 
+## Consumer direction
+
+Public launch is in progress. Tracking spec: [CONSUMER-EPIC.md](CONSUMER-EPIC.md). Do not implement Stripe, magic-link auth, or a new user store unless you are on **Slice 2+** of that epic. Slice 1 is dining-selection UX on the existing Craig/Jessica login.
+
+**Billable watch (locked):** one restaurant + party + meal periods + optional time window + one or more dates. Never treat one `watches.json` date row as a paid alert.
+
+**Hybrid billing (locked, not shipped):** Single Watch is a one-time Stripe Checkout (`mode=payment`) for one billable watch, flat price, until the last date passes. Planner is a monthly subscription for people who keep adding watches. Same Stripe Customer. Checkout is created only after login. Stripe webhooks own consumer active/inactive. Craig and Jessica (`craig`, `Jessica`) stay unrestricted: no Stripe, no cap, no Checkout.
+
+**Competitive notes (dining selection):**
+
+- Steal from MouseDining: typeahead, park grouping, restaurant facts. Do not steal their public availability calendar as the home screen, or one-meal-one-date alert slots.
+- Steal from MouseWatcher: create-alert as the job; pay before a consumer watch is live (Slice 3); booking link in SMS (already shipped). Do not steal their 3-date cap or “costs more the further out you book.”
+- Magic Table Finder already wins on new-opening-only alerts, multi-date/multi-meal watches, and owner-scoped SMS.
+
 ---
 
 ## Architecture

@@ -137,12 +137,50 @@
   .card-badges { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 5px; }
   .badge { font-size: 10px; padding: 2px 6px; border-radius: 20px; background: #e8f0fe; color: var(--blue); }
   .badge.watch { background: var(--green-bg); color: var(--green); }
+  .card-actions { display: flex; flex-direction: column; gap: 6px; padding: 0 10px 10px; }
   .card-btn {
-    display: block; width: calc(100% - 20px); margin: 6px 10px 10px;
+    display: block; width: 100%; margin: 0;
     padding: 7px; background: var(--ink); color: var(--paper);
     border: none; border-radius: 4px; font-size: 12px; cursor: pointer; text-align: center;
   }
   .card-btn:hover { background: var(--ink-hover); }
+  .card-btn.secondary {
+    background: transparent; color: var(--ink); border: 1px solid var(--border);
+  }
+  .card-btn.secondary:hover { background: var(--paper); }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+  .restaurant-combo { position: relative; }
+  #restaurant-combo-input {
+    width: 100%; min-width: 0; padding: 8px 10px; border: 1px solid var(--border);
+    border-radius: 7px; background: #fff; color: var(--text); font-size: 14px;
+  }
+  #restaurant-combo-list {
+    position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 30;
+    max-height: 280px; overflow-y: auto; background: #fff; border: 1px solid var(--border);
+    border-radius: 8px; box-shadow: 0 12px 28px rgba(28,25,23,.12);
+  }
+  #restaurant-combo-list[hidden] { display: none; }
+  .combo-group {
+    padding: 6px 10px 2px; font-size: 10px; font-weight: 700; letter-spacing: .04em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .combo-option {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    width: 100%; padding: 8px 10px; border: 0; background: #fff; text-align: left;
+    font-size: 13px; cursor: pointer; color: var(--ink);
+  }
+  .combo-option:hover, .combo-option.highlight { background: #e8f0fe; }
+  .combo-badge { font-size: 10px; padding: 2px 6px; border-radius: 20px; background: #e8f0fe; color: var(--blue); flex-shrink: 0; }
+  .combo-empty { padding: 12px 10px; font-size: 13px; color: var(--muted); }
+  .park-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
+  .park-chip {
+    border: 1px solid var(--border); background: #fff; color: var(--ink);
+    border-radius: 20px; padding: 5px 10px; font-size: 12px; cursor: pointer;
+  }
+  .park-chip.active { background: var(--blue); color: #fff; border-color: var(--blue); }
   #rest-empty { text-align: center; color: #999; padding: 48px 24px; font-size: 14px; display: none; line-height: 1.8; }
   #rest-loading { text-align: center; color: #bbb; padding: 48px; font-size: 14px; }
 
@@ -357,7 +395,7 @@
     .hdr-sep { display: none; }
     .hdr-field[data-collapse-mobile] { display: none; }
     main { padding: 12px; }
-    #create-watch { width: 100%; max-width: 100%; padding: 16px; overflow: hidden; }
+    #create-watch { width: 100%; max-width: 100%; padding: 16px; overflow: visible; }
     .create-field { min-width: 0; }
     #rest-grid { grid-template-columns: repeat(auto-fill, minmax(150px,1fr)); }
     .create-grid {
@@ -703,18 +741,6 @@
     <input type="date" id="trip-end" />
   </div>
   <div class="hdr-sep"></div>
-  <div class="hdr-field">
-    <label>Party</label>
-    <select id="global-party">
-      <option value="1">1</option>
-      <option value="2" selected>2</option>
-      <option value="3">3</option>
-      <option value="4">4</option>
-      <option value="5">5</option>
-      <option value="6">6</option>
-    </select>
-  </div>
-  <div class="hdr-sep"></div>
   <span id="profile-label" class="owner-chip"></span>
   <button id="logout-btn">Lock</button>
   <div id="hdr-status">
@@ -725,8 +751,8 @@
 
 <!-- ── Tabs ────────────────────────────────────────────────────────── -->
 <div class="tabs">
-  <button class="tab-btn active" data-tab="restaurants">Restaurants</button>
-  <button class="tab-btn" data-tab="watches">My Watches</button>
+  <button class="tab-btn" data-tab="restaurants">Restaurants</button>
+  <button class="tab-btn active" data-tab="watches">My Watches</button>
 </div>
 
 <main>
@@ -736,9 +762,13 @@
     <form id="watch-form">
       <div class="create-grid">
         <label class="create-field restaurant-field">Restaurant
-          <select id="restaurant-select" required>
-            <option value="">Select a restaurant...</option>
-          </select>
+          <div class="restaurant-combo" id="restaurant-combo">
+            <input type="search" id="restaurant-combo-input" autocomplete="off" placeholder="Search restaurants…" role="combobox" aria-autocomplete="list" aria-controls="restaurant-combo-list" aria-expanded="false" />
+            <select id="restaurant-select" required class="sr-only" tabindex="-1" aria-hidden="true">
+              <option value="">Select a restaurant...</option>
+            </select>
+            <div id="restaurant-combo-list" role="listbox" hidden></div>
+          </div>
         </label>
         <label class="create-field party-field">Party
           <input type="number" id="party-size" min="1" max="20" value="2" required>
@@ -802,20 +832,20 @@
   </div>
 
   <!-- Restaurants tab -->
-  <div id="tab-restaurants" class="tab-panel active">
+  <div id="tab-restaurants" class="tab-panel">
     <div class="filters">
       <input type="search" id="search" placeholder="Search restaurants…" />
-      <input type="text" id="park-filter" placeholder="Park / Resort" style="width:150px" />
       <input type="text" id="cuisine-filter" placeholder="Cuisine" style="width:120px" />
       <span id="results-count"></span>
     </div>
+    <div id="park-chips" class="park-chips" role="group" aria-label="Park"></div>
     <div id="rest-loading">Loading restaurants…</div>
     <div id="rest-grid" style="display:none"></div>
     <div id="rest-empty">No restaurants match — try clearing the filters.</div>
   </div>
 
   <!-- Watches tab -->
-  <div id="tab-watches" class="tab-panel">
+  <div id="tab-watches" class="tab-panel active">
     <div id="watch-list">
       <h2>Active Watches <span id="watch-count"></span></h2>
       <div id="watches-grid"></div>
@@ -891,7 +921,7 @@ function getSecret() { return localStorage.getItem('disneyApiSecret') || ''; }
 function getUserId() { return localStorage.getItem('disneyUserId') || 'craig'; }
 function getTripStart() { return localStorage.getItem('disneyTripStart') || ''; }
 function getTripEnd() { return localStorage.getItem('disneyTripEnd') || ''; }
-function getPartySize() { return parseInt(document.getElementById('global-party').value) || 2; }
+function getPartySize() { return parseInt(document.getElementById('party-size').value, 10) || 2; }
 function smsConsentKey() { return 'disneySmsConsent:' + getUserId(); }
 function hasSmsConsent() { return localStorage.getItem(smsConsentKey()) === 'true'; }
 
@@ -1084,18 +1114,16 @@ document.getElementById('logout-btn').addEventListener('click', function() {
 (function initConfig() {
   const tsEl = document.getElementById('trip-start');
   const teEl = document.getElementById('trip-end');
-  const pyEl = document.getElementById('global-party');
+  const partyEl = document.getElementById('party-size');
 
   tsEl.value = getTripStart();
   teEl.value = getTripEnd();
-  pyEl.value = localStorage.getItem('disneyPartySize') || '2';
-  document.getElementById('party-size').value = pyEl.value;
+  partyEl.value = localStorage.getItem('disneyPartySize') || '2';
 
   tsEl.addEventListener('input', function() { localStorage.setItem('disneyTripStart', this.value); });
   teEl.addEventListener('input', function() { localStorage.setItem('disneyTripEnd', this.value); });
-  pyEl.addEventListener('change', function() {
+  partyEl.addEventListener('change', function() {
     localStorage.setItem('disneyPartySize', this.value);
-    document.getElementById('party-size').value = this.value;
   });
 
   loadSavedUsername();
@@ -1173,7 +1201,8 @@ async function loadRestaurants() {
     const data = await apiFetch('/restaurants');
     allRestaurants = data.restaurants || [];
     populateRestaurantSelect(allRestaurants);
-    renderGrid(allRestaurants);
+    renderParkChips();
+    filterAndRender();
   } catch(e) {
     document.getElementById('rest-loading').textContent = 'Failed: ' + e.message;
   }
@@ -1198,20 +1227,30 @@ function renderGrid(list) {
     const img = r.thumbnail_url
       ? '<img src="' + esc(r.thumbnail_url) + '" alt="" loading="lazy" />'
       : '<div style="height:120px;background:#f0f0f0;display:flex;align-items:center;justify-content:center;color:#ccc;font-size:11px">No image</div>';
+    const badge = restaurantBadge(r);
     return '<div class="card">' + img +
       '<div class="card-body">' +
         '<div class="card-name">' + esc(r.name) + '</div>' +
         '<div class="card-meta">' + esc(r.park||'') + (r.cuisine ? ' · '+esc(r.cuisine) : '') + '</div>' +
         '<div class="card-badges">' +
           (r.price_range ? '<span class="badge">'+esc(r.price_range.split(' ')[0])+'</span>' : '') +
-          (r.experience_type ? '<span class="badge">'+esc(r.experience_type)+'</span>' : '') + wb +
+          (badge ? '<span class="badge">'+esc(badge)+'</span>' : '') + wb +
         '</div>' +
       '</div>' +
-      '<button class="card-btn" data-id="'+esc(r.facility_id)+'" data-slug="'+esc(r.slug)+'" data-name="'+esc(r.name)+'">Check Calendar</button>' +
+      '<div class="card-actions">' +
+        '<button type="button" class="card-btn" data-watch-id="'+esc(r.facility_id)+'">Watch this</button>' +
+        '<button type="button" class="card-btn secondary" data-id="'+esc(r.facility_id)+'" data-slug="'+esc(r.slug)+'" data-name="'+esc(r.name)+'">See dates</button>' +
+      '</div>' +
     '</div>';
   }).join('');
 
-  grid.querySelectorAll('.card-btn').forEach(function(btn) {
+  grid.querySelectorAll('.card-btn[data-watch-id]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      selectRestaurant(btn.dataset.watchId);
+      document.getElementById('create-watch').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+  grid.querySelectorAll('.card-btn.secondary').forEach(function(btn) {
     btn.addEventListener('click', function() {
       openModal(btn.dataset.id, btn.dataset.slug, btn.dataset.name, getPartySize());
     });
@@ -1220,16 +1259,15 @@ function renderGrid(list) {
 
 function filterAndRender() {
   const q = document.getElementById('search').value.toLowerCase().trim();
-  const pk = document.getElementById('park-filter').value.toLowerCase().trim();
   const cu = document.getElementById('cuisine-filter').value.toLowerCase().trim();
-  renderGrid(allRestaurants.filter(function(r) {
+  renderGrid(watchableRestaurants().filter(function(r) {
     return (!q||r.name.toLowerCase().includes(q)) &&
-           (!pk||(r.park||'').toLowerCase().includes(pk)) &&
+           (!selectedPark || (r.park||'') === selectedPark) &&
            (!cu||(r.cuisine||'').toLowerCase().includes(cu));
   }));
 }
 
-['search','park-filter','cuisine-filter'].forEach(function(id) {
+['search','cuisine-filter'].forEach(function(id) {
   document.getElementById(id).addEventListener('input', function() {
     clearTimeout(debounce); debounce = setTimeout(filterAndRender, 250);
   });
@@ -1499,15 +1537,175 @@ async function watchAllGrey() {
 
 // ── Create Watch Form ────────────────────────────────────────────────────────
 
+function isWatchable(r) {
+  if (!r) return false;
+  function filled(v) { return String(v || '').trim() !== ''; }
+  return filled(r.facility_id) && filled(r.name) && filled(r.slug) && filled(r.booking_url);
+}
+
+function watchableRestaurants() {
+  return (allRestaurants || []).filter(isWatchable);
+}
+
+function restaurantBadge(r) {
+  var exp = String((r && r.experience_type) || '');
+  if (/character/i.test(exp)) return 'Character';
+  if (/signature/i.test(exp)) return 'Signature';
+  if (/casual/i.test(exp)) return 'Casual';
+  if (/enchanting|experience/i.test(exp)) return 'Experience';
+  if (/unique/i.test(exp)) return 'Unique';
+  if (/event/i.test(exp)) return 'Event';
+  var dtype = (r && r.dining_type) || '';
+  if (dtype === 'scheduled_activity') return 'Experience';
+  if (dtype === 'diningEvent' || dtype === 'dinnerShow') return 'Event';
+  return '';
+}
+
 function populateRestaurantSelect(restaurants) {
   const select = document.getElementById('restaurant-select');
   const selected = select.value;
-  const options = (restaurants || []).map(function(r) {
+  const watchable = (restaurants || []).filter(isWatchable);
+  const options = watchable.map(function(r) {
     return '<option value="' + esc(r.facility_id) + '">' + esc(r.name) + '</option>';
   }).join('');
   select.innerHTML = '<option value="">Select a restaurant...</option>' + options;
-  if (selected) select.value = selected;
+  if (selected && watchable.some(function(r) { return r.facility_id === selected; })) {
+    select.value = selected;
+    var picked = findRestaurant(selected);
+    document.getElementById('restaurant-combo-input').value = picked ? picked.name : '';
+  } else if (!selected) {
+    document.getElementById('restaurant-combo-input').value = '';
+  }
   applyBookingTypeUI();
+}
+
+var selectedPark = '';
+var restaurantCombo = { highlight: -1, items: [] };
+
+function selectRestaurant(facilityId) {
+  var select = document.getElementById('restaurant-select');
+  var input = document.getElementById('restaurant-combo-input');
+  select.value = facilityId || '';
+  var r = facilityId ? findRestaurant(facilityId) : null;
+  input.value = r ? r.name : '';
+  closeRestaurantCombo();
+  applyBookingTypeUI();
+}
+
+function closeRestaurantCombo() {
+  var list = document.getElementById('restaurant-combo-list');
+  var input = document.getElementById('restaurant-combo-input');
+  list.hidden = true;
+  list.innerHTML = '';
+  restaurantCombo.items = [];
+  restaurantCombo.highlight = -1;
+  input.setAttribute('aria-expanded', 'false');
+}
+
+function restaurantComboMatches(query) {
+  var q = (query || '').toLowerCase().trim();
+  return watchableRestaurants().filter(function(r) {
+    return !q || r.name.toLowerCase().includes(q);
+  }).sort(function(a, b) {
+    var pa = (a.park || '').trim() || 'Other';
+    var pb = (b.park || '').trim() || 'Other';
+    if (pa === pb) return a.name.localeCompare(b.name);
+    return pa.localeCompare(pb);
+  });
+}
+
+function renderRestaurantComboList() {
+  var list = document.getElementById('restaurant-combo-list');
+  var input = document.getElementById('restaurant-combo-input');
+  var items = restaurantComboMatches(input.value);
+  restaurantCombo.items = items;
+  if (restaurantCombo.highlight >= items.length) restaurantCombo.highlight = items.length - 1;
+  var html = '';
+  var lastPark = null;
+  items.forEach(function(r, i) {
+    var park = (r.park || '').trim() || 'Other';
+    if (park !== lastPark) {
+      html += '<div class="combo-group" role="presentation">' + esc(park) + '</div>';
+      lastPark = park;
+    }
+    var badge = restaurantBadge(r);
+    var hl = i === restaurantCombo.highlight ? ' highlight' : '';
+    html += '<button type="button" class="combo-option' + hl + '" role="option" id="combo-opt-' + i + '" data-id="' + esc(r.facility_id) + '">' +
+      '<span>' + esc(r.name) + '</span>' +
+      (badge ? '<span class="combo-badge">' + esc(badge) + '</span>' : '') +
+      '</button>';
+  });
+  if (!items.length) html = '<div class="combo-empty">No restaurants match</div>';
+  list.innerHTML = html;
+  list.hidden = false;
+  input.setAttribute('aria-expanded', 'true');
+  list.querySelectorAll('.combo-option').forEach(function(btn) {
+    btn.addEventListener('mousedown', function(e) {
+      e.preventDefault();
+      selectRestaurant(btn.dataset.id);
+    });
+  });
+}
+
+function renderParkChips() {
+  var host = document.getElementById('park-chips');
+  if (!host) return;
+  var parks = [];
+  watchableRestaurants().forEach(function(r) {
+    var p = (r.park || '').trim();
+    if (p && parks.indexOf(p) === -1) parks.push(p);
+  });
+  parks.sort();
+  var chips = [{ id: '', label: 'All' }].concat(parks.map(function(p) { return { id: p, label: p }; }));
+  host.innerHTML = chips.map(function(c) {
+    var on = selectedPark === c.id;
+    return '<button type="button" class="park-chip' + (on ? ' active' : '') + '" data-park="' + esc(c.id) + '">' + esc(c.label) + '</button>';
+  }).join('');
+  host.querySelectorAll('.park-chip').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      selectedPark = btn.dataset.park || '';
+      renderParkChips();
+      filterAndRender();
+    });
+  });
+}
+
+function bindRestaurantCombo() {
+  var input = document.getElementById('restaurant-combo-input');
+  var combo = document.getElementById('restaurant-combo');
+  input.addEventListener('focus', function() { renderRestaurantComboList(); });
+  input.addEventListener('input', function() {
+    restaurantCombo.highlight = -1;
+    renderRestaurantComboList();
+  });
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (document.getElementById('restaurant-combo-list').hidden) renderRestaurantComboList();
+      restaurantCombo.highlight = Math.min(restaurantCombo.highlight + 1, restaurantCombo.items.length - 1);
+      if (restaurantCombo.highlight < 0) restaurantCombo.highlight = 0;
+      renderRestaurantComboList();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (document.getElementById('restaurant-combo-list').hidden) renderRestaurantComboList();
+      restaurantCombo.highlight = Math.max(restaurantCombo.highlight - 1, 0);
+      renderRestaurantComboList();
+    } else if (e.key === 'Enter') {
+      var items = restaurantCombo.items;
+      if (!document.getElementById('restaurant-combo-list').hidden && items.length) {
+        e.preventDefault();
+        var idx = restaurantCombo.highlight >= 0 ? restaurantCombo.highlight : 0;
+        var pick = items[idx];
+        if (pick) selectRestaurant(pick.facility_id);
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      closeRestaurantCombo();
+    }
+  });
+  document.addEventListener('click', function(e) {
+    if (combo && !combo.contains(e.target)) closeRestaurantCombo();
+  });
 }
 
 // ── Scheduled activities (Enchanting Extras, e.g. Harmony Barber Shop) ──────
@@ -1537,6 +1735,7 @@ function applyBookingTypeUI() {
 }
 
 document.getElementById('restaurant-select').addEventListener('change', applyBookingTypeUI);
+bindRestaurantCombo();
 
 function parseWatchDates(raw) {
   const dates = validTypedDates(raw);
@@ -1726,7 +1925,8 @@ document.getElementById('watch-form').addEventListener('submit', async function(
     msg.textContent = 'Watching ' + n + ' date' + (n !== 1 ? 's' : '') + ' — you\'ll get a text when a slot opens.';
     document.getElementById('watch-form').reset();
     syncSmsConsentControls();
-    document.getElementById('party-size').value = getPartySize();
+    document.getElementById('party-size').value = localStorage.getItem('disneyPartySize') || '2';
+    selectRestaurant('');
     createDatePicker.selected = new Set();
     renderSelectedDateChips();
     renderCreateDatePicker();
