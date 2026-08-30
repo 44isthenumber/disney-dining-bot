@@ -90,8 +90,9 @@ class LandingContractTest(unittest.TestCase):
         self.assertIn('id="planner-checkout-btn"', INDEX)
         self.assertIn('id="billing-portal-btn"', INDEX)
         self.assertIn('id="upgrade-prompt"', INDEX)
-        self.assertIn("Pay once for this watch", INDEX)
-        self.assertIn("Pay and watch", INDEX)
+        self.assertIn("Pay $4.99 for this watch", INDEX)
+        self.assertIn("Pay $4.99 and watch", INDEX)
+        self.assertNotIn("Pay once for this watch", INDEX)
         self.assertIn("function postWatch(body)", INDEX)
         self.assertEqual(INDEX.count("async function postWatch(body)"), 1)
         self.assertIn("checkout_url", INDEX)
@@ -101,6 +102,15 @@ class LandingContractTest(unittest.TestCase):
         self.assertIn("!syncRes.ok", INDEX)
         self.assertNotIn("$9", INDEX)
         self.assertNotIn("$19", INDEX)
+        self.assertIn("$4.99", INDEX)
+        self.assertIn("$14.99", INDEX)
+        self.assertIn('id="pricing"', INDEX)
+        self.assertIn("Simple pricing", INDEX)
+        self.assertIn('id="plan-line"', INDEX)
+        self.assertIn('id="trip-bar"', INDEX)
+        self.assertIn('id="modal-phone"', INDEX)
+        self.assertIn(">Sign out<", INDEX)
+        self.assertNotIn(">Lock<", INDEX)
         overlay = INDEX.split('id="login-overlay"', 1)[1].split('id="app-shell"', 1)[0]
         self.assertNotIn("For Craig and Jessica", overlay)
         self.assertNotIn('id="login-profile-list"', overlay)
@@ -122,7 +132,8 @@ class LandingContractTest(unittest.TestCase):
         self.assertIn('href="/sms-consent.html"', INDEX)
 
     def test_empty_watch_and_create_copy(self):
-        self.assertIn("No watches yet. Create one above.", INDEX)
+        self.assertIn("No watches yet. Browse restaurants", INDEX)
+        self.assertNotIn("No watches yet. Create one above.", INDEX)
         self.assertIn("You'll get a text when a matching table newly opens.", INDEX)
         self.assertNotIn("calendar is optional", INDEX.lower())
 
@@ -159,7 +170,7 @@ class LandingContractTest(unittest.TestCase):
             INDEX,
         )
 
-    def test_faq_six_questions(self):
+    def test_faq_includes_cost(self):
         for question in (
             "Do you text every open table?",
             "Whose phone gets the alert?",
@@ -167,9 +178,11 @@ class LandingContractTest(unittest.TestCase):
             "Do I need to keep refreshing Disney?",
             "When do you ask for text consent?",
             "What if nothing opens?",
+            "How much does it cost?",
         ):
             self.assertIn(question, INDEX)
         self.assertIn("We do not guarantee a table will open.", INDEX)
+        self.assertIn("Single Watch is $4.99 one-time.", INDEX)
 
 
 if __name__ == "__main__":

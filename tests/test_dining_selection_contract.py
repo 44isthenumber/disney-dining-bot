@@ -36,13 +36,22 @@ class DiningSelectionContractTest(unittest.TestCase):
         self.assertIn('data-action="see-dates"', INDEX)
         self.assertIn("selectRestaurant(btn.dataset.watchId)", INDEX)
 
-    def test_default_tab_is_watches(self):
-        self.assertIn('class="tab-btn active" data-tab="watches"', INDEX)
-        self.assertIn('id="tab-watches" class="tab-panel active"', INDEX)
-        self.assertIn('id="tab-restaurants" class="tab-panel"', INDEX)
-        self.assertNotIn('class="tab-btn active" data-tab="restaurants"', INDEX)
-        self.assertNotIn('id="tab-restaurants" class="tab-panel active"', INDEX)
-        self.assertIn("No watches yet. Create one above.", INDEX)
+    def test_default_tab_is_restaurants(self):
+        self.assertIn('class="tab-btn active" data-tab="restaurants"', INDEX)
+        self.assertIn('id="tab-restaurants" class="tab-panel active"', INDEX)
+        self.assertIn('id="tab-watches" class="tab-panel"', INDEX)
+        self.assertNotIn('class="tab-btn active" data-tab="watches"', INDEX)
+        self.assertNotIn('id="tab-watches" class="tab-panel active"', INDEX)
+        self.assertIn("No watches yet. Browse restaurants", INDEX)
+        self.assertIn('id="goto-restaurants"', INDEX)
+        self.assertIn('id="add-watch-btn"', INDEX)
+        self.assertIn("function activateTab(name)", INDEX)
+        rest = INDEX.find('id="tab-restaurants"')
+        trip = INDEX.find('id="trip-bar"')
+        create = INDEX.find('id="create-watch"')
+        self.assertIn('aria-label="Trip start date"', INDEX)
+        self.assertIn('aria-label="Trip end date"', INDEX)
+        self.assertIn("else activateTab('restaurants')", INDEX)
 
     def test_one_party_control(self):
         self.assertNotIn("global-party", INDEX)

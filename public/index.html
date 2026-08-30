@@ -81,6 +81,8 @@
     background: #fff; border: 1px solid var(--border); color: var(--ink);
     padding: 4px 6px; border-radius: 4px; font-size: 12px;
   }
+  #plan-line { font-size: 12px; color: var(--muted); white-space: nowrap; }
+  #plan-line[hidden] { display: none !important; }
   #hdr-status { display: flex; align-items: center; gap: 6px; margin-left: auto; font-size: 12px; }
   #status-dot { width: 9px; height: 9px; border-radius: 50%; background: #888; flex-shrink: 0; }
   #status-dot.ok   { background: var(--moss); }
@@ -187,7 +189,14 @@
   #rest-loading { text-align: center; color: #bbb; padding: 48px; font-size: 14px; }
 
   /* ── Watch list panel ─── */
-  #watch-list h2 { font-size: 18px; font-weight: 700; margin-bottom: 14px; }
+  .watch-list-hdr { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+  .watch-list-hdr h2 { font-size: 18px; font-weight: 700; margin-bottom: 0; }
+  #add-watch-btn, #goto-restaurants {
+    background: var(--ink); color: var(--paper); border: 0; border-radius: 4px;
+    padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  #add-watch-btn:hover, #goto-restaurants:hover { background: var(--ink-hover); }
+  #watches-empty .empty-actions { margin-top: 12px; }
   #watch-count { font-size: 13px; color: var(--muted); font-weight: 400; margin-left: 6px; }
   #watches-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px,1fr)); gap: 12px; }
   .watch-card { border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; background: #fff; }
@@ -300,6 +309,26 @@
   .meal-options { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 0; }
   .meal-options label { color: var(--text); font-size: 13px; display: inline-flex; align-items: center; gap: 4px; }
   .create-actions { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+  #trip-bar {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
+    margin-bottom: 16px; padding: 12px 14px;
+    background: var(--paper-card); border: 1px solid var(--border); border-radius: 4px;
+  }
+  #trip-bar .trip-label { font-size: 13px; font-weight: 600; color: var(--ink); }
+  #trip-bar input[type=date] {
+    background: #fff; border: 1px solid var(--border); color: var(--ink);
+    padding: 6px 8px; border-radius: 4px; font-size: 13px;
+  }
+  #trip-bar .trip-sep { color: var(--muted); }
+  #trip-bar .trip-help { font-size: 12px; color: var(--muted); flex-basis: 100%; margin: 0; line-height: 1.4; }
+  .alert-contact { margin-top: 12px; }
+  .phone-field { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+  .phone-field input[type=tel] {
+    width: 100%; max-width: 320px; padding: 8px 10px; border: 1px solid var(--border);
+    border-radius: 7px; background: #fff; color: var(--text); font-size: 14px;
+  }
+  .phone-field .phone-on-file { font-size: 12px; color: var(--muted); }
+  .phone-field .phone-on-file[hidden] { display: none !important; }
   .sms-consent {
     margin-top: 12px; padding: 11px 12px; border: 1px solid var(--border);
     border-radius: 4px; background: #fdfbf7; color: var(--text);
@@ -512,6 +541,11 @@
   .l-section .sub { text-align: center; color: var(--muted); margin-bottom: 36px; }
   .l-steps { display: grid; gap: 16px; }
   @media (min-width: 768px) { .l-steps { grid-template-columns: repeat(3, 1fr); } }
+  .l-pricing { display: grid; gap: 16px; max-width: 720px; margin: 0 auto; }
+  @media (min-width: 768px) { .l-pricing { grid-template-columns: 1fr 1fr; } }
+  .l-price { background: var(--paper-card); border: 1px solid rgba(28,25,23,.12); padding: 28px 22px; }
+  .l-price .amount { font-family: var(--font-serif); font-size: 1.8rem; margin: 8px 0 6px; }
+  .l-price p { color: var(--muted); font-size: 15px; line-height: 1.55; }
   .l-step { background: var(--paper-card); border: 1px solid rgba(28,25,23,.12); padding: 28px 22px; }
   .l-num { font-family: var(--font-serif); font-style: italic; font-size: 1.7rem; color: var(--gold); }
   .l-step h3 { font-family: var(--font-serif); font-size: 1.15rem; font-weight: 400; line-height: 1.4; margin: 10px 0 0; }
@@ -631,7 +665,7 @@
     <div class="l-narrow">
       <span class="l-eyebrow">Private dining alerts</span>
       <h1>We monitor the openings.</h1>
-      <p class="lead">We'll text you when your Walt Disney World reservations open up. You log in. You book.</p>
+      <p class="lead">We'll text you when your Walt Disney World reservations open up. You log in. You book. From $4.99 a watch, or $14.99/month for a Planner.</p>
       <div class="l-hero-actions">
         <a href="#signin" class="l-btn l-btn-primary landing-nav landing-go-signin">Sign in</a>
         <a href="#how" class="l-btn l-btn-secondary landing-nav">See how it works</a>
@@ -674,6 +708,27 @@
           <h3>We send you a text with the reservation link when it opens.</h3>
         </article>
       </div>
+    </div>
+  </section>
+
+  <section id="pricing" class="l-section">
+    <div class="l-narrow">
+      <span class="l-eyebrow" style="display:flex;justify-content:center">Pricing</span>
+      <h2>Simple pricing</h2>
+      <p class="sub">Pay for a watch, or subscribe if you are watching more than one table.</p>
+      <div class="l-pricing">
+        <article class="l-price">
+          <div class="l-num">Single Watch</div>
+          <div class="amount">$4.99</div>
+          <p>One-time. One restaurant watch — party, meals, and the dates you choose.</p>
+        </article>
+        <article class="l-price">
+          <div class="l-num">Planner</div>
+          <div class="amount">$14.99/month</div>
+          <p>Up to 4 active watches. Add or remove anytime. Cancel Planner anytime.</p>
+        </article>
+      </div>
+      <p class="sub" style="margin-top:24px;margin-bottom:0">No setup fees. Cancel Planner anytime.</p>
     </div>
   </section>
 
@@ -723,6 +778,8 @@
       <p>No. That's our job. We keep scanning so you don't have to.</p>
       <h3>When do you ask for text consent?</h3>
       <p>When you create a watch — not when you sign in. The consent box starts unchecked. Reply STOP to opt out.</p>
+      <h3>How much does it cost?</h3>
+      <p>Single Watch is $4.99 one-time. Planner is $14.99/month and includes up to 4 active watches.</p>
       <h3>What if nothing opens?</h3>
       <p>You wait. We keep checking. We do not guarantee a table will open.</p>
     </div>
@@ -770,19 +827,9 @@
 <header>
   <h1>Magic Table Finder</h1>
   <div class="hdr-sep"></div>
-  <div class="hdr-field" data-collapse-mobile>
-    <label>Trip</label>
-    <input type="date" id="trip-start" />
-    <span style="color:#666;margin:0 3px">–</span>
-    <input type="date" id="trip-end" />
-  </div>
-  <div class="hdr-sep"></div>
   <span id="profile-label" class="owner-chip"></span>
-  <label class="hdr-field" id="consumer-phone-wrap" hidden>
-    <span>Phone</span>
-    <input type="tel" id="consumer-phone" autocomplete="tel" maxlength="40" />
-  </label>
-  <button id="logout-btn">Lock</button>
+  <span id="plan-line" hidden></span>
+  <button id="logout-btn">Sign out</button>
   <div id="hdr-status">
     <div id="status-dot"></div>
     <span id="status-text">Connecting…</span>
@@ -791,17 +838,26 @@
 
 <!-- ── Tabs ────────────────────────────────────────────────────────── -->
 <div class="tabs">
-  <button class="tab-btn" data-tab="restaurants">Restaurants</button>
-  <button class="tab-btn active" data-tab="watches">My Watches</button>
+  <button class="tab-btn active" data-tab="restaurants">Restaurants</button>
+  <button class="tab-btn" data-tab="watches">My Watches</button>
 </div>
 
 <main>
-  <div id="create-watch">
+  <!-- Restaurants tab -->
+  <div id="tab-restaurants" class="tab-panel active">
+    <div id="trip-bar">
+      <span class="trip-label">Trip dates</span>
+      <input type="date" id="trip-start" aria-label="Trip start date" />
+      <span class="trip-sep">–</span>
+      <input type="date" id="trip-end" aria-label="Trip end date" />
+      <p class="trip-help">Only these dates can be chosen on calendars. Leave blank for any date.</p>
+    </div>
+    <div id="create-watch">
     <h2>Create Watch</h2>
-    <p id="billing-next-banner">Pay once for this watch. You'll go to Stripe to pay, then we'll start watching. Paying is not text consent — check the box first.</p>
-    <p id="upgrade-prompt" hidden>You're on your second watch. A monthly Planner lets you add more without paying per watch.</p>
+    <p id="billing-next-banner">Pay $4.99 for this watch. You'll go to Stripe to pay, then we'll start watching. Paying is not text consent — check the box first.</p>
+    <p id="upgrade-prompt" hidden>You're on your second watch. A Planner ($14.99/mo) lets you watch up to 4 restaurants without paying each time.</p>
     <div id="billing-actions" hidden>
-      <button type="button" id="planner-checkout-btn">Start a monthly Planner</button>
+      <button type="button" id="planner-checkout-btn">Start Planner · $14.99/mo</button>
       <button type="button" id="billing-portal-btn" hidden>Manage billing</button>
     </div>
     <p class="hint">You'll get a text when a matching table newly opens. Choose one or more dates.</p>
@@ -834,7 +890,7 @@
               <button type="button" id="date-next-month">›</button>
             </div>
             <div id="date-picker-grid"></div>
-            <div id="date-picker-help">Tap dates to add or remove them. Light grey dates can be watched; blue dates are selected.</div>
+            <div id="date-picker-help">Tap dates to add or remove them. Light grey dates can be watched; blue dates are selected. Dates outside your trip range are unavailable.</div>
             <div class="date-picker-actions">
               <button type="button" id="date-picker-clear">Clear</button>
               <button type="button" id="date-picker-done">Done</button>
@@ -858,27 +914,31 @@
           <input type="time" id="time-to">
         </label>
       </div>
-      <div class="sms-consent">
-        <label>
-          <input type="checkbox" id="sms-consent" disabled>
-          <span>
-            I agree to receive text alerts from Magic Table Finder when matching Disney dining reservation openings are found.
-            Message frequency varies based on my watch activity and reservation availability. Message and data rates may apply.
-            Reply STOP to opt out. Reply HELP for help.
-            See <a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a> and
-            <a href="/terms.html" target="_blank" rel="noopener">Terms</a>.
-          </span>
+      <div class="alert-contact">
+        <label class="phone-field" id="consumer-phone-wrap" hidden>
+          Phone number
+          <input type="tel" id="consumer-phone" autocomplete="tel" maxlength="40" />
+          <span class="phone-on-file" id="phone-on-file" hidden>We'll text the number on your account.</span>
         </label>
+        <div class="sms-consent">
+          <label>
+            <input type="checkbox" id="sms-consent" disabled>
+            <span>
+              I agree to receive text alerts from Magic Table Finder when matching Disney dining reservation openings are found.
+              Message frequency varies based on my watch activity and reservation availability. Message and data rates may apply.
+              Reply STOP to opt out. Reply HELP for help.
+              See <a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a> and
+              <a href="/terms.html" target="_blank" rel="noopener">Terms</a>.
+            </span>
+          </label>
+        </div>
       </div>
       <div class="create-actions">
         <button type="submit" id="create-btn" disabled>Create Watch</button>
         <div id="create-msg" role="status"></div>
       </div>
     </form>
-  </div>
-
-  <!-- Restaurants tab -->
-  <div id="tab-restaurants" class="tab-panel">
+    </div>
     <div class="filters">
       <input type="search" id="search" placeholder="Search restaurants…" />
       <input type="text" id="cuisine-filter" placeholder="Cuisine" style="width:120px" />
@@ -891,11 +951,16 @@
   </div>
 
   <!-- Watches tab -->
-  <div id="tab-watches" class="tab-panel active">
+  <div id="tab-watches" class="tab-panel">
     <div id="watch-list">
-      <h2>Active Watches <span id="watch-count"></span></h2>
+      <div class="watch-list-hdr">
+        <h2>Active Watches <span id="watch-count"></span></h2>
+        <button type="button" id="add-watch-btn">Add a watch</button>
+      </div>
       <div id="watches-grid"></div>
-      <div id="watches-empty">No watches yet. Create one above.</div>
+      <div id="watches-empty">No watches yet. Browse restaurants
+        <div class="empty-actions"><button type="button" id="goto-restaurants">Browse restaurants</button></div>
+      </div>
     </div>
   </div>
 </main>
@@ -939,6 +1004,11 @@
           <input type="time" id="watch-time-to" value="21:00" />
         </label>
       </div>
+      <label class="phone-field" id="modal-phone-wrap" hidden>
+        Phone number
+        <input type="tel" id="modal-phone" autocomplete="tel" maxlength="40" />
+        <span class="phone-on-file" id="modal-phone-on-file" hidden>We'll text the number on your account.</span>
+      </label>
       <label class="modal-sms-consent">
         <input type="checkbox" id="modal-sms-consent">
         <span>
@@ -975,6 +1045,51 @@ function canCreateWatchNow() {
 function getTripStart() { return localStorage.getItem('disneyTripStart') || ''; }
 function getTripEnd() { return localStorage.getItem('disneyTripEnd') || ''; }
 function getPartySize() { return parseInt(document.getElementById('party-size').value, 10) || 2; }
+function payWatchLabel() {
+  return (mtfSessionUser && mtfSessionUser.billing_mode === 'single_watch') ? 'Pay $4.99 and watch' : 'Create Watch';
+}
+function consumerPhoneValue() {
+  var modal = document.getElementById('modal-phone');
+  var main = document.getElementById('consumer-phone');
+  var mv = modal && (modal.value || '').trim();
+  if (mv) return mv;
+  return ((main && main.value) || '').trim();
+}
+function needsConsumerPhone() {
+  return Boolean(mtfSessionUser && mtfSessionUser.kind === 'consumer' && !mtfSessionUser.has_phone && !consumerPhoneValue());
+}
+function focusPhoneField() {
+  var overlay = document.getElementById('modal-overlay');
+  var modalOpen = overlay && overlay.classList.contains('open');
+  var el = document.getElementById(modalOpen ? 'modal-phone' : 'consumer-phone');
+  if (el) el.focus();
+}
+function syncPhoneFields(sourceId) {
+  var main = document.getElementById('consumer-phone');
+  var modal = document.getElementById('modal-phone');
+  var src = document.getElementById(sourceId);
+  if (!src) return;
+  if (main && sourceId !== 'consumer-phone') main.value = src.value;
+  if (modal && sourceId !== 'modal-phone') modal.value = src.value;
+}
+function onTripDatesChanged() {
+  var tsEl = document.getElementById('trip-start');
+  var teEl = document.getElementById('trip-end');
+  if (tsEl) localStorage.setItem('disneyTripStart', tsEl.value);
+  if (teEl) localStorage.setItem('disneyTripEnd', teEl.value);
+  if (typeof renderCreateDatePicker === 'function') renderCreateDatePicker();
+  var overlay = document.getElementById('modal-overlay');
+  if (overlay && overlay.classList.contains('open') && typeof renderCalendar === 'function') renderCalendar();
+}
+function activateTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+  document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
+  var btn = document.querySelector('.tab-btn[data-tab="' + name + '"]');
+  if (btn) btn.classList.add('active');
+  var panel = document.getElementById('tab-' + name);
+  if (panel) panel.classList.add('active');
+  if (name === 'watches') loadWatches();
+}
 function smsConsentKey() {
   if (mtfSessionUser && mtfSessionUser.id) return 'disneySmsConsent:' + mtfSessionUser.id;
   return 'disneySmsConsent:' + getUserId();
@@ -1232,7 +1347,7 @@ function applyEntitlementUI() {
   if (banner) {
     if (mode === 'single_watch') {
       banner.classList.add('visible');
-      banner.textContent = "Pay once for this watch. You'll go to Stripe to pay, then we'll start watching. Paying is not text consent — check the box first.";
+      banner.textContent = "Pay $4.99 for this watch. You'll go to Stripe to pay, then we'll start watching. Paying is not text consent — check the box first.";
     } else if (mode === 'blocked') {
       banner.classList.add('visible');
       banner.textContent = bannerCopy[code] || 'Paid watches are not available yet. You can browse restaurants now.';
@@ -1242,7 +1357,7 @@ function applyEntitlementUI() {
   }
   if (createBtn) {
     createBtn.disabled = !allowed;
-    createBtn.textContent = mode === 'single_watch' ? 'Pay and watch' : 'Create Watch';
+    createBtn.textContent = payWatchLabel();
   }
   if (bulkBtn) bulkBtn.disabled = !allowed;
   if (sms) {
@@ -1257,12 +1372,30 @@ function applyEntitlementUI() {
   if (smsWrap) smsWrap.classList.toggle('entitlement-locked', !allowed);
   if (modalWrap) modalWrap.classList.toggle('entitlement-locked', !allowed);
   var phoneWrap = document.getElementById('consumer-phone-wrap');
-  if (phoneWrap) {
-    phoneWrap.hidden = !(mtfSessionUser && mtfSessionUser.kind === 'consumer');
-  }
-  var phone = document.getElementById('consumer-phone');
-  if (phone && mtfSessionUser && mtfSessionUser.kind === 'consumer' && mtfSessionUser.has_phone === false) {
-    /* keep whatever they typed */
+  var modalPhoneWrap = document.getElementById('modal-phone-wrap');
+  var isConsumer = Boolean(mtfSessionUser && mtfSessionUser.kind === 'consumer');
+  if (phoneWrap) phoneWrap.hidden = !isConsumer;
+  if (modalPhoneWrap) modalPhoneWrap.hidden = !isConsumer;
+  var hasPhone = Boolean(mtfSessionUser && mtfSessionUser.has_phone);
+  ['phone-on-file', 'modal-phone-on-file'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.hidden = !(isConsumer && hasPhone);
+  });
+  var planLine = document.getElementById('plan-line');
+  if (planLine) {
+    if (!isConsumer) {
+      planLine.hidden = true;
+      planLine.textContent = '';
+    } else if (mode === 'planner') {
+      planLine.hidden = false;
+      planLine.textContent = "You're on Planner · $14.99/mo · up to 4 watches";
+    } else if (mode === 'single_watch') {
+      planLine.hidden = false;
+      planLine.textContent = 'Single Watch · $4.99';
+    } else {
+      planLine.hidden = false;
+      planLine.textContent = 'Paid watches unavailable';
+    }
   }
   var billingActions = document.getElementById('billing-actions');
   var plannerBtn = document.getElementById('planner-checkout-btn');
@@ -1277,6 +1410,9 @@ function applyEntitlementUI() {
   }
   if (upgrade) {
     upgrade.hidden = !(mtfSessionUser && mtfSessionUser.upgrade_prompt);
+    if (!upgrade.hidden) {
+      upgrade.textContent = "You're on your second watch. A Planner ($14.99/mo) lets you watch up to 4 restaurants without paying each time.";
+    }
   }
 }
 
@@ -1319,6 +1455,7 @@ document.getElementById('logout-btn').addEventListener('click', function() {
   localStorage.removeItem('disneyUserId');
   mtfSessionUser = null;
   fetch('/_api/auth/logout', { method: 'POST', credentials: 'include' }).catch(function() {});
+  activateTab('restaurants');
   showLogin({ scrollToSignin: true });
 });
 
@@ -1333,8 +1470,8 @@ document.getElementById('logout-btn').addEventListener('click', function() {
   teEl.value = getTripEnd();
   partyEl.value = localStorage.getItem('disneyPartySize') || '2';
 
-  tsEl.addEventListener('input', function() { localStorage.setItem('disneyTripStart', this.value); });
-  teEl.addEventListener('input', function() { localStorage.setItem('disneyTripEnd', this.value); });
+  tsEl.addEventListener('input', onTripDatesChanged);
+  teEl.addEventListener('input', onTripDatesChanged);
   partyEl.addEventListener('change', function() {
     localStorage.setItem('disneyPartySize', this.value);
   });
@@ -1502,13 +1639,13 @@ setInterval(refreshStatus, 60000);
 
 document.querySelectorAll('.tab-btn').forEach(function(btn) {
   btn.addEventListener('click', function() {
-    document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
-    document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
-    btn.classList.add('active');
-    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-    if (btn.dataset.tab === 'watches') loadWatches();
+    activateTab(btn.dataset.tab);
   });
 });
+var gotoRestaurants = document.getElementById('goto-restaurants');
+if (gotoRestaurants) gotoRestaurants.addEventListener('click', function() { activateTab('restaurants'); });
+var addWatchBtn = document.getElementById('add-watch-btn');
+if (addWatchBtn) addWatchBtn.addEventListener('click', function() { activateTab('restaurants'); });
 
 // ── Restaurant browser ───────────────────────────────────────────────────────
 
@@ -1793,9 +1930,9 @@ async function calAddWatch(dates) {
     document.getElementById('modal-msg').textContent = (document.getElementById('billing-next-banner') && document.getElementById('billing-next-banner').textContent) || 'Paid watches are not available yet.';
     return;
   }
-  if (mtfSessionUser && mtfSessionUser.kind === 'consumer' && !mtfSessionUser.has_phone && !(document.getElementById('consumer-phone').value || '').trim()) {
+  if (needsConsumerPhone()) {
     document.getElementById('modal-msg').textContent = 'Add a phone number so we can text you.';
-    document.getElementById('consumer-phone').focus();
+    focusPhoneField();
     return;
   }
   cal.pending = true;
@@ -2232,13 +2369,13 @@ document.getElementById('watch-form').addEventListener('submit', async function(
     msg.textContent = (document.getElementById('billing-next-banner') && document.getElementById('billing-next-banner').textContent) || 'Paid watches are not available yet.';
     return;
   }
-  if (mtfSessionUser && mtfSessionUser.kind === 'consumer' && !mtfSessionUser.has_phone && !(document.getElementById('consumer-phone').value || '').trim()) {
+  if (needsConsumerPhone()) {
     msg.className = 'err';
     msg.textContent = 'Add a phone number so we can text you.';
-    document.getElementById('consumer-phone').focus();
+    focusPhoneField();
     return;
   }
-  var payLabel = (mtfSessionUser && mtfSessionUser.billing_mode === 'single_watch') ? 'Pay and watch' : 'Create Watch';
+  var payLabel = payWatchLabel();
   btn.disabled = true; btn.textContent = 'Creating…'; msg.textContent = ''; msg.className = '';
   try {
     const restaurantId = document.getElementById('restaurant-select').value;
@@ -2291,29 +2428,33 @@ document.getElementById('watch-form').addEventListener('submit', async function(
     loadWatches();
     loadRestaurants();
     refreshStatus();
-    // Switch to watches tab so the new watch is visible
-    document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
-    document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
-    document.querySelector('.tab-btn[data-tab="watches"]').classList.add('active');
-    document.getElementById('tab-watches').classList.add('active');
+    activateTab('watches');
   } catch(e) {
     msg.className = 'err';
     msg.textContent = 'Error: ' + e.message;
   } finally {
     btn.disabled = false;
-    btn.textContent = (mtfSessionUser && mtfSessionUser.billing_mode === 'single_watch') ? 'Pay and watch' : 'Create Watch';
+    btn.textContent = payWatchLabel();
   }
 });
 
 initCreateDatePicker();
 bindSmsConsentMemory();
 
-function onLogin() {
+async function onLogin() {
   syncSmsConsentControls();
   applyEntitlementUI();
   refreshStatus();
   loadRestaurants();
-  loadWatches();
+  try {
+    const data = await apiFetch('/watches');
+    renderWatches(data.watches || []);
+    if ((data.watches || []).length > 0) activateTab('watches');
+    else activateTab('restaurants');
+  } catch (e) {
+    var grid = document.getElementById('watches-grid');
+    if (grid) grid.innerHTML = '<p style="color:#f44336;padding:20px">Failed: ' + esc(e.message) + '</p>';
+  }
 }
 
 async function startPlannerCheckout() {
@@ -2338,15 +2479,21 @@ async function openBillingPortal() {
 
 document.getElementById('planner-checkout-btn').addEventListener('click', startPlannerCheckout);
 document.getElementById('billing-portal-btn').addEventListener('click', openBillingPortal);
-document.getElementById('consumer-phone').addEventListener('change', async function() {
-  if (!mtfSessionUser || mtfSessionUser.kind !== 'consumer') return;
+async function saveConsumerPhone(el) {
+  if (!mtfSessionUser || mtfSessionUser.kind !== 'consumer' || !el) return;
   try {
-    const data = await apiFetch('/me', { method: 'PATCH', body: JSON.stringify({ phone: this.value }) });
+    const data = await apiFetch('/me', { method: 'PATCH', body: JSON.stringify({ phone: el.value }) });
     if (data && data.user) {
       mtfSessionUser = data.user;
       applyEntitlementUI();
     }
   } catch (e) { /* saved on next create if this fails */ }
+}
+['consumer-phone', 'modal-phone'].forEach(function(id) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener('input', function() { syncPhoneFields(id); });
+  el.addEventListener('change', function() { syncPhoneFields(id); saveConsumerPhone(el); });
 });
 
 bootSession();
