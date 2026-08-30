@@ -55,6 +55,19 @@ function customerIdFrom(session) {
   return typeof c === "string" ? c : c.id || null;
 }
 
+function isPaidCheckout(session) {
+  if (!session) return false;
+  if (session.payment_status === "unpaid") return false;
+  if (session.status === "open" || session.status === "expired") return false;
+  return session.payment_status === "paid" || session.payment_status === "no_payment_required";
+}
+
+function hasReservedCheckoutId(session) {
+  const meta = session && session.metadata && session.metadata.user_id;
+  const ref = session && session.client_reference_id;
+  return userStore.isReservedId(meta) || userStore.isReservedId(ref);
+}
+
 function userIdFromSession(session) {
   return (
     (session && session.metadata && session.metadata.user_id) ||
@@ -152,32 +165,38 @@ async function findConsumerForStripe(sessionOrSub) {
 }
 
 async function applySingleWatchSession(session, helpers) {
-  const { loadWatches, saveWatches, appendWatchPayload } = helpers;
-  const userId = userIdFromSession(session);
-  if (userStore.isReservedId(userId)) return { skipped: "reserved" };
+  const { loadWatches, appendWatchPayload } = helpers;
+  if (hasReservedCheckoutId(session)) return { skipped: "reserved" };
 
   const pending = await userStore.getCheckout(session.id);
   const billableId =
     (pending && pending.billable_id) || (session.metadata && session.metadata.billable_id);
   const watches = await loadWatches();
-  const ownerId = (pending && pending.user_id) || userId;
+  const ownerId = (pending && pending.user_id) || userIdFromSession(session);
+  const user = await userStore.getById(ownerId);
+  if (!user) throw new Error("consumer not found");
+  const customerId = customerIdFrom(session);
+
+  async function finishAccount({ increment }) {
+    await userStore.put({
+      ...user,
+      stripe_customer_id: customerId || user.stripe_customer_id,
+      single_watch_count: increment
+        ? Number(user.single_watch_count || 0) + 1
+        : Number(user.single_watch_count || 0),
+    });
+    if (session.id) await userStore.deleteCheckout(session.id);
+  }
+
   if (gistHasBillable(watches, ownerId, billableId)) {
+    await finishAccount({ increment: Boolean(pending) && Number(user.single_watch_count || 0) === 0 });
     return { skipped: "already_written" };
   }
   if (!pending || !pending.watch) {
-    if (!billableId) throw new Error("pending checkout missing");
     throw new Error("pending checkout missing");
   }
-  const user = await userStore.getById(pending.user_id || userId);
-  if (!user) throw new Error("consumer not found");
-  const customerId = customerIdFrom(session);
   await appendWatchPayload(user, pending.watch, billableId);
-  await userStore.put({
-    ...user,
-    stripe_customer_id: customerId || user.stripe_customer_id,
-    single_watch_count: Number(user.single_watch_count || 0) + 1,
-  });
-  await userStore.deleteCheckout(session.id);
+  await finishAccount({ increment: true });
   return { applied: "single_watch" };
 }
 
@@ -206,8 +225,8 @@ async function applyPlannerFields(user, sub, customerId) {
 }
 
 async function applyCheckoutCompleted(session, helpers) {
-  const userId = userIdFromSession(session);
-  if (userStore.isReservedId(userId)) return { skipped: "reserved" };
+  if (hasReservedCheckoutId(session)) return { skipped: "reserved" };
+  if (!isPaidCheckout(session)) return { skipped: "unpaid" };
   const sku = (session.metadata && session.metadata.sku) || "";
   if (sku === "single_watch") {
     return applySingleWatchSession(session, helpers);
@@ -322,6 +341,9 @@ async function syncSession(user, sessionId, helpers) {
     const uid = userIdFromSession(session);
     if (uid && uid !== user.id) {
       return { ok: false, status: 403, code: "mismatch", detail: "Checkout does not belong to this account." };
+    }
+    if (!isPaidCheckout(session)) {
+      return { ok: true, pending: true };
     }
     await applyCheckoutCompleted(session, helpers);
   }

@@ -1111,43 +1111,6 @@ async function postWatch(body) {
   return data;
 }
 
-async function postWatch(body) {
-  var headers = { 'Content-Type': 'application/json' };
-  var secret = getSecret();
-  var userId = getUserId();
-  if (!(mtfSessionUser && mtfSessionUser.kind === 'consumer')) {
-    if (secret) headers['X-API-Secret'] = secret;
-    if (userId) headers['X-User-Id'] = userId;
-  }
-  const res = await fetch('/_api/watches', {
-    method: 'POST',
-    credentials: 'include',
-    headers: headers,
-    body: JSON.stringify(body)
-  });
-  var data = null;
-  var text = await res.text();
-  if (text) {
-    try { data = JSON.parse(text); } catch(e) { data = { detail: text }; }
-  }
-  if (res.status === 402 && data && data.code === 'checkout_required' && data.checkout_url) {
-    window.location.assign(data.checkout_url);
-    return { redirected: true };
-  }
-  if (res.status === 401) {
-    showLogin({
-      scrollToSignin: true,
-      message: (data && (data.detail || data.error)) || 'Session expired. Sign in to continue.',
-    });
-    throw new Error((data && (data.detail || data.error)) || 'Please sign in');
-  }
-  if (!res.ok) {
-    var errDetail = data && (data.detail || data.error);
-    throw new Error(errDetail || (res.status + ' ' + res.statusText));
-  }
-  return data;
-}
-
 // ── Login ────────────────────────────────────────────────────────────────────
 
 function showLogin(opts) {
@@ -1425,16 +1388,20 @@ async function bootSession() {
       var paidNote = '';
       if (paid === 'ok' || billingQ === 'portal') { // Checkout return ?paid=ok
         try {
-          await fetch('/_api/billing/sync', {
+          var syncRes = await fetch('/_api/billing/sync', {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(paid === 'ok' && sessionId ? { session_id: sessionId } : {})
           });
-          var me2 = await fetch('/_api/auth/me', { credentials: 'include' });
-          if (me2.ok) {
-            var d2 = await me2.json();
-            mtfSessionUser = d2.user || mtfSessionUser;
+          if (!syncRes.ok) {
+            paidNote = 'We could not confirm payment yet. Refresh in a moment.';
+          } else {
+            var me2 = await fetch('/_api/auth/me', { credentials: 'include' });
+            if (me2.ok) {
+              var d2 = await me2.json();
+              mtfSessionUser = d2.user || mtfSessionUser;
+            }
           }
         } catch (syncErr) {
           paidNote = 'We could not confirm payment yet. Refresh in a moment.';

@@ -93,10 +93,12 @@ class LandingContractTest(unittest.TestCase):
         self.assertIn("Pay once for this watch", INDEX)
         self.assertIn("Pay and watch", INDEX)
         self.assertIn("function postWatch(body)", INDEX)
+        self.assertEqual(INDEX.count("async function postWatch(body)"), 1)
         self.assertIn("checkout_url", INDEX)
         self.assertIn("sms_consent: true", INDEX)
         self.assertIn("paid=ok", INDEX)
         self.assertIn("/billing/sync", INDEX)
+        self.assertIn("!syncRes.ok", INDEX)
         self.assertNotIn("$9", INDEX)
         self.assertNotIn("$19", INDEX)
         overlay = INDEX.split('id="login-overlay"', 1)[1].split('id="app-shell"', 1)[0]

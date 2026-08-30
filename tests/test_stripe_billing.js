@@ -143,6 +143,7 @@ function fakeStripe() {
   await billing.applyCheckoutCompleted(
     {
       id: "cs_test_1",
+      payment_status: "paid",
       customer: "cus_1",
       metadata: { user_id: paidUser.id, sku: "single_watch", billable_id: "bill_abc" },
       client_reference_id: paidUser.id,
@@ -158,6 +159,7 @@ function fakeStripe() {
   await billing.applyCheckoutCompleted(
     {
       id: "cs_test_1",
+      payment_status: "paid",
       customer: "cus_1",
       metadata: { user_id: paidUser.id, sku: "single_watch", billable_id: "bill_abc" },
       client_reference_id: paidUser.id,
@@ -166,11 +168,66 @@ function fakeStripe() {
   );
   assert.strictEqual(writes.length, 2);
 
+  const mixedReserved = await billing.applyCheckoutCompleted(
+    {
+      id: "cs_mix",
+      payment_status: "paid",
+      client_reference_id: "craig",
+      metadata: { user_id: paidUser.id, sku: "single_watch", billable_id: "bill_hack" },
+      customer: "cus_evil",
+    },
+    helpers
+  );
+  assert.strictEqual(mixedReserved.skipped, "reserved");
+
+  const unpaid = await billing.applyCheckoutCompleted(
+    {
+      id: "cs_open",
+      status: "open",
+      payment_status: "unpaid",
+      metadata: { user_id: paidUser.id, sku: "single_watch", billable_id: "bill_open" },
+      client_reference_id: paidUser.id,
+    },
+    helpers
+  );
+  assert.strictEqual(unpaid.skipped, "unpaid");
+  assert.strictEqual(writes.length, 2);
+
+  const repairUser = await store.upsertByEmail("repair@example.com");
+  await store.put({ ...repairUser, phone: "+15550000" });
+  await store.putCheckout("cs_repair", {
+    user_id: repairUser.id,
+    billable_id: "bill_repair",
+    watch: { facility_id: "x", dates: ["2099-03-01"], party_size: 2, meal_periods: ["DINNER"] },
+  });
+  writes.push({
+    owner_id: repairUser.id,
+    billable_id: "bill_repair",
+    date: "2099-03-01",
+    facility_id: "x",
+  });
+  await billing.applyCheckoutCompleted(
+    {
+      id: "cs_repair",
+      payment_status: "paid",
+      customer: "cus_repair",
+      metadata: { user_id: repairUser.id, sku: "single_watch", billable_id: "bill_repair" },
+      client_reference_id: repairUser.id,
+    },
+    helpers
+  );
+  const repaired = await store.getById(repairUser.id);
+  assert.strictEqual(repaired.stripe_customer_id, "cus_repair");
+  assert.strictEqual(await store.getCheckout("cs_repair"), null);
+
   const plannerUser = await store.upsertByEmail("plan@example.com");
+  const writesBeforePlanner = writes.length;
   await billing.applyCheckoutCompleted(
     {
       id: "cs_plan",
       mode: "subscription",
+      payment_status: "paid",
+      status: "complete",
       customer: "cus_plan",
       metadata: { user_id: plannerUser.id, sku: "planner" },
       client_reference_id: plannerUser.id,
@@ -178,7 +235,7 @@ function fakeStripe() {
     },
     helpers
   );
-  assert.strictEqual(writes.length, 2);
+  assert.strictEqual(writes.length, writesBeforePlanner);
   const planned = await store.getById(plannerUser.id);
   assert.strictEqual(planned.planner_status, "active");
   assert.strictEqual(planned.stripe_customer_id, "cus_plan");
@@ -214,6 +271,17 @@ function fakeStripe() {
   assert.ok(portal.url.startsWith("https://"));
   const noCus = await billing.createPortalSession(await store.upsertByEmail("none@example.com"));
   assert.strictEqual(noCus.status, 404);
+
+  stripe.checkout.sessions.retrieve = async () => ({
+    id: "cs_sync_open",
+    status: "open",
+    payment_status: "unpaid",
+    metadata: { user_id: paidUser.id, sku: "single_watch" },
+    client_reference_id: paidUser.id,
+  });
+  const syncOpen = await billing.syncSession(paidUser, "cs_sync_open", helpers);
+  assert.strictEqual(syncOpen.ok, true);
+  assert.strictEqual(syncOpen.pending, true);
 
   console.log("test_stripe_billing ok");
 })().catch((err) => {
