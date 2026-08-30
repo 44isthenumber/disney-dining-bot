@@ -84,8 +84,13 @@ function cookieHeaderFrom(res) {
     })
   );
   assert.strictEqual(cb.statusCode, 302);
-  assert.strictEqual(cb.headers.Location, "/");
-  const cookie = cookieHeaderFrom(parse(cb));
+  assert.strictEqual(cb.headers.Location, "/?signin=ok");
+  const parsedCb = parse(cb);
+  assert.ok(String(parsedCb.headers["Set-Cookie"] || "").includes("mtf_session="));
+  const multiCookies = parsedCb.multi["Set-Cookie"] || [];
+  assert.ok(multiCookies.some((c) => String(c).includes("mtf_session=")));
+  assert.ok(multiCookies.some((c) => String(c).includes("mtf_ui=1")));
+  const cookie = cookieHeaderFrom(parsedCb);
   assert.ok(cookie.includes("mtf_session="));
   assert.ok(cookie.includes("mtf_ui=1"));
 
@@ -155,6 +160,20 @@ function cookieHeaderFrom(res) {
   );
   assert.strictEqual(reused.statusCode, 302);
   assert.strictEqual(reused.headers.Location, "/?signin=invalid");
+  assert.ok(!String((reused.headers && reused.headers["Set-Cookie"]) || "").includes("mtf_session="));
+
+  captured.length = 0;
+  await handler(ev("POST", "/_api/auth/magic-link", { body: { email: "rawquery@example.com" } }));
+  const rawToken = captured[0].url.split("token=")[1];
+  const rawCb = await handler({
+    httpMethod: "GET",
+    path: "/_api/auth/callback",
+    headers: { "x-forwarded-proto": "https" },
+    queryStringParameters: {},
+    rawQuery: "token=" + rawToken,
+  });
+  assert.strictEqual(rawCb.statusCode, 302);
+  assert.strictEqual(rawCb.headers.Location, "/?signin=ok");
 
   const bad = await handler(
     ev("GET", "/_api/auth/callback", {

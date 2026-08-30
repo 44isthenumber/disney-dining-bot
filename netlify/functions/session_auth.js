@@ -177,17 +177,36 @@ function httpJson(method, url, headers, body) {
   });
 }
 
+function escapeHtmlAttr(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function magicLinkEmailPayload(url) {
+  const href = String(url || "");
+  const text =
+    `Sign in to Magic Table Finder:\n${href}\n\n` +
+    `This link expires in 15 minutes. If you did not ask for this, you can ignore the email.`;
+  const html =
+    `<p><a href="${escapeHtmlAttr(href)}">Sign in to Magic Table Finder</a></p>` +
+    `<p>This link expires in 15 minutes. If you did not ask for this, you can ignore the email.</p>`;
+  return { subject: "Sign in to Magic Table Finder", text, html };
+}
+
 async function sendViaResend(email, url) {
   const key = String(process.env.RESEND_API_KEY || "").trim();
   const from = String(process.env.MAGIC_LINK_FROM || "").trim();
   if (!key || !from) return { sent: false, reason: "missing_resend" };
+  const mail = magicLinkEmailPayload(url);
   const payload = JSON.stringify({
     from,
     to: [email],
-    subject: "Sign in to Magic Table Finder",
-    text:
-      `Sign in to Magic Table Finder:\n${url}\n\n` +
-      `This link expires in 15 minutes. If you did not ask for this, you can ignore the email.`,
+    subject: mail.subject,
+    text: mail.text,
+    html: mail.html,
   });
   await httpJson(
     "POST",
@@ -258,6 +277,7 @@ module.exports = {
   clearUiCookieHeader,
   siteUrl,
   magicLinkUrl,
+  magicLinkEmailPayload,
   isValidEmail,
   requestMagicLink,
   consumeMagicToken,

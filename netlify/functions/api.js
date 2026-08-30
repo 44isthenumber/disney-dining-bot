@@ -477,11 +477,21 @@ async function handleMagicLink(event) {
   return response(200, { ok: true });
 }
 
+function queryParam(event, name) {
+  const qs = event.queryStringParameters || {};
+  let value = qs[name];
+  if (Array.isArray(value)) value = value[0];
+  if (value != null && String(value) !== "") return String(value);
+  const raw = String(event.rawQuery || event.rawQueryString || "").replace(/^\?/, "");
+  if (!raw) return "";
+  return new URLSearchParams(raw).get(name) || "";
+}
+
 async function handleAuthCallback(event) {
-  const token = String((event.queryStringParameters || {}).token || "");
+  const token = queryParam(event, "token");
   const result = await sessionAuth.consumeMagicToken(token);
   if (!result.ok) return redirect("/?signin=invalid");
-  return redirect("/", [
+  return redirect("/?signin=ok", [
     sessionAuth.sessionCookieHeader(event, result.session),
     sessionAuth.uiCookieHeader(event),
   ]);
@@ -548,8 +558,10 @@ function redirect(location, cookies = []) {
     "Cache-Control": "no-store",
   };
   const out = { statusCode: 302, headers, body: "" };
-  if (cookies.length === 1) headers["Set-Cookie"] = cookies[0];
-  if (cookies.length > 1) out.multiValueHeaders = { "Set-Cookie": cookies };
+  if (cookies.length) {
+    out.multiValueHeaders = { "Set-Cookie": cookies };
+    headers["Set-Cookie"] = cookies[0];
+  }
   return out;
 }
 

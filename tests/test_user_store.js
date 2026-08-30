@@ -53,6 +53,20 @@ assert.strictEqual(store.isReservedId("u_abc"), false);
   assert.strictEqual(store.blobWriteCreatedEntry(await fakeStore.set("used:a", "1", { onlyIfNew: true })), true);
   assert.strictEqual(store.blobWriteCreatedEntry(await fakeStore.set("used:a", "1", { onlyIfNew: true })), false);
 
+  const prevStore = process.env.MTF_USER_STORE;
+  store.clearBackendForTests();
+  delete process.env.MTF_USER_STORE;
+  store.setBlobFactoryForTests(() => {
+    throw new Error("no blobs");
+  });
+  try {
+    assert.throws(() => store.getBackend(), /no blobs/);
+  } finally {
+    store.setBlobFactoryForTests(null);
+    process.env.MTF_USER_STORE = prevStore || "memory";
+    store.resetMemoryStore();
+  }
+
   console.log("test_user_store ok");
 })().catch((err) => {
   console.error(err);

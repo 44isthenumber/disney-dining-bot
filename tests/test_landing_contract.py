@@ -81,6 +81,10 @@ class LandingContractTest(unittest.TestCase):
         self.assertIn("Email a sign-in link", INDEX)
         self.assertIn("Private sign-in", INDEX)
         self.assertIn("signin=invalid", INDEX)
+        self.assertIn("signin=ok", INDEX)
+        self.assertIn("That sign-in link didn't complete", INDEX)
+        self.assertIn("mtfSessionUser.kind === 'consumer'", INDEX)
+        self.assertNotRegex(INDEX, r"\nrefreshStatus\(\);")
         self.assertIn('id="billing-next-banner"', INDEX)
         overlay = INDEX.split('id="login-overlay"', 1)[1].split('id="app-shell"', 1)[0]
         self.assertNotIn("For Craig and Jessica", overlay)
