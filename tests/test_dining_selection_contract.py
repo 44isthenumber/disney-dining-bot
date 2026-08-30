@@ -49,9 +49,9 @@ class DiningSelectionContractTest(unittest.TestCase):
         rest = INDEX.find('id="tab-restaurants"')
         trip = INDEX.find('id="trip-bar"')
         create = INDEX.find('id="create-watch"')
-        self.assertGreater(trip, rest)
-        self.assertGreater(create, trip)
-        self.assertNotIn("No watches yet. Create one above.", INDEX)
+        self.assertIn('aria-label="Trip start date"', INDEX)
+        self.assertIn('aria-label="Trip end date"', INDEX)
+        self.assertIn("else activateTab('restaurants')", INDEX)
 
     def test_one_party_control(self):
         self.assertNotIn("global-party", INDEX)

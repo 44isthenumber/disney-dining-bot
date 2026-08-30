@@ -847,9 +847,9 @@
   <div id="tab-restaurants" class="tab-panel active">
     <div id="trip-bar">
       <span class="trip-label">Trip dates</span>
-      <input type="date" id="trip-start" />
+      <input type="date" id="trip-start" aria-label="Trip start date" />
       <span class="trip-sep">–</span>
-      <input type="date" id="trip-end" />
+      <input type="date" id="trip-end" aria-label="Trip end date" />
       <p class="trip-help">Only these dates can be chosen on calendars. Leave blank for any date.</p>
     </div>
     <div id="create-watch">
@@ -1455,6 +1455,7 @@ document.getElementById('logout-btn').addEventListener('click', function() {
   localStorage.removeItem('disneyUserId');
   mtfSessionUser = null;
   fetch('/_api/auth/logout', { method: 'POST', credentials: 'include' }).catch(function() {});
+  activateTab('restaurants');
   showLogin({ scrollToSignin: true });
 });
 
@@ -2449,6 +2450,7 @@ async function onLogin() {
     const data = await apiFetch('/watches');
     renderWatches(data.watches || []);
     if ((data.watches || []).length > 0) activateTab('watches');
+    else activateTab('restaurants');
   } catch (e) {
     var grid = document.getElementById('watches-grid');
     if (grid) grid.innerHTML = '<p style="color:#f44336;padding:20px">Failed: ' + esc(e.message) + '</p>';
