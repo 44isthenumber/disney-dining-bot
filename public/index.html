@@ -1024,8 +1024,10 @@ async function apiFetch(path, opts) {
   }, opts.headers || {});
   var secret = getSecret();
   var userId = getUserId();
-  if (secret) headers['X-API-Secret'] = secret;
-  if (userId) headers['X-User-Id'] = userId;
+  if (!(mtfSessionUser && mtfSessionUser.kind === 'consumer')) {
+    if (secret) headers['X-API-Secret'] = secret;
+    if (userId) headers['X-User-Id'] = userId;
+  }
   const res = await fetch('/_api' + path, Object.assign({ credentials: 'include' }, opts, {
     headers: headers
   }));
@@ -1246,21 +1248,24 @@ document.getElementById('logout-btn').addEventListener('click', function() {
 })();
 
 async function bootSession() {
-  // Redirect from GET /_api/auth/callback uses ?signin=invalid
+  // GET /_api/auth/callback redirects to ?signin=ok or ?signin=invalid
   var params = new URLSearchParams(window.location.search);
-  if (params.get('signin') === 'invalid') {
+  var signin = params.get('signin');
+  function stripSigninQuery() {
+    if (window.history && window.history.replaceState) {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }
+  function writeUiCookie() {
+    var secure = window.location.protocol === 'https:' ? '; Secure' : '';
+    document.cookie = 'mtf_ui=1; Path=/; SameSite=Lax; Max-Age=' + (30 * 24 * 60 * 60) + secure;
+  }
+  if (signin === 'invalid') {
     showLogin({
       scrollToSignin: true,
       message: 'That sign-in link is invalid or expired. Request a new one.',
     });
-    if (window.history && window.history.replaceState) {
-      window.history.replaceState({}, '', window.location.pathname);
-    }
-    return;
-  }
-  if (getSecret()) {
-    hideLogin();
-    onLogin();
+    stripSigninQuery();
     return;
   }
   try {
@@ -1268,11 +1273,43 @@ async function bootSession() {
     if (res.ok) {
       var data = await res.json();
       mtfSessionUser = data.user || null;
+      if (mtfSessionUser && mtfSessionUser.kind === 'consumer') {
+        localStorage.removeItem('disneyApiSecret');
+        localStorage.removeItem('disneyUserId');
+      }
+      writeUiCookie();
       hideLogin();
       onLogin();
+      if (signin === 'ok') stripSigninQuery();
       return;
     }
-  } catch (e) { /* show landing */ }
+  } catch (e) { /* fall through */ }
+  if (signin === 'ok') {
+    showLogin({
+      scrollToSignin: true,
+      message: "That sign-in link didn't complete. Request a new one.",
+    });
+    stripSigninQuery();
+    return;
+  }
+  var storedId = getUserId();
+  var storedSecret = getSecret();
+  if (storedId && storedSecret) {
+    try {
+      var probe = await fetch('/_api/status', {
+        headers: { 'X-API-Secret': storedSecret, 'X-User-Id': storedId }
+      });
+      if (probe.ok) {
+        hideLogin();
+        onLogin();
+        return;
+      }
+    } catch (e) { /* fall through */ }
+    localStorage.removeItem('disneyApiSecret');
+    localStorage.removeItem('disneyUserId');
+    showLogin();
+    return;
+  }
   if (document.documentElement.classList.contains('has-session')) {
     fetch('/_api/auth/logout', { method: 'POST', credentials: 'include' }).catch(function() {});
   }
@@ -1319,7 +1356,6 @@ async function refreshStatus() {
   }
 }
 
-refreshStatus();
 setInterval(refreshStatus, 60000);
 
 // ── Tabs ─────────────────────────────────────────────────────────────────────

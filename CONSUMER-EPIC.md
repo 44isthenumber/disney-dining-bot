@@ -187,9 +187,9 @@ As a new guest, I sign in with an email magic link and get a session cookie. I n
 2. New IDs (additive): `#login-email`, `#login-magic-btn` (`type="button"` so it does not submit the password form), `#login-magic-status`. Copy distinguishes **Email a sign-in link** from **Private sign-in**. Overlay must not contain a public list of Craig/Jessica accounts. Do not add the string `For Craig and Jessica`.
 3. `POST /_api/auth/magic-link` is on the public-path list (see Builder contract). Always **200** `{ "ok": true }` (no email enumeration), including invalid email, unknown email, and missing Resend key. Valid emails mint a token per Builder contract. Link: `{site}/_api/auth/callback?token=...` (`site` from `URL` then `DEPLOY_PRIME_URL` then `https://magictablefinder.com`).
 4. Email is sent via Resend HTTP API (`RESEND_API_KEY`, `MAGIC_LINK_FROM`). Tests inject a sender; they must not require a live key. Production must not log the raw token. If secret or Resend is missing, still return `{ok:true}` and do not send.
-5. `GET /_api/auth/callback?token=` verifies signature, expiry, and single-use (nonce stored under user-store key `used:{nonce}`). On success: upsert consumer, `Set-Cookie` `mtf_session` (httpOnly, `Path=/`, `SameSite=Lax`, `Secure` iff request is HTTPS, Max-Age 30 days) and `mtf_ui=1` (not httpOnly, same Path/SameSite/Secure/Max-Age). Redirect **302** to `/`. Invalid/expired/reused: **302** `/?signin=invalid` and do not set `mtf_session` (see Builder contract).
+5. `GET /_api/auth/callback?token=` verifies signature, expiry, and single-use (nonce stored under user-store key `used:{nonce}`). On success: upsert consumer, `Set-Cookie` `mtf_session` (httpOnly, `Path=/`, `SameSite=Lax`, `Secure` iff request is HTTPS, Max-Age 30 days) and `mtf_ui=1` (not httpOnly, same Path/SameSite/Secure/Max-Age). Redirect **302** to `/?signin=ok` (US-2.5). Invalid/expired/reused: **302** `/?signin=invalid` and do not set `mtf_session` (see Builder contract).
 6. `GET /_api/auth/me` is public-path: no `X-API-Secret` required. Returns 200 `{ user: { id, email, name, kind, has_phone, can_create_watch } }` for `resolveIdentity`; otherwise 401. Consumer `email` is the stored email; internal `email` may be `""`. `POST /_api/auth/logout` clears both cookies (Max-Age=0) and returns 204.
-7. Frontend follows Builder contract (`credentials`, omit empty auth headers, `getUserId` default gone). Boot: if `disneyApiSecret` exists, keep today’s password session and call `onLogin()` (including `refreshStatus` — today `refreshStatus` bails on `!getSecret()`; cookie **or** secret must run it). Else `GET /_api/auth/me` with credentials; 200 → `hideLogin()` + `onLogin()`; 401 with `mtf_ui` → stale-cookie path in Builder contract. Logout: clear localStorage **and** `POST /_api/auth/logout`. Inline first-paint: `disneyApiSecret` **or** `mtf_ui=1` → `html.has-session`.
+7. Frontend follows Builder contract (`credentials`, omit empty auth headers, `getUserId` default gone). **Boot order is US-2.5 / hotfix Builder contract §2 — this AC7 password-first sentence is superseded.** Cookie `GET /_api/auth/me` first; private `disneyApiSecret` only after `/auth/me` 401, and only after a raw `/status` probe succeeds. 401 with `mtf_ui` and no working secret → stale-cookie path. Logout: clear localStorage **and** `POST /_api/auth/logout`. Inline first-paint: `disneyApiSecret` **or** `mtf_ui=1` → `html.has-session`. `refreshStatus` must run for cookie **or** secret (`onLogin`).
 8. Phone is not a login field. Optional `PATCH /_api/me` `{ "phone": "..." }` on a **consumer** session only (internal → 403) stores `phone` on the consumer record (not Gist, not `WATCH_USERS`). This is **not** SMS consent (Builder contract + `privacy.html`). Must not gate login. Signed-in consumer UI may include `#consumer-phone` (optional).
 
 **Files:** `netlify/functions/session_auth.js`, `netlify/functions/api.js`, `public/index.html`, `public/privacy.html` (email used for sign-in), tests listed in US-2.4.
@@ -222,7 +222,7 @@ As an operator, consumer accounts and entitlement live in a real store. Gist sta
 3. New consumer ids are `u_` + hex (or equivalent). **Never** mint `craig` or `Jessica`. Upsert by email reuses the same id. Internal users stay only in `WATCH_USERS`; the store must refuse to save those ids.
 4. Used magic-link nonces live in the user store (or equivalent), not in Gist.
 5. `PRODUCT.md` Consumer direction: Slice 2 is current; consumer identities live in Netlify Blobs (`mtf-users`); Gist file list is unchanged; do not clear `open_slots.json` / `seen_slots.json`. Document env names only (`MAGIC_LINK_SECRET`, `RESEND_API_KEY`, `MAGIC_LINK_FROM`) — no values.
-6. If Blobs is unavailable in a unit test or local function, fall back to memory so tests run without Netlify. Do not fall back to Gist.
+6. Tests set `MTF_USER_STORE=memory` before requiring the store. Production must not silently fall back to memory if `@netlify/blobs` `getStore('mtf-users')` throws — that mints a session for a user the next Lambda cannot load. Do not fall back to Gist.
 
 **Files:** `netlify/functions/user_store.js`, `PRODUCT.md`, tests in US-2.4.
 
@@ -239,6 +239,47 @@ As a consumer who magic-linked in, I can see the app but I cannot create a live 
 5. Do not edit `disney_bot.py`, `monitor.py`, `notify.py`, `seed_disney_session.py`, `open_slots.json`, `seen_slots.json`, `.env`, or Stripe. Do not `playwright install`. Do not add Cloud secrets. Live `scripts/smoke_test_api.py` is not a Cloud gate; keep `/profiles` + internal password auth compatible so it still works in production.
 
 **Files:** `public/index.html`, `tests/test_landing_contract.py` (additive), new Node tests above.
+
+---
+
+# Slice 2 hotfix — Magic-link click must sign in (build now)
+
+Production (2026-08-30): Resend delivers the mail. Clicking the link shows the landing overlay and red **Please sign in** (`GET /_api/status` 401 `detail`). The account is created only on callback consume, not on send. Stay off `main` until Craig says deploy.
+
+## Assumptions
+
+- Craig’s browser may still have `disneyApiSecret` / `disneyUserId` from private sign-in. That leftover must not steal or race a magic-link click.
+- Netlify `200` rewrite of `/_api/*` plus a **302 with two `Set-Cookie` values only in `multiValueHeaders`** can drop cookies. The httpOnly session cookie must survive even if `mtf_ui` does not.
+- Plain-text URLs wrap in mail clients (~76 chars). The token URL is longer; HTML `<a href>` is required in addition to `text`.
+- Do not change `netlify.toml`, Stripe, poller, or Disney session.
+
+## Builder contract (hotfix)
+
+1. **No status fetch before boot.** `public/index.html` must not call `refreshStatus();` at script top-level. `refreshStatus` runs from `onLogin` / interval only. Landing contract: the file must not contain a newline immediately followed by `refreshStatus();` (indented calls inside functions are fine).
+2. **`bootSession` order (supersedes US-2.1 AC7 password-first boot):** (a) `?signin=invalid` → existing invalid copy + `replaceState`, **return**. (b) `GET /_api/auth/me` with `credentials: 'include'` and **no** `X-User-Id` / `X-API-Secret`. 200 → set `mtfSessionUser`; if `kind === 'consumer'`, `localStorage.removeItem` both `disneyApiSecret` and `disneyUserId`; write `mtf_ui=1` from JS (`Path=/`, `SameSite=Lax`, `Max-Age` 30 days, `Secure` on https); `hideLogin()` + `onLogin()`; if `signin=ok` strip query. (c) if `signin=ok` and `/auth/me` not 200 → `showLogin({ scrollToSignin: true, message: "That sign-in link didn't complete. Request a new one." })`, strip query, **do not** fall back to `disneyApiSecret` (cookie was dropped; leftover private login must not paint API `Please sign in`). (d) else private fallback only via **raw** `fetch('/_api/status')` with stored headers (not `apiFetch`): 200 → `hideLogin()` + `onLogin()`; 401 → clear both localStorage keys and `showLogin()` with **empty** `#login-error` (never copy `data.detail`). (e) else stale `has-session` → logout + `showLogin()`.
+3. **`apiFetch`:** if `mtfSessionUser && mtfSessionUser.kind === 'consumer'`, do **not** send `X-User-Id` or `X-API-Secret` even if localStorage still has them.
+4. **`redirect(location, cookies)`:** always put the full cookie list on `multiValueHeaders['Set-Cookie']`. Also set `headers['Set-Cookie']` to the **session** cookie string (`mtf_session`, first entry) so a Netlify rewrite that keeps a single `Set-Cookie` still stores the session. Keep `Location` / `Cache-Control` only on `headers`. Success Location is `/?signin=ok`. Invalid remains `/?signin=invalid` with **no** session cookie.
+5. **Resend:** `magicLinkEmailPayload(url)` returns `{ subject, text, html }`. `html` includes `<a href="{escaped url}">Sign in to Magic Table Finder</a>` plus the expiry sentence. `text` still includes the raw URL. `sendViaResend` JSON includes `html`. Tests cover the helper; they must not send live mail.
+6. **Callback token:** `queryStringParameters.token` or, if empty, parse `event.rawQuery` / `event.rawQueryString` via `URLSearchParams`.
+7. **`user_store.getBackend`:** `MTF_USER_STORE=memory` → memory. Otherwise `blobBackend()` and let `getStore` throw (handler 500). No silent memory fallback.
+
+## User story US-2.5 — Clicking the email link signs me in
+
+As a guest who received the magic-link email, I click it once and land in the app (Create Watch still blocked until Slice 3). I do not see red **Please sign in** from a leftover private session.
+
+**AC**
+
+1. `public/index.html` has no top-level `refreshStatus();` (landing contract: no newline immediately followed by `refreshStatus();` — indented calls inside functions are allowed). Interval + `onLogin` still refresh.
+2. Cookie `/auth/me` 200 as consumer clears leftover private localStorage; `apiFetch` omits `X-User-Id`/`X-API-Secret` while `mtfSessionUser.kind === 'consumer'` (landing contract asserts that guard string).
+3. Callback tests: 302 `/?signin=ok` with `multiValueHeaders['Set-Cookie']` containing `mtf_session` and `mtf_ui`, **and** `headers['Set-Cookie']` (string) containing `mtf_session`. Empty `queryStringParameters` plus `rawQuery: 'token='+token` still 302 `/?signin=ok`.
+4. `magicLinkEmailPayload(url)` html contains `href="` + the callback URL; text still contains the URL. `sendViaResend` JSON includes `html`.
+5. `getBackend()` without `MTF_USER_STORE=memory`: stub `blobBackend` / `getStore` to throw → `getBackend()` throws; it must not return `kind: 'memory'`.
+6. Landing copy: `signin=ok` handling string `That sign-in link didn't complete` exists in `index.html`. Invalid/reused token still 302 `/?signin=invalid` with no `mtf_session`.
+7. US-2.1 AC7 is superseded by this boot order (stated in AC7 itself). Existing Slice 2 gates stay green.
+
+**Files:** `public/index.html`, `netlify/functions/api.js`, `netlify/functions/session_auth.js`, `netlify/functions/user_store.js`, `CONSUMER-EPIC.md`, `tests/test_landing_contract.py`, `tests/test_consumer_auth_api.js`, `tests/test_session_auth.js`, `tests/test_user_store.js`.
+
+**Out of scope:** Stripe, `netlify.toml`, VPS, Disney session, changing HMAC format, logging raw tokens.
 
 ---
 

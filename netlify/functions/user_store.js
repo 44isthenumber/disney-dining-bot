@@ -150,6 +150,15 @@ function blobBackend() {
 }
 
 let _backend = null;
+let _blobFactory = blobBackend;
+
+function setBlobFactoryForTests(fn) {
+  _blobFactory = typeof fn === "function" ? fn : blobBackend;
+}
+
+function clearBackendForTests() {
+  _backend = null;
+}
 
 function getBackend() {
   if (_backend) return _backend;
@@ -157,11 +166,7 @@ function getBackend() {
     _backend = memoryBackend();
     return _backend;
   }
-  try {
-    _backend = blobBackend();
-  } catch {
-    _backend = memoryBackend();
-  }
+  _backend = _blobFactory();
   return _backend;
 }
 
@@ -252,6 +257,8 @@ module.exports = {
   isNonceUsed,
   resetMemoryStore,
   setBackendForTests,
+  setBlobFactoryForTests,
+  clearBackendForTests,
   getBackend,
   blobWriteCreatedEntry,
 };

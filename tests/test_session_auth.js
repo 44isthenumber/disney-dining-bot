@@ -43,6 +43,15 @@ const httpEvent = { headers: { "x-forwarded-proto": "http" } };
 assert.ok(!auth.sessionCookieHeader(httpEvent, session).includes("Secure"));
 
 assert.ok(auth.magicLinkUrl("tok").includes("/_api/auth/callback?token="));
+const mail = auth.magicLinkEmailPayload("https://magictablefinder.com/_api/auth/callback?token=abc");
+assert.ok(mail.text.includes("https://magictablefinder.com/_api/auth/callback?token=abc"));
+assert.ok(mail.html.includes('href="https://magictablefinder.com/_api/auth/callback?token=abc"'));
+assert.ok(mail.html.includes("Sign in to Magic Table Finder"));
+const sessionAuthSrc = require("fs").readFileSync(
+  require("path").join(__dirname, "../netlify/functions/session_auth.js"),
+  "utf8"
+);
+assert.ok(sessionAuthSrc.includes("html: mail.html"));
 
 let sent = [];
 auth.setMagicLinkSender(async (email, url) => {
