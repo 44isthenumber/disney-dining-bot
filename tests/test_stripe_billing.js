@@ -193,6 +193,50 @@ function fakeStripe() {
   assert.strictEqual(unpaid.skipped, "unpaid");
   assert.strictEqual(writes.length, 2);
 
+  const asyncUser = await store.upsertByEmail("async@example.com");
+  await store.put({ ...asyncUser, phone: "+15558888" });
+  await store.putCheckout("cs_async", {
+    user_id: asyncUser.id,
+    billable_id: "bill_async",
+    watch: { facility_id: "x", dates: ["2099-04-01"], party_size: 2, meal_periods: ["DINNER"] },
+  });
+  const asyncSucceeded = await billing.applyStripeEvent(
+    {
+      id: "evt_async_ok",
+      type: "checkout.session.async_payment_succeeded",
+      data: {
+        object: {
+          id: "cs_async",
+          payment_status: "paid",
+          customer: "cus_async",
+          metadata: { user_id: asyncUser.id, sku: "single_watch", billable_id: "bill_async" },
+          client_reference_id: asyncUser.id,
+        },
+      },
+    },
+    helpers
+  );
+  assert.strictEqual(asyncSucceeded.applied, "single_watch");
+  assert.ok(writes.some((w) => w.billable_id === "bill_async" && w.owner_id === asyncUser.id));
+
+  const asyncFailed = await billing.applyStripeEvent(
+    {
+      id: "evt_async_fail",
+      type: "checkout.session.async_payment_failed",
+      data: {
+        object: {
+          id: "cs_async_fail",
+          payment_status: "unpaid",
+          metadata: { user_id: asyncUser.id, sku: "single_watch", billable_id: "bill_fail" },
+          client_reference_id: asyncUser.id,
+        },
+      },
+    },
+    helpers
+  );
+  assert.strictEqual(asyncFailed.skipped, "async_failed");
+  assert.ok(!writes.some((w) => w.billable_id === "bill_fail"));
+
   const repairUser = await store.upsertByEmail("repair@example.com");
   await store.put({ ...repairUser, phone: "+15550000", single_watch_count: 2 });
   await store.putCheckout("cs_repair", {

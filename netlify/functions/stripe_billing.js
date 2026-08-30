@@ -264,8 +264,13 @@ async function applyStripeEvent(stripeEvent, helpers) {
   const type = stripeEvent.type;
   const obj = stripeEvent.data && stripeEvent.data.object;
   if (!obj) return { skipped: "no_object" };
-  if (type === "checkout.session.completed") {
+  // completed can fire while payment_status is unpaid (Klarna, bank debit).
+  // Fulfill only when paid / no_payment_required. Async success is a second event.
+  if (type === "checkout.session.completed" || type === "checkout.session.async_payment_succeeded") {
     return applyCheckoutCompleted(obj, helpers);
+  }
+  if (type === "checkout.session.async_payment_failed") {
+    return { skipped: "async_failed" };
   }
   if (
     type === "customer.subscription.created" ||

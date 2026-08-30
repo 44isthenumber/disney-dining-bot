@@ -103,7 +103,9 @@ Internal POST `/watches` remains 201/422/500 as today. Never Checkout. Never `sm
 
 `POST /_api/billing/webhook` is a **public path** (no session cookie, no `X-API-Secret`). Handle it in `exports.handler` **after** `connectBlobsFromEvent` and **before** `resolveIdentity` (same band as `/auth/magic-link`). Verify `Stripe-Signature` against the **raw** body (`event.body`, base64-decode if `isBase64Encoded`) via `stripe.webhooks.constructEvent`. Invalid signature → **400**. Do not `JSON.parse` before verify.
 
-Handled types: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`. Unknown types → 200 no-op.
+Handled types: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`. Unknown types → 200 no-op.
+
+`checkout.session.completed` can fire while `payment_status` is still `unpaid` (Klarna, bank debit). Apply the same paid-session gate as today (`isPaidCheckout`). Fulfill on `async_payment_succeeded` with the same handler as a paid `completed`. `async_payment_failed` → 200, no Gist write, pending blob left for retry.
 
 Idempotent on `event.id`: claim a blob key `stripe_event:<event.id>` (reuse `claimNonce` with that key). Duplicate → 200, no second Gist write.
 
