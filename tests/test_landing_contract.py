@@ -75,6 +75,16 @@ class LandingContractTest(unittest.TestCase):
         self.assertNotIn("app.html", INDEX)
         self.assertNotIn("autofocus", INDEX.lower())
         self.assertNotRegex(INDEX, r'id="login-pwd"[^>]*value="')
+        self.assertIn('id="login-email"', INDEX)
+        self.assertIn('id="login-magic-btn"', INDEX)
+        self.assertIn('id="login-magic-status"', INDEX)
+        self.assertIn("Email a sign-in link", INDEX)
+        self.assertIn("Private sign-in", INDEX)
+        self.assertIn("signin=invalid", INDEX)
+        self.assertIn('id="billing-next-banner"', INDEX)
+        overlay = INDEX.split('id="login-overlay"', 1)[1].split('id="app-shell"', 1)[0]
+        self.assertNotIn("For Craig and Jessica", overlay)
+        self.assertNotIn('id="login-profile-list"', overlay)
 
     def test_overlay_is_scrollable_landing_not_flex_box(self):
         overlay_css = re.search(

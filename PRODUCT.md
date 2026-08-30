@@ -17,11 +17,13 @@ Do not regress this into a generic availability dashboard. Alerts are for **newl
 
 ## Consumer direction
 
-Public launch is in progress. Tracking spec: [CONSUMER-EPIC.md](CONSUMER-EPIC.md). Do not implement Stripe, magic-link auth, or a new user store unless you are on **Slice 2+** of that epic. Slice 1 is dining-selection UX on the existing Craig/Jessica login.
+Public launch is in progress. Tracking spec: [CONSUMER-EPIC.md](CONSUMER-EPIC.md). **Slice 2 (current):** email magic-link + session cookie + Netlify Blobs user store (`mtf-users`). Consumers cannot create live watches until Slice 3 Stripe. Do not implement Checkout, Portal, or webhooks unless you are on Slice 3. Do not put consumer accounts in Gist or `WATCH_USERS`. Do not clear `open_slots.json` or `seen_slots.json`.
 
 **Billable watch (locked):** one restaurant + party + meal periods + optional time window + one or more dates. Never treat one `watches.json` date row as a paid alert.
 
-**Hybrid billing (locked, not shipped):** Single Watch is a one-time Stripe Checkout (`mode=payment`) for one billable watch, flat price, until the last date passes. Planner is a monthly subscription for people who keep adding watches. Same Stripe Customer. Checkout is created only after login. Stripe webhooks own consumer active/inactive. Craig and Jessica (`craig`, `Jessica`) stay unrestricted: no Stripe, no cap, no Checkout.
+**Identity (Slice 2):** Consumers sign in with an email magic link (`POST /_api/auth/magic-link`, `GET /_api/auth/callback`). Session is httpOnly cookie `mtf_session`. Craig and Jessica keep private `WATCH_USERS` username+password (`X-User-Id` + `X-API-Secret`). Consumer records live in Netlify Blobs store `mtf-users`, not Gist. Env (values never in git): `MAGIC_LINK_SECRET`, `RESEND_API_KEY`, `MAGIC_LINK_FROM`.
+
+**Hybrid billing (locked, not shipped):** Single Watch is a one-time Stripe Checkout (`mode=payment`) for one billable watch, flat price, until the last date passes. Planner is a monthly subscription for people who keep adding watches. Same Stripe Customer. Checkout is created only after login. Stripe webhooks own consumer active/inactive. Craig and Jessica (`craig`, `Jessica`) stay unrestricted: no Stripe, no cap, no Checkout. Until Slice 3, `can_create_watch` is false for consumers (HTTP 402 `billing_required`).
 
 **Competitive notes (dining selection):**
 
