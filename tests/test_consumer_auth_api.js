@@ -175,6 +175,34 @@ function cookieHeaderFrom(res) {
   assert.strictEqual(rawCb.statusCode, 302);
   assert.strictEqual(rawCb.headers.Location, "/?signin=ok");
 
+  const apiSrc = require("fs").readFileSync(
+    require("path").join(__dirname, "../netlify/functions/api.js"),
+    "utf8"
+  );
+  assert.ok(apiSrc.includes("connectBlobsFromEvent(event)"));
+  assert.ok(apiSrc.includes('redirect("/?signin=error")'));
+
+  const origConsume = sessionAuth.consumeMagicToken;
+  sessionAuth.consumeMagicToken = async () => {
+    throw new Error(
+      "The environment has not been configured to use Netlify Blobs. To use it manually, supply the following properties when creating a store: siteID, token"
+    );
+  };
+  try {
+    const boom = await handler(
+      ev("GET", "/_api/auth/callback", {
+        query: { token: "x" },
+        headers: { "x-forwarded-proto": "https" },
+      })
+    );
+    assert.strictEqual(boom.statusCode, 302);
+    assert.strictEqual(boom.headers.Location, "/?signin=error");
+    assert.ok(!String((boom.headers && boom.headers["Set-Cookie"]) || "").includes("mtf_session="));
+    assert.ok(!String(boom.body || "").includes("siteID"));
+  } finally {
+    sessionAuth.consumeMagicToken = origConsume;
+  }
+
   const bad = await handler(
     ev("GET", "/_api/auth/callback", {
       query: { token: "nope" },

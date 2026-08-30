@@ -872,6 +872,8 @@ exports.handler = async function (event) {
     return response(204, "");
   }
 
+  userStore.connectBlobsFromEvent(event);
+
   const p = apiPath(event);
   const method = event.httpMethod;
 
@@ -901,6 +903,9 @@ exports.handler = async function (event) {
     return response(404, { detail: `Not found: ${method} ${p}` });
   } catch (err) {
     console.error("Handler error:", err);
+    if (method === "GET" && p === "/auth/callback") {
+      return redirect("/?signin=error");
+    }
     return response(500, { detail: err.message || "Internal server error" });
   }
 };

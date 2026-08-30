@@ -1248,7 +1248,7 @@ document.getElementById('logout-btn').addEventListener('click', function() {
 })();
 
 async function bootSession() {
-  // GET /_api/auth/callback redirects to ?signin=ok or ?signin=invalid
+  // GET /_api/auth/callback redirects to ?signin=ok, ?signin=invalid, or ?signin=error
   var params = new URLSearchParams(window.location.search);
   var signin = params.get('signin');
   function stripSigninQuery() {
@@ -1264,6 +1264,14 @@ async function bootSession() {
     showLogin({
       scrollToSignin: true,
       message: 'That sign-in link is invalid or expired. Request a new one.',
+    });
+    stripSigninQuery();
+    return;
+  }
+  if (signin === 'error') {
+    showLogin({
+      scrollToSignin: true,
+      message: 'Sign-in is temporarily unavailable. Request a new link in a minute.',
     });
     stripSigninQuery();
     return;
