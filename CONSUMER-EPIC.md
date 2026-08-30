@@ -25,7 +25,7 @@ SMS when a **new matching** Walt Disney World reservation opening appears. Not a
 - Do not add Brunch to the poller, Disneyland, auto-booking, a free SMS tier, or a faster poll interval.
 - Do not advertise a minute-level poll interval on the public landing.
 - Do not make the Restaurants calendar the default logged-in surface.
-- Dollar amounts and the Planner watch cap stay **placeholders** until Craig sets them (cap placeholder: 8–10 concurrent billable watches for consumers).
+- Locked pricing (Craig 2026-08-30): Single Watch **$4.99** one-time; Planner **$14.99/month** for **4** active alerts. Do **not** put dollar amounts in `public/index.html`.
 - Auth, Stripe, Twilio, VPS, Gist cutover, destructive git: high-risk review (Codex). Stay off `main` unless Craig said deploy.
 
 ## Current slice
@@ -62,7 +62,7 @@ Store the unpaid payload in Netlify Blobs (`mtf-users`) keyed `checkout:<session
 
 `publicIdentity` stays additive. Include: existing fields, `can_create_watch` (true iff `canCreateWatch.ok` **and** Stripe is configured when the mode needs it), `planner_status`, `cancel_at_period_end`, `has_stripe_customer`, `billing_mode` (`internal` \| `planner` \| `single_watch` \| `blocked`), `upgrade_prompt` (true when `single_watch_count >= 2` and not on live Planner). If `STRIPE_SECRET_KEY` or `STRIPE_PRICE_SINGLE_WATCH` is unset, consumers in `single_watch` mode become `blocked` / `billing_unavailable` (`can_create_watch` false). Planner mode still needs `STRIPE_PRICE_PLANNER` only for `/billing/checkout`, not for in-app 201 writes.
 
-Cap: `PLANNER_WATCH_CAP` env, default **8**. Count **billable watches** (D1), not `watches.json` date rows. Each paid Create Watch stamps one `billable_id` on every date row it writes. Count distinct `billable_id` for that `owner_id` where any date is still active (`isActiveWatch`). Missing `billable_id` does not count toward the consumer cap.
+Cap: `PLANNER_WATCH_CAP` env, default **4**. Count **billable watches** (D1), not `watches.json` date rows. Each paid Create Watch stamps one `billable_id` on every date row it writes. Count distinct `billable_id` for that `owner_id` where any date is still active (`isActiveWatch`). Missing `billable_id` does not count toward the consumer cap.
 
 ### Stripe client (injectable)
 
@@ -168,7 +168,7 @@ Name Stripe as the payment processor. State that Checkout is **not** SMS consent
 
 ### Out of scope
 
-Live Stripe keys in Cloud, sending a real Checkout, public launch (Slice 4), poller/Disney session, `netlify.toml`, pause in Portal, dollar amounts, changing cap default away from 8 unless env set, Brunch, Disneyland, auto-book, free SMS, Goose/Claude Code.
+Live Stripe keys in Cloud, sending a real Checkout, public launch (Slice 4), poller/Disney session, `netlify.toml`, pause in Portal, putting `$` prices in `index.html`, Brunch, Disneyland, auto-book, free SMS, Goose/Claude Code.
 
 ---
 

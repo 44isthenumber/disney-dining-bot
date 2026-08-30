@@ -41,6 +41,8 @@ const single = canCreateWatch(consumer);
 assert.strictEqual(single.ok, true);
 assert.strictEqual(single.code, "single_watch");
 
+assert.strictEqual(plannerCap(), 4);
+
 const planner = { ...consumer, planner_status: "active" };
 assert.strictEqual(canCreateWatch(planner, { activeBillableCount: 1 }).code, "planner");
 assert.strictEqual(canCreateWatch(planner, { activeBillableCount: 1 }).ok, true);

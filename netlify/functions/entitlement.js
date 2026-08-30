@@ -27,8 +27,8 @@ function isInternalUser(user) {
 }
 
 function plannerCap() {
-  const n = parseInt(process.env.PLANNER_WATCH_CAP || "8", 10);
-  return Number.isFinite(n) && n > 0 ? n : 8;
+  const n = parseInt(process.env.PLANNER_WATCH_CAP || "4", 10);
+  return Number.isFinite(n) && n > 0 ? n : 4;
 }
 
 function livePlanner(user) {
