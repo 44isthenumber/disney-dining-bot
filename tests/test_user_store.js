@@ -54,14 +54,35 @@ assert.strictEqual(store.isReservedId("u_abc"), false);
   assert.strictEqual(store.blobWriteCreatedEntry(await fakeStore.set("used:a", "1", { onlyIfNew: true })), false);
 
   const prevStore = process.env.MTF_USER_STORE;
-  store.clearBackendForTests();
-  delete process.env.MTF_USER_STORE;
-  store.setBlobFactoryForTests(() => {
-    throw new Error("no blobs");
+  let connected = null;
+  store.setBlobsModuleForTests({
+    connectLambda(ev) {
+      connected = ev;
+    },
+    getStore() {
+      throw new Error("getStore should not run in this test");
+    },
   });
   try {
+    process.env.MTF_USER_STORE = "memory";
+    connected = null;
+    assert.strictEqual(store.connectBlobsFromEvent({ blobs: { token: "t" } }), false);
+    assert.strictEqual(connected, null);
+
+    delete process.env.MTF_USER_STORE;
+    assert.strictEqual(store.connectBlobsFromEvent({ blobs: { token: "t" } }), true);
+    assert.strictEqual(connected.blobs.token, "t");
+    connected = null;
+    assert.strictEqual(store.connectBlobsFromEvent({}), false);
+    assert.strictEqual(connected, null);
+
+    store.clearBackendForTests();
+    store.setBlobFactoryForTests(() => {
+      throw new Error("no blobs");
+    });
     assert.throws(() => store.getBackend(), /no blobs/);
   } finally {
+    store.setBlobsModuleForTests(null);
     store.setBlobFactoryForTests(null);
     process.env.MTF_USER_STORE = prevStore || "memory";
     store.resetMemoryStore();

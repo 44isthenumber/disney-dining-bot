@@ -84,7 +84,8 @@ class LandingContractTest(unittest.TestCase):
         self.assertIn("signin=ok", INDEX)
         self.assertIn("That sign-in link didn't complete", INDEX)
         self.assertIn("mtfSessionUser.kind === 'consumer'", INDEX)
-        self.assertNotRegex(INDEX, r"\nrefreshStatus\(\);")
+        self.assertIn("signin=error", INDEX)
+        self.assertIn("Sign-in is temporarily unavailable", INDEX)
         self.assertIn('id="billing-next-banner"', INDEX)
         overlay = INDEX.split('id="login-overlay"', 1)[1].split('id="app-shell"', 1)[0]
         self.assertNotIn("For Craig and Jessica", overlay)

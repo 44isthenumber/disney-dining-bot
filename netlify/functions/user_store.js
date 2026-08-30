@@ -94,8 +94,9 @@ function blobWriteCreatedEntry(result) {
 }
 
 function blobBackend() {
-  const { getStore } = require("@netlify/blobs");
-  const store = getStore(BLOB_STORE_NAME);
+  connectBlobsFromEvent(_blobsEvent);
+  const { getStore } = _blobsModule || require("@netlify/blobs");
+  const store = getStore({ name: BLOB_STORE_NAME });
   return {
     kind: "blobs",
     async getById(id) {
@@ -151,13 +152,30 @@ function blobBackend() {
 
 let _backend = null;
 let _blobFactory = blobBackend;
+let _blobsModule = null;
+let _blobsEvent = null;
 
 function setBlobFactoryForTests(fn) {
   _blobFactory = typeof fn === "function" ? fn : blobBackend;
 }
 
+function setBlobsModuleForTests(mod) {
+  _blobsModule = mod || null;
+}
+
 function clearBackendForTests() {
   _backend = null;
+  _blobsEvent = null;
+}
+
+function connectBlobsFromEvent(event) {
+  if (process.env.MTF_USER_STORE === "memory") return false;
+  if (!event || !event.blobs) return false;
+  _blobsEvent = event;
+  const blobs = _blobsModule || require("@netlify/blobs");
+  if (typeof blobs.connectLambda !== "function") return false;
+  blobs.connectLambda(event);
+  return true;
 }
 
 function getBackend() {
@@ -258,7 +276,9 @@ module.exports = {
   resetMemoryStore,
   setBackendForTests,
   setBlobFactoryForTests,
+  setBlobsModuleForTests,
   clearBackendForTests,
+  connectBlobsFromEvent,
   getBackend,
   blobWriteCreatedEntry,
 };

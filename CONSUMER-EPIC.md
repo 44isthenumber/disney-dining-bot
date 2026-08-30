@@ -283,6 +283,36 @@ As a guest who received the magic-link email, I click it once and land in the ap
 
 ---
 
+# Slice 2 hotfix — Netlify Blobs Lambda connect (build now)
+
+Production (2026-08-30, after US-2.5): click stays on `/_api/auth/callback?token=…` and Chrome shows JSON `{"detail":"The environment has not been configured to use Netlify Blobs. To use it manually, supply the following properties when creating a store: siteID, token"}`. Classic `exports.handler` is Lambda-compat; `@netlify/blobs` requires `connectLambda(event)` when `event.blobs` is present, **before** `getStore`. Proven pattern: git `aaaf6d3` `attachBlobsFromEvent`. Do **not** put a Blobs PAT in git or Cloud secrets. Do **not** restore silent memory fallback.
+
+## Builder contract
+
+1. `user_store.connectBlobsFromEvent(event)`: no-op if `MTF_USER_STORE=memory` or `!(event && event.blobs)`. Else `connectLambda(event)` (injectable blobs module in tests). Guard `event.blobs` so test events without it do not throw.
+2. Call it in `exports.handler` **after** the OPTIONS return and **before** any `userStore` / `handleAuthCallback` / `resolveIdentity`. All blob routes share this (callback, `/auth/me`, `/status`, `PATCH /me`), not callback-only.
+3. `blobBackend()` calls `connectBlobsFromEvent` then `getStore({ name: 'mtf-users' })` (default consistency — not `strong`, which needs `uncachedEdgeURL` Lambda does not provide). Still no silent memory fallback.
+4. `GET /auth/callback`: if consume/store throws, **302** `/?signin=error` with no `mtf_session`. Never return the Blobs `siteID, token` JSON to a browser on that path.
+5. Frontend `?signin=error` → `showLogin({ scrollToSignin: true, message: "Sign-in is temporarily unavailable. Request a new link in a minute." })` + `replaceState`.
+
+## User story US-2.6 — Callback uses Blobs in Lambda mode
+
+As a guest who clicks the email link, the function can use `mtf-users` and I land signed in (or a human message), never JSON config.
+
+**AC**
+
+1. `connectBlobsFromEvent({ blobs: { token: 't' } })` with stub `connectLambda` is called when `MTF_USER_STORE` is unset; with `MTF_USER_STORE=memory` it is not. Without `event.blobs`, `connectLambda` is not called.
+2. `api.js` handler calls `connectBlobsFromEvent(event)` (test: source includes that call, or spy).
+3. If `consumeMagicToken` throws, `GET /_api/auth/callback` → **302** `/?signin=error`, no `mtf_session` cookie.
+4. Landing: `signin=error` and `Sign-in is temporarily unavailable` in `public/index.html`.
+5. Existing Slice 2 / US-2.5 gates stay green. No `netlify.toml` change. No new env vars.
+
+**Files:** `netlify/functions/user_store.js`, `netlify/functions/api.js`, `public/index.html`, `CONSUMER-EPIC.md`, `tests/test_user_store.js`, `tests/test_consumer_auth_api.js`, `tests/test_landing_contract.py`.
+
+**Out of scope:** Stripe, VPS, Disney session, Functions API v2 rewrite, adding `siteID`/`token` secrets.
+
+---
+
 # Slice 3 — Stripe hybrid (backlog)
 
 Do not implement in the Slice 2 PR. Prices are placeholders.

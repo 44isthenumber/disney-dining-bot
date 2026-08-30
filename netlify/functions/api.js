@@ -876,6 +876,7 @@ exports.handler = async function (event) {
   const method = event.httpMethod;
 
   try {
+    userStore.connectBlobsFromEvent(event);
     if (method === "GET" && p === "/profiles") return response(200, { profiles: publicProfiles() });
     if (method === "GET" && p === "/health") return await handleHealth();
     if (method === "POST" && p === "/auth/magic-link") return await handleMagicLink(event);
@@ -901,6 +902,9 @@ exports.handler = async function (event) {
     return response(404, { detail: `Not found: ${method} ${p}` });
   } catch (err) {
     console.error("Handler error:", err);
+    if (method === "GET" && p === "/auth/callback") {
+      return redirect("/?signin=error");
+    }
     return response(500, { detail: err.message || "Internal server error" });
   }
 };
