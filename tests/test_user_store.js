@@ -37,6 +37,22 @@ assert.strictEqual(store.isReservedId("u_abc"), false);
   assert.strictEqual(await store.isNonceUsed("nonce-1"), true);
   assert.strictEqual(await store.isNonceUsed("nonce-2"), false);
 
+  assert.strictEqual(store.blobWriteCreatedEntry({ modified: true }), true);
+  assert.strictEqual(store.blobWriteCreatedEntry({ modified: false }), false);
+  assert.strictEqual(store.blobWriteCreatedEntry(undefined), true);
+
+  const fake = new Map();
+  const fakeStore = {
+    async get(key) { return fake.get(key) || null; },
+    async set(key, value, opts = {}) {
+      if (opts.onlyIfNew && fake.has(key)) return { modified: false };
+      fake.set(key, value);
+      return { modified: true };
+    },
+  };
+  assert.strictEqual(store.blobWriteCreatedEntry(await fakeStore.set("used:a", "1", { onlyIfNew: true })), true);
+  assert.strictEqual(store.blobWriteCreatedEntry(await fakeStore.set("used:a", "1", { onlyIfNew: true })), false);
+
   console.log("test_user_store ok");
 })().catch((err) => {
   console.error(err);

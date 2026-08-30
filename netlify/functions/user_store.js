@@ -89,6 +89,10 @@ function memoryBackend() {
   };
 }
 
+function blobWriteCreatedEntry(result) {
+  return !(result && result.modified === false);
+}
+
 function blobBackend() {
   const { getStore } = require("@netlify/blobs");
   const store = getStore(BLOB_STORE_NAME);
@@ -116,14 +120,8 @@ function blobBackend() {
       return Boolean(raw);
     },
     async claimNonce(nonce) {
-      try {
-        await store.set(`used:${nonce}`, "1", { onlyIfNew: true });
-        return true;
-      } catch {
-        const existing = await store.get(`used:${nonce}`);
-        if (existing) return false;
-        throw new Error("blob claimNonce failed");
-      }
+      const result = await store.set(`used:${nonce}`, "1", { onlyIfNew: true });
+      return blobWriteCreatedEntry(result);
     },
     async upsertByEmail(email, extra = {}) {
       const normalized = normalizeEmail(email);
@@ -135,16 +133,15 @@ function blobBackend() {
       }
       const id = newConsumerId();
       const rec = emptyRecord({ id, email: normalized, ...extra });
-      try {
-        await store.set(`email:${normalized}`, id, { onlyIfNew: true });
-      } catch {
+      const created = await store.set(`email:${normalized}`, id, { onlyIfNew: true });
+      if (!blobWriteCreatedEntry(created)) {
         const raced = await this.getByEmail(normalized);
         if (raced) {
           const merged = { ...raced, ...extra, id: raced.id, email: normalized, kind: "consumer" };
           await this.put(merged);
           return merged;
         }
-        throw new Error("blob upsertByEmail failed");
+        throw new Error("blob upsertByEmail lost the race");
       }
       await store.set(`id:${id}`, JSON.stringify(rec));
       return rec;
@@ -256,4 +253,5 @@ module.exports = {
   resetMemoryStore,
   setBackendForTests,
   getBackend,
+  blobWriteCreatedEntry,
 };
