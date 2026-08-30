@@ -32,6 +32,7 @@ function emptyRecord(overrides) {
     planner_subscription_id: null,
     planner_current_period_end: null,
     cancel_at_period_end: false,
+    single_watch_count: 0,
     ...overrides,
   };
 }
@@ -40,6 +41,8 @@ function memoryBackend() {
   const ids = new Map();
   const emails = new Map();
   const used = new Map();
+  const checkouts = new Map();
+  const stripeIndex = new Map();
   return {
     kind: "memory",
     async getById(id) {
@@ -50,9 +53,26 @@ function memoryBackend() {
       if (!uid) return null;
       return ids.get(uid) || null;
     },
+    async getByStripeCustomerId(customerId) {
+      const uid = stripeIndex.get(String(customerId || ""));
+      if (!uid) return null;
+      return ids.get(uid) || null;
+    },
     async put(record) {
       ids.set(record.id, record);
       emails.set(normalizeEmail(record.email), record.id);
+      if (record.stripe_customer_id) {
+        stripeIndex.set(String(record.stripe_customer_id), record.id);
+      }
+    },
+    async putCheckout(sessionId, payload) {
+      checkouts.set(String(sessionId), payload);
+    },
+    async getCheckout(sessionId) {
+      return checkouts.get(String(sessionId)) || null;
+    },
+    async deleteCheckout(sessionId) {
+      checkouts.delete(String(sessionId));
     },
     async markUsed(nonce) {
       used.set(String(nonce), "1");
@@ -85,6 +105,8 @@ function memoryBackend() {
       ids.clear();
       emails.clear();
       used.clear();
+      checkouts.clear();
+      stripeIndex.clear();
     },
   };
 }
@@ -109,9 +131,33 @@ function blobBackend() {
       if (!uid) return null;
       return this.getById(uid);
     },
+    async getByStripeCustomerId(customerId) {
+      if (!customerId) return null;
+      const uid = await store.get(`stripe:${customerId}`);
+      if (!uid) return null;
+      return this.getById(uid);
+    },
     async put(record) {
       await store.set(`id:${record.id}`, JSON.stringify(record));
       await store.set(`email:${normalizeEmail(record.email)}`, record.id);
+      if (record.stripe_customer_id) {
+        await store.set(`stripe:${record.stripe_customer_id}`, record.id);
+      }
+    },
+    async putCheckout(sessionId, payload) {
+      await store.set(`checkout:${sessionId}`, JSON.stringify(payload));
+    },
+    async getCheckout(sessionId) {
+      const raw = await store.get(`checkout:${sessionId}`);
+      if (!raw) return null;
+      return typeof raw === "string" ? JSON.parse(raw) : raw;
+    },
+    async deleteCheckout(sessionId) {
+      if (typeof store.delete === "function") {
+        await store.delete(`checkout:${sessionId}`);
+        return;
+      }
+      await store.set(`checkout:${sessionId}`, "");
     },
     async markUsed(nonce) {
       await store.set(`used:${nonce}`, "1");
@@ -261,6 +307,30 @@ async function isNonceUsed(nonce) {
   return getBackend().isUsed(nonce);
 }
 
+async function getByStripeCustomerId(customerId) {
+  if (!customerId) return null;
+  const backend = getBackend();
+  if (typeof backend.getByStripeCustomerId === "function") {
+    return backend.getByStripeCustomerId(customerId);
+  }
+  return null;
+}
+
+async function putCheckout(sessionId, payload) {
+  if (!sessionId) throw new Error("checkout session id required");
+  return getBackend().putCheckout(sessionId, payload);
+}
+
+async function getCheckout(sessionId) {
+  if (!sessionId) return null;
+  return getBackend().getCheckout(sessionId);
+}
+
+async function deleteCheckout(sessionId) {
+  if (!sessionId) return;
+  return getBackend().deleteCheckout(sessionId);
+}
+
 module.exports = {
   BLOB_STORE_NAME,
   normalizeEmail,
@@ -268,8 +338,12 @@ module.exports = {
   newConsumerId,
   getById,
   getByEmail,
+  getByStripeCustomerId,
   put,
   upsertByEmail,
+  putCheckout,
+  getCheckout,
+  deleteCheckout,
   claimNonce,
   markNonceUsed,
   isNonceUsed,

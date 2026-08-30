@@ -104,6 +104,7 @@ function cookieHeaderFrom(res) {
   assert.strictEqual(me.status, 200);
   assert.strictEqual(me.body.user.kind, "consumer");
   assert.strictEqual(me.body.user.can_create_watch, false);
+  assert.strictEqual(me.body.user.billing_mode, "blocked");
   assert.ok(me.body.user.id.startsWith("u_"));
   assert.notStrictEqual(me.body.user.id, "craig");
 
@@ -147,10 +148,8 @@ function cookieHeaderFrom(res) {
       })
     )
   );
-  assert.strictEqual(created.status, 402);
-  assert.strictEqual(created.body.code, "billing_required");
-  assert.strictEqual(created.body.can_create_watch, false);
-  assert.ok(String(created.body.detail).includes("Paid watches are next"));
+  assert.strictEqual(created.status, 422);
+  assert.ok(String(created.body.detail).includes("text consent"));
 
   const reused = await handler(
     ev("GET", "/_api/auth/callback", {
@@ -302,6 +301,129 @@ function cookieHeaderFrom(res) {
     )
   );
   assert.strictEqual(patchInternal.status, 403);
+
+  const billing = require("../netlify/functions/stripe_billing");
+  process.env.STRIPE_SECRET_KEY = "sk_test_fake";
+  process.env.STRIPE_PRICE_SINGLE_WATCH = "price_single";
+  process.env.STRIPE_PRICE_PLANNER = "price_planner";
+  process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
+  billing.setStripeForTests({
+    checkout: {
+      sessions: {
+        create: async (args) => ({
+          id: "cs_live_test",
+          url: "https://checkout.stripe.com/c/pay/cs_live_test",
+          metadata: args.metadata,
+          client_reference_id: args.client_reference_id,
+          mode: args.mode,
+        }),
+      },
+    },
+    billingPortal: {
+      sessions: { create: async () => ({ url: "https://billing.stripe.com/p/test" }) },
+    },
+    webhooks: {
+      constructEvent: (body, sig) => {
+        if (sig !== "ok") throw new Error("bad");
+        return JSON.parse(body);
+      },
+    },
+  });
+  const writes = [];
+  require("../netlify/functions/api").setWatchWriterForTests(async (rows) => {
+    writes.splice(0, writes.length, ...rows);
+  });
+
+  const watchPayload = {
+    facility_id: "90002686",
+    name: "Test",
+    slug: "test",
+    party_size: 2,
+    dates: ["2099-01-01"],
+    meal_periods: ["DINNER"],
+    sms_consent: true,
+  };
+  const checkout = parse(
+    await handler(
+      ev("POST", "/_api/watches", {
+        headers: { cookie, "x-forwarded-proto": "https", "content-type": "application/json" },
+        body: watchPayload,
+      })
+    )
+  );
+  assert.strictEqual(checkout.status, 402);
+  assert.strictEqual(checkout.body.code, "checkout_required");
+  assert.ok(String(checkout.body.checkout_url).startsWith("https://"));
+  assert.strictEqual(writes.length, 0);
+
+  const noSms = parse(
+    await handler(
+      ev("POST", "/_api/watches", {
+        headers: { cookie, "x-forwarded-proto": "https", "content-type": "application/json" },
+        body: { ...watchPayload, sms_consent: false },
+      })
+    )
+  );
+  assert.strictEqual(noSms.status, 422);
+
+  const rec = await store.getById(me.body.user.id);
+  await store.put({ ...rec, phone: "+15551234567", planner_status: "active" });
+  const plannerPost = parse(
+    await handler(
+      ev("POST", "/_api/watches", {
+        headers: { cookie, "x-forwarded-proto": "https", "content-type": "application/json" },
+        body: watchPayload,
+      })
+    )
+  );
+  assert.strictEqual(plannerPost.status, 201);
+  assert.ok(Array.isArray(plannerPost.body.added));
+  assert.ok(plannerPost.body.added.length >= 1);
+  assert.ok(writes.length >= 1);
+
+  process.env.PLANNER_WATCH_CAP = "1";
+  const capped = parse(
+    await handler(
+      ev("POST", "/_api/watches", {
+        headers: { cookie, "x-forwarded-proto": "https", "content-type": "application/json" },
+        body: { ...watchPayload, dates: ["2099-02-01"] },
+      })
+    )
+  );
+  assert.strictEqual(capped.status, 402);
+  assert.strictEqual(capped.body.code, "planner_cap");
+  delete process.env.PLANNER_WATCH_CAP;
+
+  const internalCheckout = parse(
+    await handler(
+      ev("POST", "/_api/billing/checkout", {
+        headers: { "X-User-Id": "craig", "X-API-Secret": "craig-secret" },
+        body: { sku: "planner" },
+      })
+    )
+  );
+  assert.strictEqual(internalCheckout.status, 403);
+  assert.strictEqual(internalCheckout.body.code, "internal_no_stripe");
+
+  const internalPortal = parse(
+    await handler(
+      ev("POST", "/_api/billing/portal", {
+        headers: { "X-User-Id": "craig", "X-API-Secret": "craig-secret" },
+      })
+    )
+  );
+  assert.strictEqual(internalPortal.status, 403);
+
+  assert.ok(_test.PUBLIC_PATHS.has("/billing/webhook"));
+  const webhook = parse(
+    await handler(
+      ev("POST", "/_api/billing/webhook", {
+        headers: { "stripe-signature": "nope" },
+        rawBody: JSON.stringify({ id: "evt_x", type: "ping", data: { object: {} } }),
+      })
+    )
+  );
+  assert.strictEqual(webhook.status, 400);
 
   const logout = await handler(
     ev("POST", "/_api/auth/logout", { headers: { cookie, "x-forwarded-proto": "https" } })

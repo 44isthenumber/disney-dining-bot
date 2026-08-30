@@ -2,7 +2,8 @@
   "name": "disney-dining-bot-functions",
   "version": "1.0.0",
   "dependencies": {
+    "@netlify/blobs": "^8.1.2",
     "js-yaml": "^4.1.0",
-    "@netlify/blobs": "^8.1.2"
+    "stripe": "^18.5.0"
   }
 }
