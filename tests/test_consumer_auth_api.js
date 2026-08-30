@@ -203,6 +203,26 @@ function cookieHeaderFrom(res) {
     sessionAuth.consumeMagicToken = origConsume;
   }
 
+  const origConnect = store.connectBlobsFromEvent;
+  store.connectBlobsFromEvent = () => {
+    throw new Error(
+      "The environment has not been configured to use Netlify Blobs. To use it manually, supply the following properties when creating a store: siteID, token"
+    );
+  };
+  try {
+    const connectBoom = await handler(
+      ev("GET", "/_api/auth/callback", {
+        query: { token: "x" },
+        headers: { "x-forwarded-proto": "https" },
+      })
+    );
+    assert.strictEqual(connectBoom.statusCode, 302);
+    assert.strictEqual(connectBoom.headers.Location, "/?signin=error");
+    assert.ok(!String(connectBoom.body || "").includes("siteID"));
+  } finally {
+    store.connectBlobsFromEvent = origConnect;
+  }
+
   const bad = await handler(
     ev("GET", "/_api/auth/callback", {
       query: { token: "nope" },

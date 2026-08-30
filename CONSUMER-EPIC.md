@@ -291,7 +291,7 @@ Production (2026-08-30, after US-2.5): click stays on `/_api/auth/callback?token
 
 1. `user_store.connectBlobsFromEvent(event)`: no-op if `MTF_USER_STORE=memory` or `!(event && event.blobs)`. Else `connectLambda(event)` (injectable blobs module in tests). Guard `event.blobs` so test events without it do not throw.
 2. Call it in `exports.handler` **after** the OPTIONS return and **before** any `userStore` / `handleAuthCallback` / `resolveIdentity`. All blob routes share this (callback, `/auth/me`, `/status`, `PATCH /me`), not callback-only.
-3. `blobBackend()` calls `connectBlobsFromEvent` then `getStore({ name: 'mtf-users', consistency: 'strong' })`. Still no silent memory fallback.
+3. `blobBackend()` calls `connectBlobsFromEvent` then `getStore({ name: 'mtf-users' })` (default consistency — not `strong`, which needs `uncachedEdgeURL` Lambda does not provide). Still no silent memory fallback.
 4. `GET /auth/callback`: if consume/store throws, **302** `/?signin=error` with no `mtf_session`. Never return the Blobs `siteID, token` JSON to a browser on that path.
 5. Frontend `?signin=error` → `showLogin({ scrollToSignin: true, message: "Sign-in is temporarily unavailable. Request a new link in a minute." })` + `replaceState`.
 

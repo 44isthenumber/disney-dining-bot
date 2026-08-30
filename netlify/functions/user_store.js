@@ -96,7 +96,7 @@ function blobWriteCreatedEntry(result) {
 function blobBackend() {
   connectBlobsFromEvent(_blobsEvent);
   const { getStore } = _blobsModule || require("@netlify/blobs");
-  const store = getStore({ name: BLOB_STORE_NAME, consistency: "strong" });
+  const store = getStore({ name: BLOB_STORE_NAME });
   return {
     kind: "blobs",
     async getById(id) {

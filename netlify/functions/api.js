@@ -872,12 +872,11 @@ exports.handler = async function (event) {
     return response(204, "");
   }
 
-  userStore.connectBlobsFromEvent(event);
-
   const p = apiPath(event);
   const method = event.httpMethod;
 
   try {
+    userStore.connectBlobsFromEvent(event);
     if (method === "GET" && p === "/profiles") return response(200, { profiles: publicProfiles() });
     if (method === "GET" && p === "/health") return await handleHealth();
     if (method === "POST" && p === "/auth/magic-link") return await handleMagicLink(event);
