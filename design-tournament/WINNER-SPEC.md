@@ -20,7 +20,7 @@ Do not change Netlify functions, poller, Gist, Disney session, or alert semantic
 - Type: Fraunces headlines, Source Sans 3 UI (Google Fonts + system fallbacks)
 - Color: dusk ink `#1C1917`, warm paper `#F6F1E8`, gold `#B0894A`, moss `#3F5C4A`
 - Primary CTAs are **ink**, not lime or saturated blue
-- Atmosphere: plate-rim / candle SVG only. No castle, no 🏰, no Disney marks
+- Atmosphere: plate-rim / candle SVG in the hero. Wordmark is Fraunces ink type with a gold wand and pixie dust on the capital M (Craig, 2026-08-30). No castle, no 🏰, no Disney trademarks.
 - Headline: **“We monitor the openings.”**
 - Subhead: **“We'll text you when your Walt Disney World reservations open up. You log in. You book.”**
 

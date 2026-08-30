@@ -507,8 +507,29 @@
     display: inline-flex; align-items: center; gap: 8px;
     font-family: var(--font-serif); font-size: 17px; font-weight: 500;
     color: var(--ink); text-decoration: none; white-space: nowrap;
+    padding-left: 0.12em; overflow: visible;
   }
   .landing-wordmark svg { color: var(--gold); flex-shrink: 0; }
+  .wordmark-name { letter-spacing: -0.02em; }
+  .wordmark-magic {
+    position: relative; display: inline-block;
+    padding-left: 0.02em; overflow: visible;
+  }
+  .wordmark-wand-accent {
+    position: absolute; left: -0.22em; top: -0.18em;
+    height: 1.32em; width: auto; overflow: visible; pointer-events: none;
+    color: var(--gold);
+  }
+  .wordmark-mark { color: var(--gold); flex-shrink: 0; }
+  @media (min-width: 641px) {
+    .landing-wordmark .wordmark-mark { display: none; }
+  }
+  #app-shell > header h1.brand-wordmark {
+    display: inline-flex; align-items: baseline; gap: 0;
+    font-family: var(--font-serif); font-size: 17px; font-weight: 500;
+    white-space: nowrap; letter-spacing: -0.02em;
+    padding-left: 0.28em; overflow: visible;
+  }
   .landing-promise {
     margin: 0; text-align: center; font-size: 13px; color: var(--muted);
     min-width: 0;
@@ -650,11 +671,17 @@
   <header class="landing-header">
     <div class="landing-header-inner">
       <a href="#hero" class="landing-wordmark landing-nav" aria-label="Magic Table Finder">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
-          <circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/>
-          <path d="M12 3v3M12 18v3M3 12h3M18 12h3"/>
+        <svg class="wordmark-mark" width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+          <line x1="3.2" y1="14.8" x2="10.4" y2="7.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+          <circle cx="2.9" cy="15.1" r="1.15" fill="currentColor"/>
+          <path fill="currentColor" d="M11.15 6.2 11 7.5 9.7 7.9 9.85 6.6Z"/>
+          <path fill="currentColor" d="M13.45 2.35 13.75 4.1 15.5 4.4 13.75 4.7 13.45 6.45 13.15 4.7 11.4 4.4 13.15 4.1Z"/>
+          <path fill="currentColor" d="M15.4 7.65 15.58 8.72 16.65 8.9 15.58 9.08 15.4 10.15 15.22 9.08 14.15 8.9 15.22 8.72Z"/>
+          <circle cx="11.6" cy="10.6" r=".55" fill="currentColor"/>
+          <circle cx="14.15" cy="12.55" r=".4" fill="currentColor"/>
+          <circle cx="9.75" cy="13.35" r=".38" fill="currentColor"/>
         </svg>
-        <span class="wordmark-name">Magic Table Finder</span>
+        <span class="wordmark-name"><span class="wordmark-magic"><svg class="wordmark-wand-accent" viewBox="0 0 20 32" fill="none" aria-hidden="true"><line x1="2.8" y1="29.2" x2="9" y2="7.6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="2.6" cy="29.5" r="1.15" fill="currentColor"/><path fill="currentColor" d="M9.15 5.55 10.05 7.35 8.85 8.35 7.95 6.55Z"/><path fill="currentColor" d="M12.35 1.55 12.72 3.85 15.02 4.22 12.72 4.59 12.35 6.89 11.98 4.59 9.68 4.22 11.98 3.85Z"/><path fill="currentColor" d="M15.05 8.35 15.28 9.72 16.65 9.95 15.28 10.18 15.05 11.55 14.82 10.18 13.45 9.95 14.82 9.72Z"/><path fill="currentColor" d="M11.25 12.55 11.42 13.52 12.39 13.69 11.42 13.86 11.25 14.83 11.08 13.86 10.11 13.69 11.08 13.52Z"/><circle cx="13.25" cy="17.7" r=".65" fill="currentColor"/><circle cx="11.45" cy="21.5" r=".5" fill="currentColor"/><circle cx="13.55" cy="24.9" r=".45" fill="currentColor"/><circle cx="12.05" cy="28.05" r=".35" fill="currentColor"/></svg>M</span>agic Table Finder</span>
       </a>
       <p class="landing-promise">We text you when a matching table newly opens.</p>
       <a href="#signin" class="l-btn l-btn-secondary l-btn-sm landing-nav landing-go-signin">Sign in</a>
@@ -825,7 +852,7 @@
 <div id="app-shell" aria-hidden="true">
 <!-- ── Header ──────────────────────────────────────────────────────── -->
 <header>
-  <h1>Magic Table Finder</h1>
+  <h1 class="brand-wordmark" aria-label="Magic Table Finder"><span class="wordmark-name"><span class="wordmark-magic"><svg class="wordmark-wand-accent" viewBox="0 0 20 32" fill="none" aria-hidden="true"><line x1="2.8" y1="29.2" x2="9" y2="7.6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="2.6" cy="29.5" r="1.15" fill="currentColor"/><path fill="currentColor" d="M9.15 5.55 10.05 7.35 8.85 8.35 7.95 6.55Z"/><path fill="currentColor" d="M12.35 1.55 12.72 3.85 15.02 4.22 12.72 4.59 12.35 6.89 11.98 4.59 9.68 4.22 11.98 3.85Z"/><path fill="currentColor" d="M15.05 8.35 15.28 9.72 16.65 9.95 15.28 10.18 15.05 11.55 14.82 10.18 13.45 9.95 14.82 9.72Z"/><path fill="currentColor" d="M11.25 12.55 11.42 13.52 12.39 13.69 11.42 13.86 11.25 14.83 11.08 13.86 10.11 13.69 11.08 13.52Z"/><circle cx="13.25" cy="17.7" r=".65" fill="currentColor"/><circle cx="11.45" cy="21.5" r=".5" fill="currentColor"/><circle cx="13.55" cy="24.9" r=".45" fill="currentColor"/><circle cx="12.05" cy="28.05" r=".35" fill="currentColor"/></svg>M</span>agic Table Finder</span></h1>
   <div class="hdr-sep"></div>
   <span id="profile-label" class="owner-chip"></span>
   <span id="plan-line" hidden></span>
