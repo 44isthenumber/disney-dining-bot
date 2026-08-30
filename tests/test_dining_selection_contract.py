@@ -32,6 +32,8 @@ class DiningSelectionContractTest(unittest.TestCase):
         self.assertIn("Watch this", INDEX)
         self.assertIn("See dates", INDEX)
         self.assertNotIn("Check Calendar", INDEX)
+        self.assertIn('data-action="watch-this"', INDEX)
+        self.assertIn('data-action="see-dates"', INDEX)
         self.assertIn("selectRestaurant(btn.dataset.watchId)", INDEX)
 
     def test_default_tab_is_watches(self):

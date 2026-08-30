@@ -1238,20 +1238,24 @@ function renderGrid(list) {
         '</div>' +
       '</div>' +
       '<div class="card-actions">' +
-        '<button type="button" class="card-btn" data-watch-id="'+esc(r.facility_id)+'">Watch this</button>' +
-        '<button type="button" class="card-btn secondary" data-id="'+esc(r.facility_id)+'" data-slug="'+esc(r.slug)+'" data-name="'+esc(r.name)+'">See dates</button>' +
+        '<button type="button" class="card-btn" data-action="watch-this" data-watch-id="'+esc(r.facility_id)+'">Watch this</button>' +
+        '<button type="button" class="card-btn secondary" data-action="see-dates" data-id="'+esc(r.facility_id)+'" data-slug="'+esc(r.slug)+'" data-name="'+esc(r.name)+'">See dates</button>' +
       '</div>' +
     '</div>';
   }).join('');
 
-  grid.querySelectorAll('.card-btn[data-watch-id]').forEach(function(btn) {
-    btn.addEventListener('click', function() {
+  grid.querySelectorAll('[data-action="watch-this"]').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
       selectRestaurant(btn.dataset.watchId);
       document.getElementById('create-watch').scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   });
-  grid.querySelectorAll('.card-btn.secondary').forEach(function(btn) {
-    btn.addEventListener('click', function() {
+  grid.querySelectorAll('[data-action="see-dates"]').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
       openModal(btn.dataset.id, btn.dataset.slug, btn.dataset.name, getPartySize());
     });
   });
