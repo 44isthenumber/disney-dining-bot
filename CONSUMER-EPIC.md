@@ -30,13 +30,13 @@ SMS when a **new matching** Walt Disney World reservation opening appears. Not a
 
 ## Current slice
 
-**Slice 1 is the only slice to build now.** Stories US-1.1 through US-1.6. Slices 2–4 are backlog; citing them in a Slice 1 PR is drift.
+**Slice 2 is the only slice to build now.** Stories US-2.1 through US-2.4. Slice 1 is shipped on `main`. Slices 3–4 are backlog; citing Stripe Checkout, Customer Portal, or Gist watch cutover in this PR is drift.
 
 ---
 
-# Slice 1 — Dining selection (build now)
+# Slice 1 — Dining selection (shipped)
 
-Family app stays on `WATCH_USERS` login. No Stripe. No new user store.
+Shipped on `main` (PR #11). Family app stayed on `WATCH_USERS` login. No Stripe. No new user store. Do not reopen Slice 1 in this PR except to keep existing landing/dining tests green.
 
 ### User story US-1.1 — Typeahead restaurant picker
 
@@ -119,33 +119,132 @@ As an agent, I can read why we are building this without inventing billing or au
 
 ---
 
-# Slice 2 — Consumer identity (backlog)
+# Slice 2 — Consumer identity (build now)
 
-Do not implement in the Slice 1 PR.
+Identity plumbing only. No Stripe Checkout, no Customer Portal, no webhooks, no consumer rows in `watches.json`. A consumer who signs in with email **must not** get a live SMS watch. Slice 4 still owns marketing launch and a global poller budget.
 
-### US-2.1 Magic link for consumers
+Auth is high-risk. Live `MAGIC_LINK_SECRET` / `RESEND_API_KEY` stay in Netlify env, never in the repo or Cloud Agent secrets. Tests inject a sender and an in-memory store. Cloud must not send a real magic-link email.
 
-As a new guest, I sign in with email magic link (session cookie). No public Craig/Jessica profile directory. Phone is collected for SMS, not used as login.
+## Assumptions
 
-**Files (when opened):** Netlify functions for session + mail, frontend login panel, tests. High-risk: auth.
+- Email magic link is the public consumer login. Phone is not a login factor. Google OAuth is out. Slice 2 ships **identity** on the landing; it does not ship a live paid or free SMS watch (that is Slice 3). Slice 4 is marketing launch + poller budget, not “hide the email field.”
+- `GET /_api/profiles` still returns Craig/Jessica so `scripts/smoke_test_api.py` keeps working. That is **not** a public directory: the landing must not render those names as a picker, chips, or list. Cloud does not run live smoke (no `API_SECRET`); `tests/test_consumer_auth_api.js` asserts `/profiles` includes `craig`.
+- Magic-link callback is `GET /_api/auth/callback` because `netlify.toml` sends unmatched paths to the SPA. A bare `/auth/callback` would never hit the function.
+- Same-origin `fetch('/_api/...')` carries cookies. Keep `Access-Control-Allow-Origin: *` for header-based internal/API clients. Do not require credentialed CORS for this slice.
+- Until Slice 3, `can_create_watch` is true only for internal `WATCH_USERS` identities.
 
-### US-2.2 Internal owners stay unrestricted
+## Builder contract (do not invent)
 
-As Craig or Jessica, I still use the private name+password path. Create Watch never send me to Stripe. No watch cap.
+All auth routes live in `netlify/functions/api.js` `exports.handler`, using helpers from `session_auth.js`, `user_store.js`, and `entitlement.js`. Do not add a second Netlify function or change `netlify.toml`.
 
-**Files (when opened):** entitlement helper used by API + later poller; tests that `craig` / `Jessica` skip Stripe.
+**HMAC tokens (magic link and session cookie):** `base64url(JSON_payload) + "." + base64url(hmac_sha256(MAGIC_LINK_SECRET, payload_b64))`. Magic-link payload: `{ email, nonce, exp }` with `exp` = now + 900 seconds (unix). Session payload: `{ uid, exp }` with `exp` = now + 30 days. Verify with `crypto.timingSafeEqual`. Email normalization: `trim` + `toLowerCase` only (no Gmail-dot canonicalization).
 
-### US-2.3 Users do not live in Gist or `WATCH_USERS`
+**Public paths (skip password/`X-API-Secret`; handled before identity gate):** `GET /profiles`, `GET /health`, `POST /auth/magic-link`, `GET /auth/callback`, `GET /auth/me`, `POST /auth/logout`. Replace today’s `checkSecret()` gate: protected routes require `resolveIdentity(event)` to return a user. **A valid `mtf_session` is sufficient; consumers have no password and must not be asked for `X-API-Secret`.**
 
-As an operator, consumer accounts and entitlement live in a real store. Gist remains poller health / `open_slots` / `seen_slots` until a later cutover. Do not clear those files.
+**`resolveIdentity` order:** (1) `X-User-Id` present **and** `X-API-Secret` equals that `WATCH_USERS` user’s password → `{ ...user, kind: 'internal' }`; (2) else valid `mtf_session` whose `uid` loads from the user store → consumer; (3) else `null` (401 on protected routes). Do **not** fall back to `DEFAULT_OWNER_ID` / `craig` when headers are empty. Empty `X-API-Secret` must not authenticate as internal even if `X-User-Id` is `craig`.
 
-**Files (when opened):** new store + migration plan in `PRODUCT.md`. High-risk: Gist.
+**`apiFetch`:** `credentials: 'include'`. Send `X-API-Secret` only when `getSecret()` is non-empty; send `X-User-Id` only when `getUserId()` is non-empty. `getUserId()` returns `localStorage disneyUserId` or `''` — never a hardcoded `craig`. Cookie-only calls therefore send neither auth header.
+
+**Cookie-only API (must be tested):** after a valid session cookie and **no** `X-User-Id`/`X-API-Secret`, `GET /status` and `GET /watches` return 200 scoped to the consumer; `POST /watches` returns 402 with body `{ "detail": "<honest paid-watches-are-next sentence>", "code": "billing_required", "can_create_watch": false }` and must not call Gist write.
+
+**Invalid magic link:** `GET /auth/callback` with bad/expired/reused token → **302** `Location: /?signin=invalid` and no `Set-Cookie` for `mtf_session`. Frontend: if `URLSearchParams` has `signin=invalid`, `showLogin({ scrollToSignin: true, message: "That sign-in link is invalid or expired. Request a new one." })` and `history.replaceState` to strip the query.
+
+**`mtf_ui` stale:** if first paint set `has-session` from `mtf_ui=1` but `GET /auth/me` is 401 and there is no `disneyApiSecret`, remove `has-session`, `showLogin()`, and `POST /auth/logout` (clears both cookies).
+
+**Internal header secret:** `X-API-Secret` must equal that user’s `WATCH_USERS` password when the password is non-empty; if the password is empty, accept `API_SECRET` (same fallback as today’s `checkSecret`). Do not treat `API_SECRET` as a bypass when a per-user password is set.
+
+**`POST /_api/auth/magic-link` body:** JSON `{ "email": "<string>" }` only.
+
+**`PATCH /_api/me` phone:** trimmed string, max 40 characters; no E.164 requirement this slice. Empty string clears phone.
+
+**Create Watch when `can_create_watch` is false (one behavior, all surfaces):** show `#billing-next-banner`; disable `#create-btn` and `#bulk-btn`; do **not** POST from `#watch-form`, `calAddWatch`, `watchAllGrey`, or calendar day clicks; leave `#sms-consent` and `#modal-sms-consent` unchecked and do not require them (hide or disable both). **See dates** may still open the calendar for browsing. D7 stands: SMS consent is only collected when a watch can actually be created (Slice 3). If a consumer POST still reaches the API, return the 402 body above (defense in depth) — UI must not rely on that path.
+
+**`PATCH /_api/me` phone** does **not** grant SMS consent, does not replace `#sms-consent`, and does not make `can_create_watch` true. Phone on the consumer record is a delivery address for Slice 3, not an opt-in.
+
+**Magic link vs internal ids:** every magic-link email creates/loads a **consumer** (`kind: 'consumer'`, id `u_` + hex). `WATCH_USERS` has no email field; never authenticate a magic link as `craig`/`Jessica`. Store `put` rejects ids `craig` and `Jessica`.
+
+**`privacy.html`:** state that email is used to send a sign-in link; signing in and saving a phone number are **not** SMS consent; SMS consent remains the unchecked Create Watch checkbox.
+
+**Node test gate** (each file is its own process; do not pass multiple scripts to one `node` invocation):
+
+```bash
+node tests/test_user_lookup.js
+node tests/test_entitlement.js
+node tests/test_user_store.js
+node tests/test_session_auth.js
+node tests/test_consumer_auth_api.js
+```
+
+`tests/test_consumer_auth_api.js` must cover: public path bypass; cookie-only GET /status 200; cookie-only POST /watches 402 without Gist write; internal headers POST still allowed by entitlement (201 if Gist/local write works, or assert `canCreateWatch` ok plus handler returns non-402 before write — prefer invoke handler with no `GITHUB_GIST_ID` and a consumer cookie for 402, and invoke with internal headers expecting 401/5xx only after entitlement pass is proven via unit tests); `GET /profiles` includes `craig`. Tests set `MTF_USER_STORE=memory` and `MAGIC_LINK_SECRET` in-process. Inject magic-link sender. Never require `RESEND_API_KEY` in Cloud.
+
+### User story US-2.1 — Magic link for consumers
+
+As a new guest, I sign in with an email magic link and get a session cookie. I never see a Craig/Jessica profile directory. Phone is for SMS later, not login.
+
+**AC**
+
+1. Landing keeps existing IDs: `#login-overlay`, `#login-profile`, `#login-pwd`, `#login-btn`, `#login-error`. Do not add `id="login-form"`, `profile-select`, `password-input`, `signin-form`, `app.html`, or an `autofocus` attribute. Username/password submit still goes through `attemptLogin` + `GET /_api/status`.
+2. New IDs (additive): `#login-email`, `#login-magic-btn` (`type="button"` so it does not submit the password form), `#login-magic-status`. Copy distinguishes **Email a sign-in link** from **Private sign-in**. Overlay must not contain a public list of Craig/Jessica accounts. Do not add the string `For Craig and Jessica`.
+3. `POST /_api/auth/magic-link` is on the public-path list (see Builder contract). Always **200** `{ "ok": true }` (no email enumeration), including invalid email, unknown email, and missing Resend key. Valid emails mint a token per Builder contract. Link: `{site}/_api/auth/callback?token=...` (`site` from `URL` then `DEPLOY_PRIME_URL` then `https://magictablefinder.com`).
+4. Email is sent via Resend HTTP API (`RESEND_API_KEY`, `MAGIC_LINK_FROM`). Tests inject a sender; they must not require a live key. Production must not log the raw token. If secret or Resend is missing, still return `{ok:true}` and do not send.
+5. `GET /_api/auth/callback?token=` verifies signature, expiry, and single-use (nonce stored under user-store key `used:{nonce}`). On success: upsert consumer, `Set-Cookie` `mtf_session` (httpOnly, `Path=/`, `SameSite=Lax`, `Secure` iff request is HTTPS, Max-Age 30 days) and `mtf_ui=1` (not httpOnly, same Path/SameSite/Secure/Max-Age). Redirect **302** to `/`. Invalid/expired/reused: **302** `/?signin=invalid` and do not set `mtf_session` (see Builder contract).
+6. `GET /_api/auth/me` is public-path: no `X-API-Secret` required. Returns 200 `{ user: { id, email, name, kind, has_phone, can_create_watch } }` for `resolveIdentity`; otherwise 401. Consumer `email` is the stored email; internal `email` may be `""`. `POST /_api/auth/logout` clears both cookies (Max-Age=0) and returns 204.
+7. Frontend follows Builder contract (`credentials`, omit empty auth headers, `getUserId` default gone). Boot: if `disneyApiSecret` exists, keep today’s password session and call `onLogin()` (including `refreshStatus` — today `refreshStatus` bails on `!getSecret()`; cookie **or** secret must run it). Else `GET /_api/auth/me` with credentials; 200 → `hideLogin()` + `onLogin()`; 401 with `mtf_ui` → stale-cookie path in Builder contract. Logout: clear localStorage **and** `POST /_api/auth/logout`. Inline first-paint: `disneyApiSecret` **or** `mtf_ui=1` → `html.has-session`.
+8. Phone is not a login field. Optional `PATCH /_api/me` `{ "phone": "..." }` on a **consumer** session only (internal → 403) stores `phone` on the consumer record (not Gist, not `WATCH_USERS`). This is **not** SMS consent (Builder contract + `privacy.html`). Must not gate login. Signed-in consumer UI may include `#consumer-phone` (optional).
+
+**Files:** `netlify/functions/session_auth.js`, `netlify/functions/api.js`, `public/index.html`, `public/privacy.html` (email used for sign-in), tests listed in US-2.4.
+
+### User story US-2.2 — Internal owners stay unrestricted
+
+As Craig or Jessica, I still use the private name+password path. Create Watch never sends me to Stripe. I have no watch cap.
+
+**AC**
+
+1. `attemptLogin` + `X-User-Id` + `X-API-Secret` against `WATCH_USERS` still returns 200 from `GET /_api/status` and 201 from `POST /_api/watches` for `craig` and `Jessica`. No Checkout redirect, no 402, no cap.
+2. `netlify/functions/entitlement.js` exports `isInternalUser(user)` and `canCreateWatch(user)`. Internal = `kind === 'internal'` or id present in parsed `WATCH_USERS` (including `craig` / `Jessica`). Consumers are never internal.
+3. `canCreateWatch` is `{ ok: true, code: 'internal' }` for internal users. For consumers: `{ ok: false, code: 'billing_required', status: 402, detail: 'Paid watches are next. You can browse restaurants now.' }`.
+4. `POST /_api/watches` calls `canCreateWatch` **before** `loadWatches` / `saveWatches`. Consumer (cookie-only or otherwise) → **402** `{ detail, code: 'billing_required', can_create_watch: false }` and **zero** Gist writes. Internal → existing validation + 201.
+5. `resolveIdentity` as in Builder contract. A consumer cookie must never be rewritten to `craig`. Empty headers plus a consumer cookie is the consumer, not `DEFAULT_OWNER_ID`.
+6. `GET /_api/watches` and `GET /_api/status` for a consumer are owner-scoped to that consumer id (empty list is fine). They must not return Craig/Jessica watches.
+7. Webhooks (not built this slice) must never attach a Stripe Customer to `craig` or `Jessica`. Entitlement helper is the shared place later poller/API will call. Do not edit `disney_bot.py` in this slice.
+8. Billing failures never SMS Jessica (no Twilio/Signal calls in this slice).
+
+**Files:** `netlify/functions/entitlement.js`, `netlify/functions/api.js`, tests in US-2.4.
+
+### User story US-2.3 — Users do not live in Gist or `WATCH_USERS`
+
+As an operator, consumer accounts and entitlement live in a real store. Gist stays poller health / `open_slots` / `seen_slots` / `watches.json` / calendars until a later cutover. Do not clear those files.
+
+**AC**
+
+1. New `netlify/functions/user_store.js`: get/put by id and by normalized email (`trim` + `toLowerCase`). Production backend is Netlify Blobs store name `mtf-users`. Tests use an in-memory backend (`MTF_USER_STORE=memory` or injected map). Never read or write consumer records via Gist. Never append consumers to `WATCH_USERS`.
+2. Consumer record shape (fields may be null until Slice 3): `id`, `email`, `phone`, `created_at`, `kind: 'consumer'`, `stripe_customer_id`, `planner_status` (`none` until Slice 3), `planner_subscription_id`, `planner_current_period_end`, `cancel_at_period_end`.
+3. New consumer ids are `u_` + hex (or equivalent). **Never** mint `craig` or `Jessica`. Upsert by email reuses the same id. Internal users stay only in `WATCH_USERS`; the store must refuse to save those ids.
+4. Used magic-link nonces live in the user store (or equivalent), not in Gist.
+5. `PRODUCT.md` Consumer direction: Slice 2 is current; consumer identities live in Netlify Blobs (`mtf-users`); Gist file list is unchanged; do not clear `open_slots.json` / `seen_slots.json`. Document env names only (`MAGIC_LINK_SECRET`, `RESEND_API_KEY`, `MAGIC_LINK_FROM`) — no values.
+6. If Blobs is unavailable in a unit test or local function, fall back to memory so tests run without Netlify. Do not fall back to Gist.
+
+**Files:** `netlify/functions/user_store.js`, `PRODUCT.md`, tests in US-2.4.
+
+### User story US-2.4 — Honest consumer app + gates
+
+As a consumer who magic-linked in, I can see the app but I cannot create a live watch yet. Copy is honest.
+
+**AC**
+
+1. When `can_create_watch` is false: show `#billing-next-banner` (“Paid watches are next. You can browse restaurants now.”); disable `#create-btn` and `#bulk-btn`; do not POST from the create form, `calAddWatch`, `watchAllGrey`, or calendar day clicks; do not require `#sms-consent` or `#modal-sms-consent` (see Builder contract). See dates still opens the calendar. Do not fake a 201. If POST happens anyway, API 402 `detail` may show on `#create-msg.err` or `#modal-msg`.
+2. Empty My Watches copy may stay `No watches yet. Create one above.` Internal users unchanged.
+3. Quiet Luxury landing tokens and locked headlines in `tests/test_landing_contract.py` stay green. Add assertions for `#login-email`, `#login-magic-btn`, and `?signin=invalid` handling. Do not steal focus on first paint (`autofocus` still forbidden). Sign-in nav may still focus `#login-pwd` after click, as today.
+4. Gates: `python3 -m unittest tests.test_alert_semantics tests.test_landing_contract tests.test_dining_selection_contract`; then the five separate `node tests/test_*.js` commands in the Builder contract; extract last `<script>` from `public/index.html` → `node --check`.
+5. Do not edit `disney_bot.py`, `monitor.py`, `notify.py`, `seed_disney_session.py`, `open_slots.json`, `seen_slots.json`, `.env`, or Stripe. Do not `playwright install`. Do not add Cloud secrets. Live `scripts/smoke_test_api.py` is not a Cloud gate; keep `/profiles` + internal password auth compatible so it still works in production.
+
+**Files:** `public/index.html`, `tests/test_landing_contract.py` (additive), new Node tests above.
 
 ---
 
 # Slice 3 — Stripe hybrid (backlog)
 
-Do not implement in the Slice 1 PR. Prices are placeholders.
+Do not implement in the Slice 2 PR. Prices are placeholders.
 
 ### US-3.1 Bind Checkout to the logged-in user
 
@@ -198,11 +297,21 @@ Public signup only after Slices 2–3. Global active-watch budget so a launch sp
 - Portal pause
 - Goose / Claude Code
 
-# Slice 1 files that will change
+# Slice 2 files that will change
 
 - `CONSUMER-EPIC.md` (this file)
 - `PRODUCT.md`
-- `AGENTS.md`
 - `public/index.html`
-- `tests/test_dining_selection_contract.py` (new)
-- `tests/test_landing_contract.py` only if required to keep existing tests green
+- `public/privacy.html` (email for sign-in only; no Stripe processor language)
+- `netlify/functions/api.js`
+- `netlify/functions/entitlement.js` (new)
+- `netlify/functions/user_store.js` (new)
+- `netlify/functions/session_auth.js` (new)
+- `netlify/functions/package.json` only if `@netlify/blobs` is required to load the production backend
+- `tests/test_entitlement.js` (new)
+- `tests/test_user_store.js` (new)
+- `tests/test_session_auth.js` (new)
+- `tests/test_consumer_auth_api.js` (new)
+- `tests/test_landing_contract.py` (additive IDs only)
+
+Do not change: `disney_bot.py`, `watch_store.py`, `notify.py`, `netlify.toml` (unless a reviewer proves `/_api/*` no longer reaches `api.js`), Gist files, `.env`.

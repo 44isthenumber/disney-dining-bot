@@ -15,6 +15,9 @@ const path = require("path");
 const fs = require("fs");
 const crypto = require("crypto");
 const { findUser } = require("./user_lookup");
+const { canCreateWatch, isInternalUser, publicIdentity } = require("./entitlement");
+const userStore = require("./user_store");
+const sessionAuth = require("./session_auth");
 
 // ── env ───────────────────────────────────────────────────────────────────────
 
@@ -316,14 +319,50 @@ function publicProfiles() {
   return Object.values(users).map((u) => ({ id: u.id, name: u.name, has_phone: !!u.phone }));
 }
 
-function currentUser(event) {
-  const users = parseUsers();
-  const requested = event.headers["x-user-id"] || event.headers["X-User-Id"] || "";
-  const found = findUser(users, requested);
-  if (found) return found;
-  if (!String(requested).trim()) {
-    return users[DEFAULT_OWNER_ID] || Object.values(users)[0] || null;
+const PUBLIC_PATHS = new Set([
+  "/profiles",
+  "/health",
+  "/auth/magic-link",
+  "/auth/callback",
+  "/auth/me",
+  "/auth/logout",
+]);
+
+function headerValue(event, name) {
+  const headers = event.headers || {};
+  const want = String(name).toLowerCase();
+  for (const [key, value] of Object.entries(headers)) {
+    if (String(key).toLowerCase() === want) {
+      return Array.isArray(value) ? String(value[0] || "") : String(value || "");
+    }
   }
+  return "";
+}
+
+function apiPath(event) {
+  let p = event.path || "/";
+  p = p.replace(/^\/.netlify\/functions\/api/, "").replace(/^\/_api/, "") || "/";
+  if (!p.startsWith("/")) p = "/" + p;
+  return p.split("?")[0];
+}
+
+function internalSecretMatches(user, secret) {
+  if (!user) return false;
+  const expected = user.password ? user.password : API_SECRET;
+  return Boolean(expected) && String(secret) === String(expected);
+}
+
+async function resolveIdentity(event) {
+  const requested = headerValue(event, "x-user-id").trim();
+  const secret = headerValue(event, "x-api-secret").trim();
+  if (requested && secret) {
+    const found = findUser(parseUsers(), requested);
+    if (found && internalSecretMatches(found, secret)) {
+      return { ...found, kind: "internal", email: found.email || "" };
+    }
+  }
+  const consumer = await sessionAuth.userFromSessionCookie(event, (id) => userStore.getById(id));
+  if (consumer) return consumer;
   return null;
 }
 
@@ -427,26 +466,64 @@ function jwtExp(token) {
 
 // ── auth ──────────────────────────────────────────────────────────────────────
 
-function checkSecret(event) {
-  if (event.httpMethod === "OPTIONS") return null;
-  const apiPath = event.path
-    ? event.path.replace(/^\/.netlify\/functions\/api/, "").replace(/^\/_api/, "")
-    : "";
-  // Public endpoints (no auth required):
-  // - /profiles: surfaced in the SPA login screen
-  // - /health: external uptime monitors (UptimeRobot etc.) ping this; safe
-  //   because it returns only a freshness boolean, no watch / owner data
-  if (apiPath === "/profiles" || apiPath === "/health") return null;
-  const user = currentUser(event);
-  if (!user) return response(401, { detail: "Unknown username" });
-  const secret =
-    event.headers["x-api-secret"] ||
-    event.headers["X-Api-Secret"] ||
-    event.headers["X-API-Secret"] ||
-    "";
-  const expected = user && user.password ? user.password : API_SECRET;
-  if (expected && secret !== expected) return response(401, { detail: "Invalid API secret" });
-  return null;
+async function handleMagicLink(event) {
+  let body = {};
+  try {
+    body = JSON.parse(event.body || "{}");
+  } catch {
+    body = {};
+  }
+  await sessionAuth.requestMagicLink(body && body.email);
+  return response(200, { ok: true });
+}
+
+async function handleAuthCallback(event) {
+  const token = String((event.queryStringParameters || {}).token || "");
+  const result = await sessionAuth.consumeMagicToken(token);
+  if (!result.ok) return redirect("/?signin=invalid");
+  return redirect("/", [
+    sessionAuth.sessionCookieHeader(event, result.session),
+    sessionAuth.uiCookieHeader(event),
+  ]);
+}
+
+async function handleAuthMe(event) {
+  const user = await resolveIdentity(event);
+  if (!user) return response(401, { detail: "Please sign in" });
+  return response(200, { user: publicIdentity(user) });
+}
+
+function handleLogout(event) {
+  return {
+    statusCode: 204,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Headers": "Content-Type, X-API-Secret, X-User-Id",
+      "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
+    },
+    multiValueHeaders: {
+      "Set-Cookie": [
+        sessionAuth.clearSessionCookieHeader(event),
+        sessionAuth.clearUiCookieHeader(event),
+      ],
+    },
+    body: "",
+  };
+}
+
+async function handlePatchMe(event, user) {
+  if (!user || isInternalUser(user)) {
+    return response(403, { detail: "Internal accounts keep phone on the private profile." });
+  }
+  let body;
+  try {
+    body = JSON.parse(event.body || "{}");
+  } catch {
+    return response(400, { detail: "Invalid JSON body" });
+  }
+  const phone = String(body.phone || "").trim().slice(0, 40);
+  const updated = await userStore.put({ ...user, phone });
+  return response(200, { user: publicIdentity(updated) });
 }
 
 // ── response helper ───────────────────────────────────────────────────────────
@@ -458,11 +535,22 @@ function response(status, body, extraHeaders = {}) {
       "Content-Type": "application/json",
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Headers": "Content-Type, X-API-Secret, X-User-Id",
-      "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+      "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
       ...extraHeaders,
     },
     body: typeof body === "string" ? body : JSON.stringify(body),
   };
+}
+
+function redirect(location, cookies = []) {
+  const headers = {
+    Location: location,
+    "Cache-Control": "no-store",
+  };
+  const out = { statusCode: 302, headers, body: "" };
+  if (cookies.length === 1) headers["Set-Cookie"] = cookies[0];
+  if (cookies.length > 1) out.multiValueHeaders = { "Set-Cookie": cookies };
+  return out;
 }
 
 // ── endpoint handlers ─────────────────────────────────────────────────────────
@@ -518,9 +606,14 @@ async function handleStatus(user) {
   const activeWatches = watches.filter((w) => isActiveWatch(w));
   const userWatches = activeWatches.filter((w) => w.owner_id === user.id);
   const userExpiredWatches = watches.filter((w) => w.owner_id === user.id && !isActiveWatch(w));
+  const totalForViewer = isInternalUser(user) ? activeWatches.length : userWatches.length;
 
   return response(200, {
-    profile: { id: user.id, name: user.name, has_phone: !!user.phone },
+    profile: {
+      id: user.id,
+      name: user.name || user.email || user.id,
+      has_phone: !!user.phone,
+    },
     token_status: tokenStatus,
     token_expires_in_minutes: tokenExpiresInMinutes,
     last_poll_at: botState.last_poll_at || null,
@@ -534,7 +627,7 @@ async function handleStatus(user) {
     slots_found_last_poll: botState.slots_found_last_poll ?? null,
     watches_count: userWatches.length,
     expired_watches_count: userExpiredWatches.length,
-    total_watches_count: activeWatches.length,
+    total_watches_count: totalForViewer,
     restaurants_indexed: restaurantsIndexed,
   });
 }
@@ -605,6 +698,15 @@ async function handleGetWatches(user) {
 }
 
 async function handlePostWatch(event, user) {
+  const gate = canCreateWatch(user);
+  if (!gate.ok) {
+    return response(gate.status || 402, {
+      detail: gate.detail,
+      code: gate.code,
+      can_create_watch: false,
+    });
+  }
+
   let body;
   try {
     body = JSON.parse(event.body || "{}");
@@ -755,28 +857,23 @@ async function handleDeleteWatch(watchIdStr, user) {
 exports.handler = async function (event) {
   // CORS preflight
   if (event.httpMethod === "OPTIONS") {
-    return response(204, "", {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Headers": "Content-Type, X-API-Secret, X-User-Id",
-      "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-    });
+    return response(204, "");
   }
 
-  const authErr = checkSecret(event);
-  if (authErr) return authErr;
-
-  // Strip function prefix to get the API path:
-  // event.path is like "/.netlify/functions/api/status" or "/_api/status"
-  let p = event.path || "/";
-  p = p.replace(/^\/.netlify\/functions\/api/, "").replace(/^\/_api/, "") || "/";
-  if (!p.startsWith("/")) p = "/" + p;
-
+  const p = apiPath(event);
   const method = event.httpMethod;
-  const user = currentUser(event);
 
   try {
     if (method === "GET" && p === "/profiles") return response(200, { profiles: publicProfiles() });
     if (method === "GET" && p === "/health") return await handleHealth();
+    if (method === "POST" && p === "/auth/magic-link") return await handleMagicLink(event);
+    if (method === "GET" && p === "/auth/callback") return await handleAuthCallback(event);
+    if (method === "GET" && p === "/auth/me") return await handleAuthMe(event);
+    if (method === "POST" && p === "/auth/logout") return handleLogout(event);
+
+    const user = await resolveIdentity(event);
+    if (!user) return response(401, { detail: "Please sign in" });
+
     if (method === "GET" && p === "/status") return await handleStatus(user);
     if (method === "GET" && p === "/restaurants") return await handleRestaurants(event, user);
     if (method === "GET" && p.startsWith("/calendar/")) {
@@ -787,10 +884,17 @@ exports.handler = async function (event) {
     if (method === "DELETE" && p.startsWith("/watches/")) {
       return await handleDeleteWatch(decodeURIComponent(p.slice("/watches/".length)), user);
     }
+    if (method === "PATCH" && p === "/me") return await handlePatchMe(event, user);
 
     return response(404, { detail: `Not found: ${method} ${p}` });
   } catch (err) {
     console.error("Handler error:", err);
     return response(500, { detail: err.message || "Internal server error" });
   }
+};
+
+exports._test = {
+  PUBLIC_PATHS,
+  resolveIdentity,
+  apiPath,
 };

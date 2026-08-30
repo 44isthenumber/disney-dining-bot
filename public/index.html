@@ -5,8 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Magic Table Finder</title>
 <script>
-  if (typeof localStorage !== 'undefined' && localStorage.getItem('disneyApiSecret')) {
-    document.documentElement.classList.add('has-session');
+  if (typeof document !== 'undefined') {
+    var hasSecret = typeof localStorage !== 'undefined' && localStorage.getItem('disneyApiSecret');
+    var hasUi = typeof document.cookie === 'string' && /(?:^|; )mtf_ui=1(?:;|$)/.test(document.cookie);
+    if (hasSecret || hasUi) document.documentElement.classList.add('has-session');
   }
 </script>
 <meta name="description" content="We'll text you when your Walt Disney World reservations open up. You log in. You book." />
@@ -535,7 +537,7 @@
     color: var(--ink); color-scheme: light; text-align: left;
   }
   .signin-box label { display: block; font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
-  .signin-box input[type=text], .signin-box input[type=password] {
+  .signin-box input[type=text], .signin-box input[type=password], .signin-box input[type=email] {
     width: 100%; padding: 11px 14px; margin-bottom: 16px;
     border: 1px solid rgba(28,25,23,.24); border-radius: 2px; background: #fdfbf7;
     font-size: 15px; font-family: inherit; color: var(--ink);
@@ -551,7 +553,26 @@
   }
   .signin-box input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 2px rgba(176,137,74,.35); }
   #login-btn { width: 100%; background: var(--ink); color: var(--paper); }
+  #login-magic-btn { width: 100%; margin-top: 4px; }
   #login-error { color: #c0392b; font-size: 13px; min-height: 18px; margin: 10px 0 0; }
+  #login-magic-status { font-size: 13px; color: var(--muted); min-height: 18px; margin: 10px 0 0; }
+  .signin-or {
+    margin: 28px 0 10px; font-size: 12px; font-weight: 600; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--muted); text-align: center;
+  }
+  html.has-session:not(.can-create-watch) #billing-next-banner { display: block; }
+  #billing-next-banner {
+    display: none;
+    background: #fdfbf7;
+    border: 1px solid rgba(176,137,74,.45);
+    color: var(--ink);
+    padding: 12px 14px;
+    margin: 0 0 16px;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+  #billing-next-banner.visible { display: block; }
+  .sms-consent.entitlement-locked, .modal-sms-consent.entitlement-locked { display: none; }
   .signin-legal { font-size: 12px; color: var(--muted); text-align: center; line-height: 1.5; margin-top: 16px; }
   .landing-footer { background: #ede7dc; border-top: 1px solid rgba(28,25,23,.12); padding: 36px 20px; text-align: center; color: var(--muted); font-size: 13px; }
   .landing-footer ul { display: flex; justify-content: center; gap: 20px; list-style: none; margin-bottom: 12px; flex-wrap: wrap; }
@@ -699,10 +720,15 @@
 
   <section id="signin" class="l-section">
     <div class="l-narrow" style="text-align:center">
-      <span class="l-eyebrow">Private</span>
+      <span class="l-eyebrow">Sign in</span>
       <h2>Sign in</h2>
-      <p class="sub">Alerts go to this account’s phone.</p>
+      <p class="sub">Email a sign-in link, or use a private username if you have one.</p>
       <form class="signin-box">
+        <label for="login-email">Email</label>
+        <input type="email" id="login-email" name="email" autocomplete="email" autocapitalize="none" spellcheck="false" />
+        <button type="button" id="login-magic-btn" class="l-btn l-btn-primary">Email me a sign-in link</button>
+        <p id="login-magic-status" role="status"></p>
+        <p class="signin-or">Private sign-in</p>
         <label for="login-profile">Username</label>
         <input type="text" id="login-profile" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" />
         <label for="login-pwd">Password</label>
@@ -742,6 +768,10 @@
   </div>
   <div class="hdr-sep"></div>
   <span id="profile-label" class="owner-chip"></span>
+  <label class="hdr-field" id="consumer-phone-wrap" hidden>
+    <span>Phone</span>
+    <input type="tel" id="consumer-phone" autocomplete="tel" maxlength="40" />
+  </label>
   <button id="logout-btn">Lock</button>
   <div id="hdr-status">
     <div id="status-dot"></div>
@@ -758,6 +788,7 @@
 <main>
   <div id="create-watch">
     <h2>Create Watch</h2>
+    <p id="billing-next-banner">Paid watches are next. You can browse restaurants now.</p>
     <p class="hint">You'll get a text when a matching table newly opens. Choose one or more dates.</p>
     <form id="watch-form">
       <div class="create-grid">
@@ -814,7 +845,7 @@
       </div>
       <div class="sms-consent">
         <label>
-          <input type="checkbox" id="sms-consent" required>
+          <input type="checkbox" id="sms-consent" disabled>
           <span>
             I agree to receive text alerts from Magic Table Finder when matching Disney dining reservation openings are found.
             Message frequency varies based on my watch activity and reservation availability. Message and data rates may apply.
@@ -825,7 +856,7 @@
         </label>
       </div>
       <div class="create-actions">
-        <button type="submit" id="create-btn">Create Watch</button>
+        <button type="submit" id="create-btn" disabled>Create Watch</button>
         <div id="create-msg" role="status"></div>
       </div>
     </form>
@@ -905,7 +936,7 @@
       <small>Click a date below to watch only openings matching this meal and time window.</small>
     </div>
     <div id="cal-grid"></div>
-    <button id="bulk-btn">Watch all unavailable dates this month with these criteria</button>
+    <button id="bulk-btn" disabled>Watch all unavailable dates this month with these criteria</button>
     <div id="modal-msg"></div>
   </div>
 </div>
@@ -918,7 +949,14 @@ function esc(s) {
 }
 
 function getSecret() { return localStorage.getItem('disneyApiSecret') || ''; }
-function getUserId() { return localStorage.getItem('disneyUserId') || 'craig'; }
+function getUserId() { return localStorage.getItem('disneyUserId') || ''; }
+var mtfSessionUser = null;
+
+function canCreateWatchNow() {
+  if (mtfSessionUser && mtfSessionUser.kind === 'consumer') return Boolean(mtfSessionUser.can_create_watch);
+  if (mtfSessionUser && mtfSessionUser.can_create_watch === false) return false;
+  return Boolean(getSecret());
+}
 function getTripStart() { return localStorage.getItem('disneyTripStart') || ''; }
 function getTripEnd() { return localStorage.getItem('disneyTripEnd') || ''; }
 function getPartySize() { return parseInt(document.getElementById('party-size').value, 10) || 2; }
@@ -926,6 +964,13 @@ function smsConsentKey() { return 'disneySmsConsent:' + getUserId(); }
 function hasSmsConsent() { return localStorage.getItem(smsConsentKey()) === 'true'; }
 
 function syncSmsConsentControls() {
+  if (!canCreateWatchNow()) {
+    ['sms-consent', 'modal-sms-consent'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.checked = false;
+    });
+    return;
+  }
   var accepted = hasSmsConsent();
   ['sms-consent', 'modal-sms-consent'].forEach(function(id) {
     var el = document.getElementById(id);
@@ -934,6 +979,7 @@ function syncSmsConsentControls() {
 }
 
 function setSmsConsentAccepted(accepted) {
+  if (!canCreateWatchNow()) return;
   if (accepted) localStorage.setItem(smsConsentKey(), 'true');
   else localStorage.removeItem(smsConsentKey());
   syncSmsConsentControls();
@@ -944,10 +990,14 @@ function bindSmsConsentMemory() {
     var el = document.getElementById(id);
     if (!el) return;
     el.addEventListener('change', function() {
+      if (!canCreateWatchNow()) {
+        el.checked = false;
+        return;
+      }
       setSmsConsentAccepted(el.checked);
     });
   });
-  syncSmsConsentControls();
+  if (canCreateWatchNow()) syncSmsConsentControls();
 }
 
 function fmtTime(t) {
@@ -969,12 +1019,15 @@ function watchCriteriaLabel(w) {
 
 async function apiFetch(path, opts) {
   opts = opts || {};
-  const res = await fetch('/_api' + path, Object.assign({}, opts, {
-    headers: Object.assign({
-      'Content-Type': 'application/json',
-      'X-API-Secret': getSecret(),
-      'X-User-Id': getUserId(),
-    }, opts.headers || {})
+  var headers = Object.assign({
+    'Content-Type': 'application/json',
+  }, opts.headers || {});
+  var secret = getSecret();
+  var userId = getUserId();
+  if (secret) headers['X-API-Secret'] = secret;
+  if (userId) headers['X-User-Id'] = userId;
+  const res = await fetch('/_api' + path, Object.assign({ credentials: 'include' }, opts, {
+    headers: headers
   }));
   if (res.status === 204) return null;
   var data = null;
@@ -1013,6 +1066,7 @@ function showLogin(opts) {
   overlay.setAttribute('aria-hidden', 'false');
   document.body.classList.add('landing-open');
   document.documentElement.classList.remove('has-session');
+  document.documentElement.classList.remove('can-create-watch');
   if (shell) shell.setAttribute('aria-hidden', 'true');
   pwd.value = '';
   if (opts.message) {
@@ -1066,8 +1120,68 @@ function loadSavedUsername() {
 
 document.getElementById('login-btn').closest('form').addEventListener('submit', function (e) {
   e.preventDefault();
+  var userId = document.getElementById('login-profile').value.trim();
+  var pwd = document.getElementById('login-pwd').value.trim();
+  if (!userId && !pwd && document.getElementById('login-email').value.trim()) {
+    attemptMagicLink();
+    return;
+  }
   attemptLogin();
 });
+
+document.getElementById('login-magic-btn').addEventListener('click', function () {
+  attemptMagicLink();
+});
+
+async function attemptMagicLink() {
+  var email = document.getElementById('login-email').value.trim();
+  var btn = document.getElementById('login-magic-btn');
+  var status = document.getElementById('login-magic-status');
+  status.textContent = '';
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+  try {
+    await fetch('/_api/auth/magic-link', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email }),
+    });
+  } catch (e) { /* still generic */ }
+  status.textContent = 'Check your email for a sign-in link.';
+  btn.disabled = false;
+  btn.textContent = 'Email me a sign-in link';
+}
+
+function applyEntitlementUI() {
+  var allowed = canCreateWatchNow();
+  document.documentElement.classList.toggle('can-create-watch', allowed);
+  var banner = document.getElementById('billing-next-banner');
+  var createBtn = document.getElementById('create-btn');
+  var bulkBtn = document.getElementById('bulk-btn');
+  var sms = document.getElementById('sms-consent');
+  var modalSms = document.getElementById('modal-sms-consent');
+  var smsWrap = sms && sms.closest('.sms-consent');
+  var modalWrap = modalSms && modalSms.closest('label');
+  if (banner) banner.classList.toggle('visible', !allowed);
+  if (createBtn) createBtn.disabled = !allowed;
+  if (bulkBtn) bulkBtn.disabled = !allowed;
+  if (sms) {
+    sms.required = allowed;
+    sms.disabled = !allowed;
+    if (!allowed) sms.checked = false;
+  }
+  if (modalSms) {
+    modalSms.disabled = !allowed;
+    if (!allowed) modalSms.checked = false;
+  }
+  if (smsWrap) smsWrap.classList.toggle('entitlement-locked', !allowed);
+  if (modalWrap) modalWrap.classList.toggle('entitlement-locked', !allowed);
+  var phoneWrap = document.getElementById('consumer-phone-wrap');
+  if (phoneWrap) {
+    phoneWrap.hidden = !(mtfSessionUser && mtfSessionUser.kind === 'consumer');
+  }
+}
 
 async function attemptLogin() {
   const pwd = document.getElementById('login-pwd').value.trim();
@@ -1106,6 +1220,8 @@ async function attemptLogin() {
 document.getElementById('logout-btn').addEventListener('click', function() {
   localStorage.removeItem('disneyApiSecret');
   localStorage.removeItem('disneyUserId');
+  mtfSessionUser = null;
+  fetch('/_api/auth/logout', { method: 'POST', credentials: 'include' }).catch(function() {});
   showLogin({ scrollToSignin: true });
 });
 
@@ -1127,14 +1243,41 @@ document.getElementById('logout-btn').addEventListener('click', function() {
   });
 
   loadSavedUsername();
+})();
 
-  if (!getSecret()) {
-    showLogin();
-  } else {
+async function bootSession() {
+  // Redirect from GET /_api/auth/callback uses ?signin=invalid
+  var params = new URLSearchParams(window.location.search);
+  if (params.get('signin') === 'invalid') {
+    showLogin({
+      scrollToSignin: true,
+      message: 'That sign-in link is invalid or expired. Request a new one.',
+    });
+    if (window.history && window.history.replaceState) {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+    return;
+  }
+  if (getSecret()) {
     hideLogin();
     onLogin();
+    return;
   }
-})();
+  try {
+    var res = await fetch('/_api/auth/me', { credentials: 'include' });
+    if (res.ok) {
+      var data = await res.json();
+      mtfSessionUser = data.user || null;
+      hideLogin();
+      onLogin();
+      return;
+    }
+  } catch (e) { /* show landing */ }
+  if (document.documentElement.classList.contains('has-session')) {
+    fetch('/_api/auth/logout', { method: 'POST', credentials: 'include' }).catch(function() {});
+  }
+  showLogin();
+}
 
 // ── Status ───────────────────────────────────────────────────────────────────
 
@@ -1147,7 +1290,7 @@ function friendlyPollTime(lastPollAt) {
 }
 
 async function refreshStatus() {
-  if (!getSecret()) return;
+  if (!getSecret() && !mtfSessionUser) return;
   const dot = document.getElementById('status-dot');
   const txt = document.getElementById('status-text');
   const profile = document.getElementById('profile-label');
@@ -1460,12 +1603,20 @@ function renderCalendar() {
     el.addEventListener('click', function() {
       if (cal.pending) return;
       if (el.classList.contains('watched')) calRemoveWatch(el.dataset.date);
-      else calAddWatch([el.dataset.date]);
+      else if (!canCreateWatchNow()) {
+        document.getElementById('modal-msg').textContent = 'Paid watches are next. You can browse restaurants now.';
+      } else {
+        calAddWatch([el.dataset.date]);
+      }
     });
   });
 }
 
 async function calAddWatch(dates) {
+  if (!canCreateWatchNow()) {
+    document.getElementById('modal-msg').textContent = 'Paid watches are next. You can browse restaurants now.';
+    return;
+  }
   cal.pending = true;
   document.getElementById('modal-msg').textContent = 'Adding…';
   var meal = cal.bookingType === 'scheduled_activity' ? 'ALL' : (document.getElementById('watch-meal').value || 'ALL');
@@ -1531,6 +1682,10 @@ async function calRemoveWatch(date) {
 }
 
 async function watchAllGrey() {
+  if (!canCreateWatchNow()) {
+    document.getElementById('modal-msg').textContent = 'Paid watches are next. You can browse restaurants now.';
+    return;
+  }
   var dates = [];
   document.querySelectorAll('#cal-grid .day.watchable').forEach(function(el) {
     if (el.dataset.date) dates.push(el.dataset.date);
@@ -1892,6 +2047,11 @@ document.getElementById('watch-form').addEventListener('submit', async function(
   e.preventDefault();
   const btn = document.getElementById('create-btn');
   const msg = document.getElementById('create-msg');
+  if (!canCreateWatchNow()) {
+    msg.className = 'err';
+    msg.textContent = 'Paid watches are next. You can browse restaurants now.';
+    return;
+  }
   btn.disabled = true; btn.textContent = 'Creating…'; msg.textContent = ''; msg.className = '';
   try {
     const restaurantId = document.getElementById('restaurant-select').value;
@@ -1960,10 +2120,20 @@ bindSmsConsentMemory();
 
 function onLogin() {
   syncSmsConsentControls();
+  applyEntitlementUI();
   refreshStatus();
   loadRestaurants();
   loadWatches();
 }
+
+document.getElementById('consumer-phone').addEventListener('change', async function() {
+  if (!mtfSessionUser || mtfSessionUser.kind !== 'consumer') return;
+  try {
+    await apiFetch('/me', { method: 'PATCH', body: JSON.stringify({ phone: this.value }) });
+  } catch (e) { /* phone is optional */ }
+});
+
+bootSession();
 </script>
 </body>
 </html>
