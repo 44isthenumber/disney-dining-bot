@@ -20,7 +20,7 @@ Do not change Netlify functions, poller, Gist, Disney session, or alert semantic
 - Type: Fraunces headlines, Source Sans 3 UI (Google Fonts + system fallbacks)
 - Color: dusk ink `#1C1917`, warm paper `#F6F1E8`, gold `#B0894A`, moss `#3F5C4A`
 - Primary CTAs are **ink**, not lime or saturated blue
-- Atmosphere: The only fireworks is a cinematic gold wand with champagne-spray pixie dust under the hero CTAs (Craig, 2026-08-31). Header lockup is the same wand at logo scale: an 88×62 star-tip mark (pommel rings, thick shaft, 4-point star, compact dust) beside Fraunces ink “Magic Table Finder” — not a hairline overlay on the M. No plate-rim / candle motif. No castle, no 🏰, no Disney trademarks.
+- Atmosphere: The only fireworks is a cinematic gold wand with champagne-spray pixie dust under the hero CTAs (Craig, 2026-08-31). Header is quieter: a tilted gold wand dusting the capital M in Fraunces ink “Magic Table Finder” (letter-scale overlay, not a standalone mark). No plate-rim / candle motif. No castle, no 🏰, no Disney trademarks.
 - Headline: **“We monitor the openings.”**
 - Subhead: **“We'll text you when your Walt Disney World reservations open up. You log in. You book.”**
 
