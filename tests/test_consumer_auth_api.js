@@ -292,6 +292,40 @@ function cookieHeaderFrom(res) {
   assert.strictEqual(patchConsumer.status, 200);
   assert.strictEqual(patchConsumer.body.user.has_phone, true);
 
+  const patchTenDigit = parse(
+    await handler(
+      ev("PATCH", "/_api/me", {
+        headers: { cookie, "content-type": "application/json" },
+        body: { phone: "5551234567" },
+      })
+    )
+  );
+  assert.strictEqual(patchTenDigit.status, 200);
+  assert.strictEqual(patchTenDigit.body.user.has_phone, true);
+
+  const patchInvalid = parse(
+    await handler(
+      ev("PATCH", "/_api/me", {
+        headers: { cookie, "content-type": "application/json" },
+        body: { phone: "abc" },
+      })
+    )
+  );
+  assert.strictEqual(patchInvalid.status, 422);
+  assert.strictEqual(patchInvalid.body.code, "phone_invalid");
+  assert.ok(String(patchInvalid.body.detail || "").includes("10-digit"));
+
+  const patchLetters = parse(
+    await handler(
+      ev("PATCH", "/_api/me", {
+        headers: { cookie, "content-type": "application/json" },
+        body: { phone: "555abc1234567" },
+      })
+    )
+  );
+  assert.strictEqual(patchLetters.status, 422);
+  assert.strictEqual(patchLetters.body.code, "phone_invalid");
+
   const patchInternal = parse(
     await handler(
       ev("PATCH", "/_api/me", {

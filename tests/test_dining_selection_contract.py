@@ -35,6 +35,51 @@ class DiningSelectionContractTest(unittest.TestCase):
         self.assertIn('data-action="watch-this"', INDEX)
         self.assertIn('data-action="see-dates"', INDEX)
         self.assertIn("selectRestaurant(btn.dataset.watchId)", INDEX)
+        self.assertIn("function showWatchesTab()", INDEX)
+        self.assertIn("function activateTab(name)", INDEX)
+        self.assertIn("showWatchesTab();", INDEX)
+        self.assertIn(
+            "selectRestaurant(btn.dataset.watchId);\n      showWatchesTab();",
+            INDEX,
+        )
+        self.assertIn('id="add-watch-btn"', INDEX)
+        self.assertIn('id="goto-restaurants"', INDEX)
+
+    def test_create_watch_lives_in_watches_tab(self):
+        watches_start = INDEX.find('id="tab-watches"')
+        main_end = INDEX.find("</main>", watches_start)
+        watches = INDEX[watches_start:main_end]
+        self.assertIn('id="create-watch"', watches)
+        self.assertIn('id="phone-setup"', watches)
+        rest_start = INDEX.find('id="tab-restaurants"')
+        self.assertGreater(watches_start, rest_start)
+        self.assertNotIn('id="create-watch"', INDEX[rest_start:watches_start])
+        self.assertNotIn('"meal meal dates"', INDEX)
+        self.assertNotIn('"timefrom timeto dates"', INDEX)
+        self.assertIn('id="meal-toggle"', INDEX)
+        self.assertIn('id="time-toggle"', INDEX)
+        self.assertIn("function ensurePhoneSaved()", INDEX)
+        self.assertGreaterEqual(INDEX.count("ensurePhoneSaved()"), 4)
+        self.assertIn("return '+' + cc + local;", INDEX)
+
+    def test_no_trip_header_filter(self):
+        self.assertNotIn('id="trip-start"', INDEX)
+        self.assertNotIn('id="trip-end"', INDEX)
+        self.assertNotIn("function tripIncludes", INDEX)
+        self.assertNotIn("function getTripStart", INDEX)
+        self.assertNotIn("function getTripEnd", INDEX)
+
+    def test_place_groups_and_no_cuisine_filter(self):
+        self.assertIn("function placeGroup(r)", INDEX)
+        self.assertIn("Animal Kingdom Theme Park", INDEX)
+        self.assertIn('park === \'EPCOT\'', INDEX)
+        self.assertIn("ESPN", INDEX)
+        self.assertIn("placeGroup(r)", INDEX)
+        self.assertIn('id="park-chips"', INDEX)
+        self.assertNotIn('id="cuisine-filter"', INDEX)
+        self.assertNotIn('id="park-filter"', INDEX)
+        self.assertIn("All", INDEX)
+
 
     def test_default_tab_is_watches(self):
         self.assertIn('class="tab-btn active" data-tab="watches"', INDEX)

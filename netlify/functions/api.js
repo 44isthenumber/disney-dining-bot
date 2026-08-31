@@ -16,6 +16,7 @@ const fs = require("fs");
 const crypto = require("crypto");
 const { findUser } = require("./user_lookup");
 const { canCreateWatch, isInternalUser, publicIdentity } = require("./entitlement");
+const { normalizePhone } = require("./phone");
 const userStore = require("./user_store");
 const sessionAuth = require("./session_auth");
 const stripeBilling = require("./stripe_billing");
@@ -620,7 +621,11 @@ async function handlePatchMe(event, user) {
   } catch {
     return response(400, { detail: "Invalid JSON body" });
   }
-  const phone = String(body.phone || "").trim().slice(0, 40);
+  const parsed = normalizePhone(body.phone);
+  if (!parsed.ok) {
+    return response(422, { code: "phone_invalid", detail: parsed.detail });
+  }
+  const phone = parsed.phone.slice(0, 40);
   const updated = await userStore.put({ ...user, phone });
   return response(200, { user: await identityFor(updated) });
 }

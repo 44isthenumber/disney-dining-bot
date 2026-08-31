@@ -62,6 +62,57 @@ class LandingContractTest(unittest.TestCase):
         self.assertIn('type="text" id="login-profile"', INDEX)
         self.assertNotIn('<select id="login-profile">', INDEX)
         self.assertIn('aria-label="Magic Table Finder"', INDEX)
+        overlay, _, rest = INDEX.partition('id="app-shell"')
+        self.assertIn('h1 class="brand-wordmark"', rest)
+        self.assertIn('class="wordmark-wand-accent"', overlay)
+        self.assertIn('class="wordmark-wand-accent"', rest)
+        self.assertIn("wordmark-magic", overlay)
+        self.assertIn("wordmark-magic", rest)
+        self.assertEqual(INDEX.count('class="wordmark-wand-accent"'), 2)
+        self.assertIn('viewBox="0 0 48 48"', INDEX)
+        self.assertIn('stroke-width="3.2"', INDEX)
+        self.assertIn(".wordmark-wand-accent", INDEX)
+        self.assertIn("height: 2.15em", INDEX)
+        self.assertIn("left: -1.08em", INDEX)
+        shaft = re.search(r'<line x1="([\d.]+)" y1="([\d.]+)" x2="([\d.]+)" y2="([\d.]+)"[^>]*stroke-width="3.2"', INDEX)
+        self.assertIsNotNone(shaft)
+        self.assertLessEqual(max(float(shaft.group(1)), float(shaft.group(3))), 24.0)
+        on_letter = re.findall(r'<circle cx="([\d.]+)" cy="([\d.]+)" r="([\d.]+)" fill="currentColor"/>', INDEX)
+        dust_on_m = [c for c in on_letter if float(c[0]) >= 26.0]
+        self.assertGreaterEqual(len(dust_on_m), 8)
+        self.assertNotIn('class="wordmark-mark"', INDEX)
+        self.assertNotIn("logoWandGlow", INDEX)
+        self.assertNotIn('width="88"', INDEX)
+        self.assertNotIn('viewBox="0 0 180 126"', INDEX)
+        self.assertNotIn(".landing-wordmark span.wordmark-name { display: none; }", INDEX)
+        self.assertNotIn("filter: drop-shadow", INDEX)
+        self.assertIn("@media (max-width: 640px)", INDEX)
+        self.assertIn(".landing-wordmark { font-size: 16px; }", INDEX)
+        self.assertIn("#app-shell > header", INDEX)
+        self.assertIn("overflow: visible", INDEX.split("#app-shell > header", 1)[1][:400])
+        self.assertNotIn("🏰", INDEX)
+        self.assertNotIn("Mickey", INDEX)
+        self.assertNotIn("Tinker Bell", INDEX)
+        self.assertNotIn("Cinderella", INDEX)
+
+    def test_hero_wand_is_the_only_fireworks(self):
+        self.assertIn('class="hero-wand"', INDEX)
+        self.assertIn('class="hero-wand-svg"', INDEX)
+        self.assertIn('viewBox="0 0 900 380"', INDEX)
+        self.assertIn("min(920px", INDEX)
+        self.assertIn("@keyframes hero-dust-a", INDEX)
+        self.assertIn("@keyframes hero-dust-b", INDEX)
+        self.assertIn("@keyframes hero-dust-c", INDEX)
+        still = ".hero-wand .dust-a, .hero-wand .dust-b, .hero-wand .dust-c { animation: none; }"
+        self.assertIn(still, INDEX)
+        self.assertGreater(INDEX.rfind(still), INDEX.find("@keyframes hero-dust-c"))
+        self.assertNotIn("plate-motif", INDEX)
+        self.assertNotIn("candleGlow", INDEX)
+        self.assertNotIn('class="l-plate"', INDEX)
+        overlay, _, rest = INDEX.partition('id="app-shell"')
+        self.assertIn('class="hero-wand"', overlay)
+        self.assertNotIn('class="hero-wand"', rest)
+        self.assertNotIn("animation:", INDEX.split(".wordmark-wand-accent {", 1)[1][:400])
         self.assertIn("text-align: left;", INDEX)
         self.assertIn("#login-overlay .l-btn-primary", INDEX)
         self.assertIn("color-scheme: light", INDEX)
@@ -80,6 +131,9 @@ class LandingContractTest(unittest.TestCase):
         self.assertIn('id="login-magic-status"', INDEX)
         self.assertIn("Email a sign-in link", INDEX)
         self.assertIn("Private sign-in", INDEX)
+        self.assertIn('id="private-signin-toggle"', INDEX)
+        self.assertIn('id="private-signin" hidden', INDEX)
+        self.assertIn('id="phone-setup"', INDEX)
         self.assertIn("signin=invalid", INDEX)
         self.assertIn("signin=ok", INDEX)
         self.assertIn("That sign-in link didn't complete", INDEX)
@@ -90,8 +144,9 @@ class LandingContractTest(unittest.TestCase):
         self.assertIn('id="planner-checkout-btn"', INDEX)
         self.assertIn('id="billing-portal-btn"', INDEX)
         self.assertIn('id="upgrade-prompt"', INDEX)
-        self.assertIn("Pay once for this watch", INDEX)
-        self.assertIn("Pay and watch", INDEX)
+        self.assertIn("Pay $4.99 for this watch", INDEX)
+        self.assertIn("Pay $4.99 and watch", INDEX)
+        self.assertNotIn("Pay once for this watch", INDEX)
         self.assertIn("function postWatch(body)", INDEX)
         self.assertEqual(INDEX.count("async function postWatch(body)"), 1)
         self.assertIn("checkout_url", INDEX)
@@ -101,6 +156,15 @@ class LandingContractTest(unittest.TestCase):
         self.assertIn("!syncRes.ok", INDEX)
         self.assertNotIn("$9", INDEX)
         self.assertNotIn("$19", INDEX)
+        self.assertIn("$4.99", INDEX)
+        self.assertIn("$14.99", INDEX)
+        self.assertIn('id="pricing"', INDEX)
+        self.assertIn("Simple pricing", INDEX)
+        self.assertIn('id="plan-line"', INDEX)
+        self.assertNotIn('id="trip-bar"', INDEX)
+        self.assertIn('id="modal-phone"', INDEX)
+        self.assertIn(">Sign out<", INDEX)
+        self.assertNotIn(">Lock<", INDEX)
         overlay = INDEX.split('id="login-overlay"', 1)[1].split('id="app-shell"', 1)[0]
         self.assertNotIn("For Craig and Jessica", overlay)
         self.assertNotIn('id="login-profile-list"', overlay)
@@ -123,6 +187,7 @@ class LandingContractTest(unittest.TestCase):
 
     def test_empty_watch_and_create_copy(self):
         self.assertIn("No watches yet. Create one above.", INDEX)
+        self.assertNotIn("No watches yet. Browse restaurants", INDEX)
         self.assertIn("You'll get a text when a matching table newly opens.", INDEX)
         self.assertNotIn("calendar is optional", INDEX.lower())
 
@@ -159,7 +224,11 @@ class LandingContractTest(unittest.TestCase):
             INDEX,
         )
 
-    def test_faq_six_questions(self):
+    def test_faq_has_horizontal_gutter(self):
+        self.assertIn(".l-faq { width: min(720px, calc(100% - 48px)); margin: 0 auto; }", INDEX)
+        self.assertNotRegex(INDEX, r"\.l-faq \{ max-width: 720px; margin: 0 auto; \}")
+
+    def test_faq_includes_cost(self):
         for question in (
             "Do you text every open table?",
             "Whose phone gets the alert?",
@@ -167,9 +236,11 @@ class LandingContractTest(unittest.TestCase):
             "Do I need to keep refreshing Disney?",
             "When do you ask for text consent?",
             "What if nothing opens?",
+            "How much does it cost?",
         ):
             self.assertIn(question, INDEX)
         self.assertIn("We do not guarantee a table will open.", INDEX)
+        self.assertIn("Single Watch is $4.99 one-time.", INDEX)
 
 
 if __name__ == "__main__":
