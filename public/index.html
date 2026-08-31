@@ -38,6 +38,7 @@
   html { scroll-behavior: smooth; color-scheme: light; }
   @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior: auto; }
+    .hero-wand .dust-a, .hero-wand .dust-b, .hero-wand .dust-c { animation: none; }
   }
   body {
     font-family: var(--font-sans);
@@ -516,8 +517,8 @@
     padding-left: 0.02em; overflow: visible;
   }
   .wordmark-wand-accent {
-    position: absolute; left: -0.38em; top: -0.22em;
-    height: 1.38em; width: auto; overflow: visible; pointer-events: none;
+    position: absolute; left: -0.42em; top: -0.28em;
+    height: 1.7em; width: auto; overflow: visible; pointer-events: none;
     color: var(--gold);
   }
   .wordmark-mark { color: var(--gold); flex-shrink: 0; }
@@ -545,7 +546,37 @@
   .l-btn-primary:disabled { background: #aaa; border-color: #aaa; cursor: default; }
   .l-btn-secondary { background: transparent; color: var(--ink); border-color: rgba(28,25,23,.24); }
   .l-btn-sm { padding: 6px 14px; font-size: 13px; }
-  .l-hero { padding: 72px 0 64px; text-align: center; scroll-margin-top: 84px; }
+  .l-hero { padding: 72px 0 40px; text-align: center; scroll-margin-top: 84px; overflow: visible; }
+  .hero-wand {
+    margin: 20px auto 0;
+    width: min(920px, calc(100vw - 32px));
+    color: var(--gold);
+    overflow: visible;
+    pointer-events: none;
+  }
+  .hero-wand-svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .hero-wand .dust-a, .hero-wand .dust-b, .hero-wand .dust-c {
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+  .hero-wand .dust-a { animation: hero-dust-a 6s ease-in-out infinite; }
+  .hero-wand .dust-b { animation: hero-dust-b 7.2s ease-in-out infinite; }
+  .hero-wand .dust-c { animation: hero-dust-c 5.1s ease-in-out infinite; }
+  @keyframes hero-dust-a {
+    0%, 100% { transform: translate(0, 0); opacity: 0.78; }
+    50% { transform: translate(6px, -9px); opacity: 1; }
+  }
+  @keyframes hero-dust-b {
+    0%, 100% { transform: translate(0, 0); opacity: 0.72; }
+    50% { transform: translate(-5px, -7px); opacity: 1; }
+  }
+  @keyframes hero-dust-c {
+    0%, 100% { transform: translate(0, 0); opacity: 0.7; }
+    50% { transform: translate(4px, 6px); opacity: 1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hero-wand .dust-a, .hero-wand .dust-b, .hero-wand .dust-c { animation: none; }
+  }
   .l-eyebrow {
     display: inline-flex; align-items: center; gap: 8px;
     font-size: 12px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: var(--gold);
@@ -556,7 +587,6 @@
   }
   .l-hero .lead { color: var(--muted); font-size: clamp(1.05rem, 2vw, 1.25rem); line-height: 1.55; max-width: 36em; margin: 0 auto 28px; }
   .l-hero-actions { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
-  .l-plate { margin: 36px auto 0; max-width: 320px; }
   .l-section { padding: 72px 0; border-top: 1px solid rgba(28,25,23,.12); scroll-margin-top: 84px; }
   .l-section h2 { font-family: var(--font-serif); font-weight: 400; font-size: clamp(1.6rem, 3vw, 2.2rem); text-align: center; margin: 8px 0; }
   .l-section .sub { text-align: center; color: var(--muted); margin-bottom: 36px; }
@@ -672,15 +702,14 @@
     <div class="landing-header-inner">
       <a href="#hero" class="landing-wordmark landing-nav" aria-label="Magic Table Finder">
         <svg class="wordmark-mark" width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
-          <line x1="3.4" y1="14.6" x2="11.2" y2="6.8" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/>
-          <circle cx="3.15" cy="14.85" r="1.2" fill="currentColor"/>
-          <path fill="currentColor" d="M12.05 5.35 11.55 6.7 10.2 7.15 10.7 5.8Z"/>
-          <path fill="currentColor" d="M13.7 1.55 14.05 3.55 16.05 3.9 14.05 4.25 13.7 6.25 13.35 4.25 11.35 3.9 13.35 3.55Z"/>
-          <path fill="currentColor" d="M15.85 6.9 16.05 8.05 17.2 8.25 16.05 8.45 15.85 9.6 15.65 8.45 14.5 8.25 15.65 8.05Z"/>
-          <circle cx="12.35" cy="9.55" r=".5" fill="currentColor"/>
-          <circle cx="14.7" cy="11.35" r=".38" fill="currentColor"/>
+          <line x1="3.2" y1="15" x2="10.8" y2="7.2" stroke="currentColor" stroke-width="1.45" stroke-linecap="round"/>
+          <circle cx="3" cy="15.15" r="1.25" fill="currentColor"/>
+          <path fill="currentColor" d="M12.6 1.7 13 4.1 15.4 4.5 13 4.9 12.6 7.3 12.2 4.9 9.8 4.5 12.2 4.1Z"/>
+          <path fill="currentColor" d="M15.5 7.2 15.7 8.4 16.9 8.6 15.7 8.8 15.5 10 15.3 8.8 14.1 8.6 15.3 8.4Z"/>
+          <circle cx="11.8" cy="10.2" r=".5" fill="currentColor"/>
+          <circle cx="14.2" cy="12.4" r=".38" fill="currentColor"/>
         </svg>
-        <span class="wordmark-name"><span class="wordmark-magic"><svg class="wordmark-wand-accent" viewBox="0 0 20 32" fill="none" aria-hidden="true"><line x1="1.8" y1="30.4" x2="9.1" y2="9.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="1.6" cy="30.7" r="1.2" fill="currentColor"/><path fill="currentColor" d="M9.55 7.15 10.2 8.85 8.85 9.7 8.2 8Z"/><path fill="currentColor" d="M12.55 1.2 13 3.85 15.65 4.3 13 4.75 12.55 7.4 12.1 4.75 9.45 4.3 12.1 3.85Z"/><path fill="currentColor" d="M15.35 8.15 15.58 9.55 16.98 9.78 15.58 10.01 15.35 11.41 15.12 10.01 13.72 9.78 15.12 9.55Z"/><circle cx="13.05" cy="14.6" r=".85" fill="currentColor"/><circle cx="11.55" cy="18.6" r=".62" fill="currentColor"/><circle cx="13.45" cy="22.4" r=".58" fill="currentColor"/><circle cx="11.85" cy="25.8" r=".48" fill="currentColor"/><circle cx="13.15" cy="28.7" r=".38" fill="currentColor"/></svg>M</span>agic Table Finder</span>
+        <span class="wordmark-name"><span class="wordmark-magic"><svg class="wordmark-wand-accent" viewBox="0 0 24 36" fill="none" aria-hidden="true"><line x1="2.2" y1="33.2" x2="10.4" y2="10.4" stroke="currentColor" stroke-width="1.85" stroke-linecap="round"/><circle cx="2.1" cy="33.4" r="1.55" fill="currentColor"/><circle cx="3.7" cy="31.1" r=".7" fill="currentColor"/><path fill="currentColor" d="M12.2 2.1 12.85 6.1 16.85 6.75 12.85 7.4 12.2 11.4 11.55 7.4 7.55 6.75 11.55 6.1Z"/><path fill="currentColor" d="M17.4 8.6 17.7 10.3 19.4 10.6 17.7 10.9 17.4 12.6 17.1 10.9 15.4 10.6 17.1 10.3Z"/><path fill="currentColor" d="M14.8 13.2 15 14.4 16.2 14.6 15 14.8 14.8 16 14.6 14.8 13.4 14.6 14.6 14.4Z"/><path fill="currentColor" d="M18.6 14.8 18.75 15.7 19.65 15.85 18.75 16 18.6 16.9 18.45 16 17.55 15.85 18.45 15.7Z"/><circle cx="13.6" cy="17.8" r=".85" fill="currentColor"/><circle cx="15.4" cy="21.2" r=".62" fill="currentColor"/><circle cx="13.2" cy="24.6" r=".55" fill="currentColor"/><circle cx="15.1" cy="27.8" r=".45" fill="currentColor"/><circle cx="13.5" cy="30.6" r=".35" fill="currentColor"/></svg>M</span>agic Table Finder</span>
       </a>
       <p class="landing-promise">We text you when a matching table newly opens.</p>
       <a href="#signin" class="l-btn l-btn-secondary l-btn-sm landing-nav landing-go-signin">Sign in</a>
@@ -696,22 +725,171 @@
         <a href="#signin" class="l-btn l-btn-primary landing-nav landing-go-signin">Sign in</a>
         <a href="#how" class="l-btn l-btn-secondary landing-nav">See how it works</a>
       </div>
-      <div class="l-plate" aria-hidden="true">
-        <svg class="plate-motif" viewBox="0 0 320 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <radialGradient id="candleGlow" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stop-color="#B0894A" stop-opacity="0.32"/>
-              <stop offset="60%" stop-color="#B0894A" stop-opacity="0.08"/>
-              <stop offset="100%" stop-color="#F6F1E8" stop-opacity="0"/>
-            </radialGradient>
-          </defs>
-          <ellipse cx="160" cy="60" rx="140" ry="46" fill="url(#candleGlow)"/>
-          <ellipse cx="160" cy="60" rx="136" ry="42" stroke="#1C1917" stroke-opacity="0.14" stroke-width="1"/>
-          <ellipse cx="160" cy="60" rx="116" ry="34" stroke="#B0894A" stroke-opacity="0.35" stroke-width="1" stroke-dasharray="2 3"/>
-          <ellipse cx="160" cy="60" rx="86" ry="24" stroke="#1C1917" stroke-opacity="0.08" stroke-width="1"/>
-          <circle cx="160" cy="60" r="2.5" fill="#B0894A"/>
-        </svg>
-      </div>
+    </div>
+    <div class="hero-wand" aria-hidden="true">
+      <svg class="hero-wand-svg" viewBox="0 0 900 380" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <radialGradient id="heroWandGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#B0894A" stop-opacity="0.42"/>
+            <stop offset="55%" stop-color="#B0894A" stop-opacity="0.1"/>
+            <stop offset="100%" stop-color="#F6F1E8" stop-opacity="0"/>
+          </radialGradient>
+        </defs>
+        <circle cx="378" cy="82" r="72" fill="url(#heroWandGlow)"/>
+        <g class="wand-body" fill="currentColor">
+          <circle cx="88" cy="322" r="15"/>
+          <circle cx="88" cy="322" r="9" fill="none" stroke="currentColor" stroke-width="2.4"/>
+          <circle cx="88" cy="322" r="4.2"/>
+          <circle cx="114" cy="294" r="8"/>
+          <circle cx="114" cy="294" r="4.2" fill="none" stroke="currentColor" stroke-width="1.6"/>
+          <circle cx="134" cy="272" r="5.6"/>
+          <line x1="144" y1="260" x2="350" y2="104" stroke="currentColor" stroke-width="8.5" stroke-linecap="round"/>
+          <line x1="150" y1="256" x2="348" y2="108" stroke="#f6f1e8" stroke-width="1.6" stroke-linecap="round" opacity="0.35"/>
+          <path d="M378 34 392 72 430 86 392 100 378 138 364 100 326 86 364 72Z"/>
+        </g>
+        <circle class="dust-a" cx="383.2" cy="122.8" r="5.6" fill="currentColor" opacity="0.66"/>
+        <circle class="dust-c" cx="465.1" cy="103.7" r="4.5" fill="currentColor" opacity="0.62"/>
+        <circle class="dust-b" cx="416.5" cy="52.2" r="2.8" fill="currentColor" opacity="0.92"/>
+        <circle class="dust-c" cx="413.8" cy="151.5" r="2.1" fill="currentColor" opacity="0.92"/>
+        <circle class="dust-b" cx="421.5" cy="180.2" r="5.6" fill="currentColor" opacity="0.86"/>
+        <circle class="dust-c" cx="476.8" cy="68.6" r="2.8" fill="currentColor" opacity="0.77"/>
+        <circle class="dust-c" cx="445.9" cy="182.6" r="2.8" fill="currentColor" opacity="0.56"/>
+        <circle class="dust-c" cx="510.8" cy="87.1" r="1.6" fill="currentColor" opacity="0.73"/>
+        <circle class="dust-a" cx="512.1" cy="123.8" r="2.1" fill="currentColor" opacity="0.62"/>
+        <circle class="dust-a" cx="499.7" cy="177.6" r="1.6" fill="currentColor" opacity="0.86"/>
+        <circle class="dust-c" cx="524.1" cy="179.0" r="5.6" fill="currentColor" opacity="0.85"/>
+        <circle class="dust-b" cx="557.3" cy="94.5" r="4.5" fill="currentColor" opacity="0.74"/>
+        <circle class="dust-b" cx="502.1" cy="200.1" r="4.5" fill="currentColor" opacity="0.71"/>
+        <circle class="dust-b" cx="570.0" cy="152.8" r="2.8" fill="currentColor" opacity="0.95"/>
+        <circle class="dust-b" cx="522.5" cy="195.9" r="2.1" fill="currentColor" opacity="0.84"/>
+        <circle class="dust-a" cx="508.9" cy="107.4" r="4.5" fill="currentColor" opacity="0.85"/>
+        <circle class="dust-c" cx="561.7" cy="140.4" r="4.5" fill="currentColor" opacity="0.6"/>
+        <circle class="dust-c" cx="536.8" cy="147.0" r="2.8" fill="currentColor" opacity="0.69"/>
+        <circle class="dust-a" cx="604.8" cy="137.8" r="2.1" fill="currentColor" opacity="0.58"/>
+        <circle class="dust-c" cx="599.7" cy="156.3" r="5.6" fill="currentColor" opacity="0.56"/>
+        <circle class="dust-a" cx="616.4" cy="229.3" r="3.6" fill="currentColor" opacity="0.92"/>
+        <circle class="dust-b" cx="628.4" cy="188.1" r="2.8" fill="currentColor" opacity="0.75"/>
+        <circle class="dust-a" cx="611.7" cy="232.5" r="2.1" fill="currentColor" opacity="0.61"/>
+        <circle class="dust-b" cx="600.3" cy="171.9" r="5.6" fill="currentColor" opacity="0.74"/>
+        <circle class="dust-a" cx="576.1" cy="156.9" r="2.8" fill="currentColor" opacity="0.56"/>
+        <circle class="dust-a" cx="592.3" cy="137.1" r="2.8" fill="currentColor" opacity="0.81"/>
+        <circle class="dust-a" cx="664.0" cy="221.1" r="3.6" fill="currentColor" opacity="0.57"/>
+        <circle class="dust-a" cx="668.6" cy="197.5" r="5.6" fill="currentColor" opacity="0.74"/>
+        <circle class="dust-c" cx="670.4" cy="181.1" r="2.1" fill="currentColor" opacity="0.9"/>
+        <circle class="dust-c" cx="666.8" cy="198.1" r="3.6" fill="currentColor" opacity="0.67"/>
+        <circle class="dust-c" cx="658.5" cy="159.4" r="5.6" fill="currentColor" opacity="0.55"/>
+        <circle class="dust-c" cx="627.9" cy="231.3" r="2.8" fill="currentColor" opacity="0.79"/>
+        <circle class="dust-b" cx="644.2" cy="262.8" r="3.6" fill="currentColor" opacity="0.65"/>
+        <circle class="dust-a" cx="690.6" cy="248.3" r="2.1" fill="currentColor" opacity="0.6"/>
+        <circle class="dust-a" cx="668.6" cy="175.9" r="5.6" fill="currentColor" opacity="0.73"/>
+        <circle class="dust-c" cx="648.8" cy="170.5" r="2.8" fill="currentColor" opacity="0.6"/>
+        <circle class="dust-a" cx="724.7" cy="206.4" r="2.1" fill="currentColor" opacity="0.8"/>
+        <circle class="dust-a" cx="670.2" cy="206.8" r="5.6" fill="currentColor" opacity="0.85"/>
+        <circle class="dust-a" cx="710.0" cy="224.7" r="5.6" fill="currentColor" opacity="0.86"/>
+        <circle class="dust-a" cx="698.8" cy="270.4" r="3.6" fill="currentColor" opacity="0.86"/>
+        <circle class="dust-c" cx="742.2" cy="197.3" r="5.6" fill="currentColor" opacity="0.79"/>
+        <circle class="dust-b" cx="683.3" cy="218.5" r="2.8" fill="currentColor" opacity="0.84"/>
+        <circle class="dust-a" cx="751.4" cy="270.8" r="3.6" fill="currentColor" opacity="0.93"/>
+        <circle class="dust-c" cx="735.6" cy="184.2" r="4.5" fill="currentColor" opacity="0.84"/>
+        <circle class="dust-a" cx="722.7" cy="263.5" r="4.5" fill="currentColor" opacity="0.85"/>
+        <circle class="dust-b" cx="709.0" cy="279.8" r="2.1" fill="currentColor" opacity="0.69"/>
+        <circle class="dust-c" cx="762.4" cy="235.0" r="1.6" fill="currentColor" opacity="0.81"/>
+        <circle class="dust-a" cx="780.8" cy="278.3" r="3.6" fill="currentColor" opacity="0.75"/>
+        <circle class="dust-b" cx="776.0" cy="274.3" r="3.6" fill="currentColor" opacity="0.76"/>
+        <circle class="dust-b" cx="797.5" cy="200.5" r="1.6" fill="currentColor" opacity="0.57"/>
+        <circle class="dust-c" cx="736.6" cy="227.6" r="4.5" fill="currentColor" opacity="0.88"/>
+        <circle class="dust-b" cx="773.2" cy="292.8" r="3.6" fill="currentColor" opacity="0.7"/>
+        <circle class="dust-b" cx="763.0" cy="309.3" r="5.6" fill="currentColor" opacity="0.58"/>
+        <circle class="dust-b" cx="764.4" cy="246.7" r="4.5" fill="currentColor" opacity="0.91"/>
+        <circle class="dust-c" cx="806.5" cy="295.4" r="5.6" fill="currentColor" opacity="0.84"/>
+        <circle class="dust-b" cx="817.9" cy="288.8" r="2.1" fill="currentColor" opacity="0.74"/>
+        <circle class="dust-a" cx="798.6" cy="283.0" r="4.5" fill="currentColor" opacity="0.94"/>
+        <circle class="dust-a" cx="786.3" cy="235.9" r="3.6" fill="currentColor" opacity="0.84"/>
+        <circle class="dust-b" cx="823.3" cy="223.6" r="2.8" fill="currentColor" opacity="0.8"/>
+        <circle class="dust-a" cx="844.1" cy="271.9" r="1.6" fill="currentColor" opacity="0.95"/>
+        <circle class="dust-c" cx="846.6" cy="243.5" r="2.8" fill="currentColor" opacity="0.7"/>
+        <circle class="dust-b" cx="850.4" cy="252.5" r="1.6" fill="currentColor" opacity="0.68"/>
+        <circle class="dust-a" cx="877.0" cy="339.7" r="5.6" fill="currentColor" opacity="0.75"/>
+        <circle class="dust-b" cx="854.8" cy="259.3" r="3.6" fill="currentColor" opacity="0.61"/>
+        <circle class="dust-c" cx="849.9" cy="280.7" r="4.5" fill="currentColor" opacity="0.82"/>
+        <circle class="dust-a" cx="832.0" cy="276.8" r="2.8" fill="currentColor" opacity="0.59"/>
+        <circle class="dust-a" cx="826.3" cy="330.3" r="5.6" fill="currentColor" opacity="0.7"/>
+        <circle class="dust-b" cx="869.2" cy="240.1" r="4.5" fill="currentColor" opacity="0.73"/>
+        <circle class="dust-b" cx="853.8" cy="238.6" r="4.5" fill="currentColor" opacity="0.61"/>
+        <circle class="dust-a" cx="855.2" cy="284.5" r="1.6" fill="currentColor" opacity="0.7"/>
+        <circle class="dust-a" cx="420.8" cy="125.7" r="3.4" fill="currentColor" opacity="0.84"/>
+        <circle class="dust-c" cx="395.6" cy="84.6" r="2.0" fill="currentColor" opacity="0.73"/>
+        <circle class="dust-a" cx="454.8" cy="123.3" r="1.4" fill="currentColor" opacity="0.88"/>
+        <circle class="dust-b" cx="373.7" cy="124.7" r="2.0" fill="currentColor" opacity="0.7"/>
+        <circle class="dust-c" cx="444.3" cy="100.3" r="3.4" fill="currentColor" opacity="0.81"/>
+        <circle class="dust-c" cx="398.4" cy="72.4" r="2.6" fill="currentColor" opacity="0.75"/>
+        <circle class="dust-a" cx="426.2" cy="123.9" r="1.4" fill="currentColor" opacity="0.88"/>
+        <circle class="dust-b" cx="415.1" cy="106.3" r="2.0" fill="currentColor" opacity="0.78"/>
+        <circle class="dust-c" cx="371.6" cy="53.1" r="3.4" fill="currentColor" opacity="0.75"/>
+        <circle class="dust-c" cx="404.3" cy="52.7" r="2.0" fill="currentColor" opacity="0.98"/>
+        <circle class="dust-c" cx="390.0" cy="66.5" r="2.0" fill="currentColor" opacity="0.9"/>
+        <circle class="dust-a" cx="406.7" cy="76.9" r="2.0" fill="currentColor" opacity="0.72"/>
+        <circle class="dust-b" cx="435.9" cy="100.4" r="2.0" fill="currentColor" opacity="0.66"/>
+        <circle class="dust-b" cx="413.4" cy="63.4" r="3.4" fill="currentColor" opacity="0.93"/>
+        <circle class="dust-b" cx="431.2" cy="68.0" r="1.4" fill="currentColor" opacity="0.99"/>
+        <circle class="dust-b" cx="386.2" cy="88.5" r="2.6" fill="currentColor" opacity="0.65"/>
+        <circle class="dust-c" cx="382.6" cy="72.0" r="1.4" fill="currentColor" opacity="0.91"/>
+        <circle class="dust-c" cx="437.9" cy="65.1" r="3.4" fill="currentColor" opacity="0.72"/>
+        <circle class="dust-a" cx="419.3" cy="114.4" r="2.6" fill="currentColor" opacity="0.97"/>
+        <circle class="dust-a" cx="404.9" cy="64.8" r="2.6" fill="currentColor" opacity="0.85"/>
+        <circle class="dust-c" cx="453.5" cy="129.2" r="1.4" fill="currentColor" opacity="0.99"/>
+        <circle class="dust-c" cx="386.2" cy="58.9" r="2.6" fill="currentColor" opacity="0.96"/>
+        <circle class="dust-b" cx="394.4" cy="63.4" r="3.4" fill="currentColor" opacity="0.86"/>
+        <circle class="dust-b" cx="440.0" cy="112.4" r="2.0" fill="currentColor" opacity="0.74"/>
+        <circle class="dust-c" cx="445.4" cy="68.4" r="3.4" fill="currentColor" opacity="0.74"/>
+        <circle class="dust-b" cx="448.4" cy="67.1" r="2.6" fill="currentColor" opacity="0.86"/>
+        <circle class="dust-b" cx="436.7" cy="110.7" r="2.0" fill="currentColor" opacity="0.78"/>
+        <circle class="dust-b" cx="369.1" cy="114.5" r="2.6" fill="currentColor" opacity="0.85"/>
+        <circle class="dust-a" cx="384.9" cy="68.9" r="3.4" fill="currentColor" opacity="0.89"/>
+        <circle class="dust-b" cx="401.6" cy="118.6" r="3.4" fill="currentColor" opacity="0.77"/>
+        <circle class="dust-a" cx="403.4" cy="102.2" r="1.4" fill="currentColor" opacity="0.95"/>
+        <circle class="dust-a" cx="402.0" cy="70.8" r="3.4" fill="currentColor" opacity="0.93"/>
+        <circle class="dust-a" cx="423.2" cy="77.7" r="1.4" fill="currentColor" opacity="0.91"/>
+        <circle class="dust-c" cx="426.8" cy="62.1" r="2.6" fill="currentColor" opacity="0.69"/>
+        <circle class="dust-c" cx="394.4" cy="68.1" r="2.0" fill="currentColor" opacity="0.7"/>
+        <circle class="dust-c" cx="413.5" cy="52.7" r="2.6" fill="currentColor" opacity="0.97"/>
+        <circle class="dust-b" cx="410.3" cy="75.5" r="5.5" fill="currentColor" opacity="0.6"/>
+        <circle class="dust-c" cx="453.6" cy="103.1" r="4.5" fill="currentColor" opacity="0.76"/>
+        <circle class="dust-b" cx="476.6" cy="81.7" r="5.5" fill="currentColor" opacity="0.71"/>
+        <circle class="dust-a" cx="492.7" cy="133.0" r="6.5" fill="currentColor" opacity="0.65"/>
+        <circle class="dust-b" cx="526.1" cy="129.3" r="6.5" fill="currentColor" opacity="0.64"/>
+        <circle class="dust-a" cx="551.4" cy="146.6" r="5.5" fill="currentColor" opacity="0.65"/>
+        <circle class="dust-c" cx="542.9" cy="171.5" r="7.5" fill="currentColor" opacity="0.8"/>
+        <circle class="dust-a" cx="616.7" cy="189.9" r="6.5" fill="currentColor" opacity="0.67"/>
+        <circle class="dust-a" cx="593.1" cy="161.7" r="6.5" fill="currentColor" opacity="0.6"/>
+        <circle class="dust-a" cx="642.8" cy="166.1" r="4.5" fill="currentColor" opacity="0.72"/>
+        <circle class="dust-a" cx="655.1" cy="168.9" r="4.5" fill="currentColor" opacity="0.72"/>
+        <circle class="dust-a" cx="710.1" cy="186.3" r="5.5" fill="currentColor" opacity="0.69"/>
+        <circle class="dust-b" cx="736.4" cy="197.6" r="4.5" fill="currentColor" opacity="0.59"/>
+        <circle class="dust-b" cx="750.5" cy="255.4" r="4.5" fill="currentColor" opacity="0.64"/>
+        <circle class="dust-b" cx="788.5" cy="255.0" r="7.5" fill="currentColor" opacity="0.51"/>
+        <circle class="dust-c" cx="772.0" cy="242.3" r="7.5" fill="currentColor" opacity="0.56"/>
+        <circle class="dust-c" cx="799.1" cy="297.2" r="7.5" fill="currentColor" opacity="0.75"/>
+        <circle class="dust-c" cx="865.4" cy="253.1" r="6.5" fill="currentColor" opacity="0.73"/>
+        <path class="dust-a" fill="currentColor" opacity="0.92" d="M393.9,110.0 396.6,117.7 404.4,120.5 396.6,123.2 393.9,131.0 391.2,123.2 383.4,120.5 391.2,117.7Z"/>
+        <path class="dust-b" fill="currentColor" opacity="0.92" d="M410.3,87.9 413.7,97.6 423.3,100.9 413.7,104.3 410.3,113.9 406.9,104.3 397.3,100.9 406.9,97.6Z"/>
+        <path class="dust-b" fill="currentColor" opacity="0.92" d="M481.3,62.5 483.5,68.8 489.8,71.0 483.5,73.2 481.3,79.5 479.1,73.2 472.8,71.0 479.1,68.8Z"/>
+        <path class="dust-a" fill="currentColor" opacity="0.92" d="M474.4,66.0 477.8,75.6 487.4,79.0 477.8,82.4 474.4,92.0 471.0,82.4 461.4,79.0 471.0,75.6Z"/>
+        <path class="dust-c" fill="currentColor" opacity="0.92" d="M483.7,133.3 487.1,142.9 496.7,146.3 487.1,149.7 483.7,159.3 480.3,149.7 470.7,146.3 480.3,142.9Z"/>
+        <path class="dust-a" fill="currentColor" opacity="0.92" d="M550.6,133.0 554.0,142.6 563.6,146.0 554.0,149.3 550.6,159.0 547.2,149.3 537.6,146.0 547.2,142.6Z"/>
+        <path class="dust-a" fill="currentColor" opacity="0.92" d="M567.9,124.0 570.1,130.3 576.4,132.5 570.1,134.7 567.9,141.0 565.7,134.7 559.4,132.5 565.7,130.3Z"/>
+        <path class="dust-b" fill="currentColor" opacity="0.92" d="M589.8,127.0 592.5,134.7 600.3,137.5 592.5,140.2 589.8,148.0 587.1,140.2 579.3,137.5 587.1,134.7Z"/>
+        <path class="dust-c" fill="currentColor" opacity="0.92" d="M596.0,189.6 599.4,199.2 609.0,202.6 599.4,205.9 596.0,215.6 592.6,205.9 583.0,202.6 592.6,199.2Z"/>
+        <path class="dust-a" fill="currentColor" opacity="0.92" d="M622.8,125.0 625.0,131.3 631.3,133.5 625.0,135.7 622.8,142.0 620.5,135.7 614.3,133.5 620.5,131.3Z"/>
+        <path class="dust-c" fill="currentColor" opacity="0.92" d="M691.4,162.8 693.6,169.0 699.9,171.3 693.6,173.5 691.4,179.8 689.2,173.5 682.9,171.3 689.2,169.0Z"/>
+        <path class="dust-c" fill="currentColor" opacity="0.92" d="M723.4,163.1 726.1,170.9 733.9,173.6 726.1,176.3 723.4,184.1 720.7,176.3 712.9,173.6 720.7,170.9Z"/>
+        <path class="dust-c" fill="currentColor" opacity="0.92" d="M741.7,170.1 743.9,176.4 750.2,178.6 743.9,180.8 741.7,187.1 739.5,180.8 733.2,178.6 739.5,176.4Z"/>
+        <path class="dust-c" fill="currentColor" opacity="0.92" d="M737.1,174.2 739.8,182.0 747.6,184.7 739.8,187.5 737.1,195.2 734.3,187.5 726.6,184.7 734.3,182.0Z"/>
+        <path class="dust-a" fill="currentColor" opacity="0.92" d="M748.7,236.7 750.4,241.6 755.2,243.2 750.4,244.9 748.7,249.7 747.0,244.9 742.2,243.2 747.0,241.6Z"/>
+        <path class="dust-c" fill="currentColor" opacity="0.92" d="M781.0,271.6 783.7,279.4 791.5,282.1 783.7,284.8 781.0,292.6 778.3,284.8 770.5,282.1 778.3,279.4Z"/>
+        <path class="dust-c" fill="currentColor" opacity="0.92" d="M815.4,282.1 817.6,288.4 823.9,290.6 817.6,292.8 815.4,299.1 813.2,292.8 806.9,290.6 813.2,288.4Z"/>
+        <path class="dust-b" fill="currentColor" opacity="0.92" d="M842.3,258.8 845.0,266.6 852.8,269.3 845.0,272.1 842.3,279.8 839.6,272.1 831.8,269.3 839.6,266.6Z"/>
+      </svg>
     </div>
   </section>
 
@@ -851,7 +1029,7 @@
 <div id="app-shell" aria-hidden="true">
 <!-- ── Header ──────────────────────────────────────────────────────── -->
 <header>
-  <h1 class="brand-wordmark" aria-label="Magic Table Finder"><span class="wordmark-name"><span class="wordmark-magic"><svg class="wordmark-wand-accent" viewBox="0 0 20 32" fill="none" aria-hidden="true"><line x1="1.8" y1="30.4" x2="9.1" y2="9.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="1.6" cy="30.7" r="1.2" fill="currentColor"/><path fill="currentColor" d="M9.55 7.15 10.2 8.85 8.85 9.7 8.2 8Z"/><path fill="currentColor" d="M12.55 1.2 13 3.85 15.65 4.3 13 4.75 12.55 7.4 12.1 4.75 9.45 4.3 12.1 3.85Z"/><path fill="currentColor" d="M15.35 8.15 15.58 9.55 16.98 9.78 15.58 10.01 15.35 11.41 15.12 10.01 13.72 9.78 15.12 9.55Z"/><circle cx="13.05" cy="14.6" r=".85" fill="currentColor"/><circle cx="11.55" cy="18.6" r=".62" fill="currentColor"/><circle cx="13.45" cy="22.4" r=".58" fill="currentColor"/><circle cx="11.85" cy="25.8" r=".48" fill="currentColor"/><circle cx="13.15" cy="28.7" r=".38" fill="currentColor"/></svg>M</span>agic Table Finder</span></h1>
+  <h1 class="brand-wordmark" aria-label="Magic Table Finder"><span class="wordmark-name"><span class="wordmark-magic"><svg class="wordmark-wand-accent" viewBox="0 0 24 36" fill="none" aria-hidden="true"><line x1="2.2" y1="33.2" x2="10.4" y2="10.4" stroke="currentColor" stroke-width="1.85" stroke-linecap="round"/><circle cx="2.1" cy="33.4" r="1.55" fill="currentColor"/><circle cx="3.7" cy="31.1" r=".7" fill="currentColor"/><path fill="currentColor" d="M12.2 2.1 12.85 6.1 16.85 6.75 12.85 7.4 12.2 11.4 11.55 7.4 7.55 6.75 11.55 6.1Z"/><path fill="currentColor" d="M17.4 8.6 17.7 10.3 19.4 10.6 17.7 10.9 17.4 12.6 17.1 10.9 15.4 10.6 17.1 10.3Z"/><path fill="currentColor" d="M14.8 13.2 15 14.4 16.2 14.6 15 14.8 14.8 16 14.6 14.8 13.4 14.6 14.6 14.4Z"/><path fill="currentColor" d="M18.6 14.8 18.75 15.7 19.65 15.85 18.75 16 18.6 16.9 18.45 16 17.55 15.85 18.45 15.7Z"/><circle cx="13.6" cy="17.8" r=".85" fill="currentColor"/><circle cx="15.4" cy="21.2" r=".62" fill="currentColor"/><circle cx="13.2" cy="24.6" r=".55" fill="currentColor"/><circle cx="15.1" cy="27.8" r=".45" fill="currentColor"/><circle cx="13.5" cy="30.6" r=".35" fill="currentColor"/></svg>M</span>agic Table Finder</span></h1>
   <div class="hdr-sep"></div>
   <span id="profile-label" class="owner-chip"></span>
   <span id="plan-line" hidden></span>
