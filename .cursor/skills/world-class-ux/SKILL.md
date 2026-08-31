@@ -11,8 +11,8 @@ Make Magic Table Finder feel like a trustworthy alert product, not a scraper das
 
 The core job is simple:
 
-1. Choose who is watching.
-2. Create a precise dining alert.
+1. Know who is signed in (`#profile-label`).
+2. Browse restaurants, then create a precise dining alert.
 3. Understand what is being watched.
 4. Trust the bot is running.
 5. Act fast when an alert arrives.
@@ -21,9 +21,9 @@ Everything in the UX should reduce doubt around those five moments.
 
 ## Product Principles
 
-- Lead with the primary job: create an alert. Restaurant browsing and calendars are supporting tools.
+- Lead with restaurant browse, then create an alert. The availability calendar is a supporting tool, not the home surface.
 - Use plain language: "Watch", "Alert me", "Party", "Date", "Time window", "Any meal".
-- Make ownership obvious. Craig and Jessica should never wonder whose watch or phone will receive alerts.
+- Make ownership obvious. The session chip shows who is signed in; Craig and Jessica should never wonder whose watch or phone will receive alerts.
 - Prefer guided inputs over free text where practical. If free text is used, validate immediately and explain how to fix it.
 - Treat bot health as user trust. Show whether the worker is running, when it last polled, and whether there are actionable issues.
 - Keep alert criteria visible everywhere: restaurant, date, party size, meal period, time window, owner.
@@ -45,7 +45,8 @@ When asked to improve UX:
 
 A UX change is not done until these are true:
 
-- Profile selector clearly shows Craig and Jessica.
+- Session chip (`#profile-label`) shows the signed-in identity.
+- Empty My Watches copy is `No watches yet. Browse restaurants`, with a control that opens the Restaurants tab.
 - Watch creation can be completed with the calendar-first date picker, with manual date entry available as a secondary option.
 - Watch creation supports restaurant, party size, one or more dates, meal period, and optional time window.
 - Created watches appear under the correct owner.
@@ -70,7 +71,9 @@ Use copy like:
 - "Earliest time"
 - "Latest time"
 - "Last checked 10:42 PM"
-- "No watches yet. Create one above."
+- "No watches yet. Browse restaurants"
+- "Sign out"
+- "Pay $4.99 and watch"
 - "Disney has not opened booking for this date yet."
 
 Avoid copy like:

@@ -15,7 +15,7 @@ SMS when a **new matching** Walt Disney World reservation opening appears. Not a
 | D3 | **Identity:** paying consumers log in first, then Checkout. One app `user_id` ↔ one Stripe Customer. Webhooks (plus optional server Session retrieve on return) own active/inactive. Browser `?success=` is not entitlement. |
 | D4 | **Craig and Jessica** (`craig`, `Jessica`) are unrestricted internal owners: no Stripe, no cap, no Checkout, no Portal. Private login stays. Webhooks never attach a Customer to these ids. Billing failures never SMS Jessica. |
 | D5 | Catalog is Walt Disney World only until a later epic. |
-| D6 | Create Watch is the primary job. Availability calendar is supporting, not the home surface. |
+| D6 | Create Watch is the primary job on the Restaurants tab. The availability calendar is supporting, not the home surface. |
 | D7 | SMS consent remains an unchecked checkbox on Create Watch. Stripe checkout is not SMS consent. STOP still wins over a paid watch. |
 | D8 | Cloud must not seed Disney, SSH to the VPS, run the poller, clear `open_slots.json` / `seen_slots.json`, or put live Stripe/Twilio/Disney secrets in the repo. |
 
@@ -24,8 +24,8 @@ SMS when a **new matching** Walt Disney World reservation opening appears. Not a
 - Implement **one slice per PR** unless the spec for that PR lists multiple stories.
 - Do not add Brunch to the poller, Disneyland, auto-booking, a free SMS tier, or a faster poll interval.
 - Do not advertise a minute-level poll interval on the public landing.
-- Do not make the Restaurants calendar the default logged-in surface.
-- Locked pricing (Craig 2026-08-30): Single Watch **$4.99** one-time; Planner **$14.99/month** for **4** active alerts. Do **not** put dollar amounts in `public/index.html`.
+- Do not make the availability calendar modal the default logged-in surface. Restaurants tab (catalog + Create Watch) is the empty-state home; My Watches is home when the user already has watches.
+- Locked pricing (Craig 2026-08-30): Single Watch **$4.99** one-time; Planner **$14.99/month** for **4** active alerts. Show Single Watch $4.99 and Planner $14.99/month (cap 4) in `public/index.html` at landing, pay CTA, upgrade prompt, and the logged-in plan line.
 - Auth, Stripe, Twilio, VPS, Gist cutover, destructive git: high-risk review (Codex). Stay off `main` unless Craig said deploy.
 
 ## Current slice
@@ -140,11 +140,11 @@ Logged-in consumer with `can_create_watch` true (planner **or** single_watch): e
 - `planner_cap`: “You’re at this month’s watch limit.”
 - `billing_unavailable`: “Paid watches are not available yet. You can browse restaurants now.”
 
-`billing_mode === 'single_watch'`: show `#billing-next-banner` **and** keep Create Watch enabled. Copy: “Pay once for this watch. You’ll go to Stripe to pay, then we’ll start watching. Paying is not text consent — check the box first.” Button label **Pay and watch**. Do not print dollar amounts.
+`billing_mode === 'single_watch'`: show `#billing-next-banner` **and** keep Create Watch enabled. Copy: “Pay $4.99 for this watch. You’ll go to Stripe to pay, then we’ll start watching. Paying is not text consent — check the box first.” Button label **Pay $4.99 and watch**.
 
 `billing_mode === 'planner'` or internal: hide paywall banner; button **Create Watch**.
 
-`#planner-checkout-btn` visible for consumers not on live Planner (`active`/`trialing`). `#billing-portal-btn` visible iff `has_stripe_customer`. `#upgrade-prompt` visible iff `upgrade_prompt` (after 2 Single Watch purchases). Planner button copy: “Start a monthly Planner” — no price number.
+`#planner-checkout-btn` visible for consumers not on live Planner (`active`/`trialing`). `#billing-portal-btn` visible iff `has_stripe_customer`. `#upgrade-prompt` visible iff `upgrade_prompt` (after 2 Single Watch purchases). Planner button copy: “Start Planner · $14.99/mo”.
 
 Phone: `#consumer-phone` still saves via `PATCH /me`. Create Watch / calendar add if `!has_phone` → focus phone, do not POST.
 
@@ -163,12 +163,12 @@ Name Stripe as the payment processor. State that Checkout is **not** SMS consent
 - `tests/test_entitlement.js` — planner ok, single_watch ok, past_due/canceling/cap blocked, internal unchanged, `kind=consumer` on `craig` still not internal.
 - `tests/test_stripe_billing.js` — fake Stripe: bind fields, no Session for internal, no `customer`+`customer_email`, reserved id no-op, idempotent event id, unpaid payload not passed to watch writer, paid apply calls writer once, planner does not write watches.
 - `tests/test_consumer_auth_api.js` — cookie consumer POST without planner → 402 `checkout_required` + `checkout_url`, **zero** Gist (spy `setWatchWriterForTests`); with `sms_consent` false → 422; no phone → 422; planner user + injected writer → **201** and writer called once; webhook public; internal POST still not 402 `checkout_required`; `/billing/checkout` and `/billing/portal` 403 for `craig`.
-- `tests/test_landing_contract.py` — ids `#planner-checkout-btn`, `#billing-portal-btn`, `#upgrade-prompt`; copy “Pay once for this watch”; `checkout_url`; `sms_consent`; no `$` price in `index.html` for SKUs; `paid=ok`.
+- `tests/test_landing_contract.py` — ids `#planner-checkout-btn`, `#billing-portal-btn`, `#upgrade-prompt`; copy “Pay $4.99 for this watch”; `checkout_url`; `sms_consent`; `$4.99` / `$14.99` SKU prices in `index.html`; still no `$9`/`$19`; `paid=ok`.
 - Existing Slice 1–2 gates stay green (update Slice 2 assertions that required consumer `can_create_watch === false` and `billing_required`).
 
 ### Out of scope
 
-Live Stripe keys in Cloud, sending a real Checkout, public launch (Slice 4), poller/Disney session, `netlify.toml`, pause in Portal, putting `$` prices in `index.html`, Brunch, Disneyland, auto-book, free SMS, Goose/Claude Code.
+Live Stripe keys in Cloud, sending a real Checkout, public launch (Slice 4), poller/Disney session, `netlify.toml`, pause in Portal, Brunch, Disneyland, auto-book, free SMS, Goose/Claude Code.
 
 ---
 
@@ -198,7 +198,7 @@ As a user, after I pick a place I am creating a watch, not browsing an availabil
 
 **AC**
 
-1. Default HTML and first paint (logged in): **My Watches** tab is `active`, Restaurants is not. Empty copy remains `No watches yet. Create one above.` Tab choice is not persisted; refresh returns to My Watches. After a successful Create Watch, stay on My Watches (existing post-submit switch).
+1. Default HTML and first paint (logged in): **Restaurants** tab is `active`, My Watches is not. Empty copy is `No watches yet. Browse restaurants` with `#goto-restaurants`. After watches load, if the user has watches, switch to My Watches. After a successful Create Watch, stay on My Watches. `#create-watch` lives inside the Restaurants tab.
 2. Restaurant cards’ primary button is **Watch this**. It calls `selectRestaurant(facilityId)` (combobox + `#restaurant-select` + `applyBookingTypeUI()`), scrolls `#create-watch` into view, and does not open the calendar modal.
 3. Cards expose a secondary **See dates** control under the primary button that opens the existing calendar modal.
 4. Park filter is single-select chips derived from **watchable** catalog `park` values, sorted A–Z, plus an **All** chip that clears the filter. Free-text cuisine search may remain. Do not require typing `Disney's Hollywood Studios` as the only park filter. `#park-filter` text input is removed.
@@ -228,7 +228,7 @@ As a user, I never pick a dinner show or event that cannot be booked because `sl
 1. Shared `isWatchable(r)`: non-empty trimmed `facility_id`, `name`, `slug`, and `booking_url`. Harmony Barber Shop remains watchable.
 2. Combobox, card grid, and `#restaurant-select` options all call `isWatchable` (one function, not three copies).
 3. `Hoop-Dee-Doo Musical Revue` and `Celebration at the Top - Sip, Savor, Sparkle` as currently indexed (empty slug/booking_url) do not appear.
-4. `tests/test_dining_selection_contract.py` asserts: `function isWatchable`, Watch this, See dates, default My Watches tab, no `#global-party`, `getPartySize` reads `#party-size`, and the script contains the Hoop-Dee-Doo / empty-slug omit path via `isWatchable`.
+4. `tests/test_dining_selection_contract.py` asserts: `function isWatchable`, Watch this, See dates, default Restaurants tab, no `#global-party`, `getPartySize` reads `#party-size`, and the script contains the Hoop-Dee-Doo / empty-slug omit path via `isWatchable`.
 
 **Files:** `public/index.html`, `tests/test_dining_selection_contract.py`.
 
@@ -371,7 +371,7 @@ As a consumer who magic-linked in, I can see the app but I cannot create a live 
 **AC**
 
 1. When `can_create_watch` is false: show `#billing-next-banner` (“Paid watches are next. You can browse restaurants now.”); disable `#create-btn` and `#bulk-btn`; do not POST from the create form, `calAddWatch`, `watchAllGrey`, or calendar day clicks; do not require `#sms-consent` or `#modal-sms-consent` (see Builder contract). See dates still opens the calendar. Do not fake a 201. If POST happens anyway, API 402 `detail` may show on `#create-msg.err` or `#modal-msg`.
-2. Empty My Watches copy may stay `No watches yet. Create one above.` Internal users unchanged.
+2. Empty My Watches copy is `No watches yet. Browse restaurants`. Internal users unchanged.
 3. Quiet Luxury landing tokens and locked headlines in `tests/test_landing_contract.py` stay green. Add assertions for `#login-email`, `#login-magic-btn`, and `?signin=invalid` handling. Do not steal focus on first paint (`autofocus` still forbidden). Sign-in nav may still focus `#login-pwd` after click, as today.
 4. Gates: `python3 -m unittest tests.test_alert_semantics tests.test_landing_contract tests.test_dining_selection_contract`; then the five separate `node tests/test_*.js` commands in the Builder contract; extract last `<script>` from `public/index.html` → `node --check`.
 5. Do not edit `disney_bot.py`, `monitor.py`, `notify.py`, `seed_disney_session.py`, `open_slots.json`, `seen_slots.json`, `.env`, or Stripe. Do not `playwright install`. Do not add Cloud secrets. Live `scripts/smoke_test_api.py` is not a Cloud gate; keep `/profiles` + internal password auth compatible so it still works in production.
@@ -474,7 +474,7 @@ As a consumer without live Planner, I create a watch, agree to SMS, pay once, th
 2. Same request with `sms_consent` false/missing → 422, no Checkout.
 3. No phone → 422 `phone_required`, no Checkout.
 4. Fake `checkout.session.completed` (or `/billing/sync`) writes one `billable_id` across all dates in the pending payload; writer called once; quantity on the Price is 1 regardless of date count.
-5. Frontend: `Pay and watch`, `checkout_url`, `sms_consent` in the POST body, `postWatch` used by form + calendar + bulk (not generic `apiFetch` for that POST). `smsConsentKey()` uses `mtfSessionUser.id` for consumers.
+5. Frontend: `Pay $4.99 and watch`, `checkout_url`, `sms_consent` in the POST body, `postWatch` used by form + calendar + bulk (not generic `apiFetch` for that POST). `smsConsentKey()` uses `mtfSessionUser.id` for consumers.
 6. In `bootSession`, `?paid=ok` calls `POST /billing/sync` with `session_id` before `onLogin()`; query is not entitlement.
 
 **Files:** `netlify/functions/api.js`, `netlify/functions/stripe_billing.js`, `public/index.html`, `tests/test_consumer_auth_api.js`, `tests/test_stripe_billing.js`, `tests/test_landing_contract.py`.
@@ -520,12 +520,12 @@ As a consumer who already has a Stripe Customer, I manage card and cancel at per
 
 ### User story US-3.6 — Upgrade prompt
 
-As a guest on my second Single Watch, I see an offer to start Planner (no dollar figure).
+As a guest on my second Single Watch, I see an offer to start Planner at $14.99/mo.
 
 **AC**
 
 1. `single_watch_count >= 2` and not live Planner → `upgrade_prompt` true and `#upgrade-prompt` visible.
-2. Copy must not include `$` or a numeric monthly price.
+2. Copy includes `$14.99/mo`.
 3. CTA uses `#planner-checkout-btn` / POST `/billing/checkout`.
 
 **Files:** `netlify/functions/entitlement.js`, `public/index.html`, `tests/test_entitlement.js`, `tests/test_landing_contract.py`.

@@ -88,6 +88,9 @@ class DiningSelectionContractTest(unittest.TestCase):
         self.assertNotIn('class="tab-btn active" data-tab="restaurants"', INDEX)
         self.assertNotIn('id="tab-restaurants" class="tab-panel active"', INDEX)
         self.assertIn("No watches yet. Create one above.", INDEX)
+        self.assertIn('id="goto-restaurants"', INDEX)
+        self.assertIn('id="add-watch-btn"', INDEX)
+        self.assertIn("function activateTab(name)", INDEX)
 
     def test_one_party_control(self):
         self.assertNotIn("global-party", INDEX)
