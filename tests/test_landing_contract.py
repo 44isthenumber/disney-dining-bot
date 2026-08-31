@@ -88,10 +88,9 @@ class LandingContractTest(unittest.TestCase):
         self.assertIn("@keyframes hero-dust-a", INDEX)
         self.assertIn("@keyframes hero-dust-b", INDEX)
         self.assertIn("@keyframes hero-dust-c", INDEX)
-        self.assertIn(
-            ".hero-wand .dust-a, .hero-wand .dust-b, .hero-wand .dust-c { animation: none; }",
-            INDEX,
-        )
+        still = ".hero-wand .dust-a, .hero-wand .dust-b, .hero-wand .dust-c { animation: none; }"
+        self.assertIn(still, INDEX)
+        self.assertGreater(INDEX.rfind(still), INDEX.find("@keyframes hero-dust-c"))
         self.assertNotIn("plate-motif", INDEX)
         self.assertNotIn("candleGlow", INDEX)
         self.assertNotIn('class="l-plate"', INDEX)
