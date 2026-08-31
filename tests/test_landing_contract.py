@@ -182,6 +182,10 @@ class LandingContractTest(unittest.TestCase):
             INDEX,
         )
 
+    def test_faq_has_horizontal_gutter(self):
+        self.assertIn(".l-faq { width: min(720px, calc(100% - 48px)); margin: 0 auto; }", INDEX)
+        self.assertNotRegex(INDEX, r"\.l-faq \{ max-width: 720px; margin: 0 auto; \}")
+
     def test_faq_includes_cost(self):
         for question in (
             "Do you text every open table?",
