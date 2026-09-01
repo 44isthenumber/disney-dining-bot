@@ -216,6 +216,10 @@ Alert copy should list only newly opened slots. Do not group a new slot back int
 - Preserve owner/profile clarity. Craig and Jessica should never wonder whose phone gets the alert.
 - Do not expose phone numbers, Gist IDs, tokens, passwords, or internal Disney IDs in the UI.
 - **Twilio A2P 10DLC Compliance:** The UI must block watch creation until the user explicitly checks an unchecked SMS consent checkbox. The public `/privacy.html` and `/terms.html` pages must remain available and explicitly state that mobile opt-in data and SMS consent are not shared or sold.
+- Guests build the watch before identity (restaurant → dates → phone → email → consent → Continue).
+- The draft lives in `localStorage.mtfWatchDraft` and resumes after the magic link.
+- Login still precedes Stripe Checkout (D3).
+- The catalog for guests is the static `/restaurants.json`.
 
 ---
 

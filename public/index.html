@@ -233,17 +233,37 @@
   }
   #create-watch h2 { font-family: var(--font-serif); font-size: 22px; font-weight: 500; margin-bottom: 4px; }
   #create-watch .hint { color: var(--muted); font-size: 13px; margin-bottom: 14px; }
-  .create-grid {
-    display: grid;
-    grid-template-columns: minmax(260px, 1.4fr) 120px;
-    grid-template-areas:
-      "restaurant party"
-      "dates dates"
-      "meal meal"
-      "times times";
-    gap: 14px 18px;
-    align-items: start;
+  .create-step { display:grid; grid-template-columns: 110px 1fr; gap: 8px 18px; }
+  .create-step { margin-bottom: 16px; align-items: start; }
+  .step-label {
+    font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--gold); padding-top: 8px;
   }
+  .step-body { min-width: 0; }
+  .party-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 10px; }
+  .party-inline {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 14px; color: var(--ink);
+  }
+  .party-inline input[type=number] {
+    width: 64px; padding: 6px 8px; border: 1px solid var(--border);
+    border-radius: 7px; background: #fff; color: var(--text); font-size: 14px;
+  }
+  .meal-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+  .meal-chip {
+    border: 1px solid var(--border); background: var(--paper-card); color: var(--ink);
+    border-radius: 20px; padding: 6px 12px; font-size: 13px; cursor: pointer;
+  }
+  .meal-chip[aria-pressed="true"] {
+    background: var(--ink); color: var(--paper); border-color: var(--ink);
+  }
+  #landing-watch-slot { overflow: visible; }
+  .l-hero #create-watch {
+    text-align: left; max-width: 720px; margin: 24px auto 0; overflow: visible;
+  }
+  .l-hero-links { margin: 18px 0 0; font-size: 14px; color: var(--muted); }
+  #guest-email-field { margin-top: 12px; }
+  #guest-email-field[hidden] { display: none !important; }
   .create-field { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--muted); }
   .create-field select, .create-field input, .create-field textarea {
     width: 100%; min-width: 0;
@@ -251,11 +271,7 @@
     background: #fff; color: var(--text); font-size: 14px;
   }
   .create-field textarea { min-height: 42px; resize: vertical; }
-  .restaurant-field { grid-area: restaurant; }
-  .party-field { grid-area: party; }
-  .meal-field { grid-area: meal; }
-  .time-fields-wrap { grid-area: times; }
-  .date-field { grid-area: dates; min-width: 0; align-self: start; position: relative; }
+  .date-field { min-width: 0; align-self: start; position: relative; }
   .date-input-row { display: none; gap: 8px; align-items: stretch; }
   .date-field.manual-open .date-input-row { display: flex; }
   .date-input-row textarea { flex: 1; min-height: 72px; }
@@ -325,16 +341,20 @@
   #meal-details[hidden], #time-fields[hidden], #phone-intl-fields[hidden], #private-signin[hidden] { display: none !important; }
   #time-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   #phone-setup {
-    margin-bottom: 16px; padding: 16px 18px; border: 1px solid var(--border);
-    border-radius: 4px; background: var(--paper-card);
+    margin-bottom: 12px; padding: 0; border: 0;
+    border-radius: 0; background: transparent;
   }
-  #phone-setup h2 { font-family: var(--font-serif); font-size: 20px; font-weight: 500; margin: 0 0 6px; }
-  #phone-setup .hint { color: var(--muted); font-size: 13px; margin-bottom: 10px; }
+  #phone-setup-heading {
+    font-family: inherit; font-size: 12px; font-weight: 400;
+    color: var(--muted); margin: 0 0 5px;
+  }
   #phone-setup label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--muted); }
   #phone-setup input {
     padding: 10px 12px; border: 1px solid var(--border); border-radius: 7px;
     background: #fff; color: var(--text); font-size: 16px;
   }
+  #consumer-phone { display: block; width: 100%; max-width: 360px; }
+  #phone-setup .details-toggle { margin-top: 6px; }
   #phone-intl-fields { display: grid; grid-template-columns: 90px 1fr; gap: 10px; margin-top: 10px; }
   #phone-setup-msg { font-size: 13px; min-height: 1em; margin-top: 8px; }
   #phone-setup-msg.err { color: #e53e3e; }
@@ -452,15 +472,8 @@
     #create-watch { width: 100%; max-width: 100%; padding: 16px; overflow: visible; }
     .create-field { min-width: 0; }
     #rest-grid .rest-section-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
-    .create-grid {
-      grid-template-columns: 1fr;
-      grid-template-areas:
-        "restaurant"
-        "party"
-        "dates"
-        "meal"
-        "times";
-    }
+    .create-step { display: block; }
+    .step-label { padding-top: 0; margin-bottom: 6px; }
     #time-fields { grid-template-columns: 1fr; }
     #phone-intl-fields { grid-template-columns: 1fr; }
     .date-input-row { flex-direction: column; }
@@ -739,10 +752,9 @@
       <span class="l-eyebrow">Private dining alerts</span>
       <h1>We monitor the openings.</h1>
       <p class="lead">We'll text you when your Walt Disney World reservations open up. You log in. You book. From $4.99 a watch, or $14.99/month for a Planner.</p>
-      <div class="l-hero-actions">
-        <a href="#signin" class="l-btn l-btn-primary landing-nav landing-go-signin">Sign in</a>
-        <a href="#how" class="l-btn l-btn-secondary landing-nav">See how it works</a>
-      </div>
+      <div id="landing-watch-slot"></div>
+      <p class="l-hero-links"><a href="#how" class="landing-nav">See how it works</a> ·
+    <a href="#signin" class="landing-nav landing-go-signin">Already have watches? Sign in</a></p>
     </div>
     <div class="hero-wand" aria-hidden="true">
       <svg class="hero-wand-svg" viewBox="0 0 900 380" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1011,7 +1023,7 @@
     <div class="l-narrow" style="text-align:center">
       <span class="l-eyebrow">Sign in</span>
       <h2>Sign in</h2>
-      <p class="sub">Email a sign-in link, or use a private username if you have one.</p>
+      <p class="sub">Already have watches? Email a sign-in link, or use a private username if you have one.</p>
       <form class="signin-box">
         <label for="login-email">Email</label>
         <input type="email" id="login-email" name="email" autocomplete="email" autocapitalize="none" spellcheck="false" />
@@ -1082,35 +1094,19 @@
 
   <!-- Watches tab -->
   <div id="tab-watches" class="tab-panel active">
-    <div id="phone-setup" hidden>
-      <h2 id="phone-setup-heading">Where should we text you?</h2>
-      <p class="hint">We'll use this number for reservation texts. Saving a number is not text consent — you still check the box when you create a watch.</p>
-      <label>Mobile number
-        <input type="tel" id="consumer-phone" autocomplete="tel" maxlength="40" placeholder="555-123-4567" />
-      </label>
-      <button type="button" class="details-toggle" id="phone-intl-toggle" aria-expanded="false" aria-controls="phone-intl-fields">Not a US number</button>
-      <div id="phone-intl-fields" hidden>
-        <label>Country code
-          <input type="text" id="phone-country" inputmode="numeric" autocomplete="tel-country-code" placeholder="44" maxlength="4" />
-        </label>
-        <label>Phone number
-          <input type="tel" id="phone-local" autocomplete="tel-national" maxlength="20" />
-        </label>
-      </div>
-      <p id="phone-setup-msg" role="status"></p>
-    </div>
+    <div id="create-watch-home">
     <div id="create-watch">
     <h2>Create Watch</h2>
-    <p id="billing-next-banner">Pay $4.99 for this watch. You'll go to Stripe to pay, then we'll start watching. Paying is not text consent — check the box first.</p>
+    <p class="hint">You'll get a text when a matching table newly opens.</p>
     <p id="upgrade-prompt" hidden>You're on your second watch. A Planner ($14.99/mo) lets you watch up to 4 restaurants without paying each time.</p>
     <div id="billing-actions" hidden>
       <button type="button" id="planner-checkout-btn">Start Planner · $14.99/mo</button>
       <button type="button" id="billing-portal-btn" hidden>Manage billing</button>
     </div>
-    <p class="hint">You'll get a text when a matching table newly opens. Choose one or more dates.</p>
     <form id="watch-form">
-      <div class="create-grid">
-        <label class="create-field restaurant-field">Restaurant
+      <div class="create-step">
+        <div class="step-label">Where</div>
+        <div class="step-body">
           <div class="restaurant-combo" id="restaurant-combo">
             <input type="search" id="restaurant-combo-input" autocomplete="off" placeholder="Search restaurants…" role="combobox" aria-autocomplete="list" aria-controls="restaurant-combo-list" aria-expanded="false" />
             <select id="restaurant-select" required class="sr-only" tabindex="-1" aria-hidden="true">
@@ -1118,12 +1114,16 @@
             </select>
             <div id="restaurant-combo-list" role="listbox" hidden></div>
           </div>
-        </label>
-        <label class="create-field party-field">Party
-          <input type="number" id="party-size" min="1" max="20" value="2" required>
-          <small id="specialty-hint" style="display:none;font-size:11px;color:var(--muted)"></small>
-        </label>
-        <div class="create-field date-field">Dates
+          <div class="party-row">
+            <label class="party-inline">Party of <input type="number" id="party-size" min="1" max="20" value="2" required></label>
+            <small id="specialty-hint" style="display:none;font-size:11px;color:var(--muted)"></small>
+          </div>
+        </div>
+      </div>
+      <div class="create-step">
+        <div class="step-label">When</div>
+        <div class="step-body">
+          <div class="create-field date-field">
           <button type="button" id="toggle-date-picker" aria-expanded="false" aria-controls="date-picker-panel">Choose Dates</button>
           <div id="selected-date-chips" aria-live="polite"></div>
           <button type="button" class="manual-toggle" id="toggle-manual-dates">Enter dates manually</button>
@@ -1143,48 +1143,67 @@
               <button type="button" id="date-picker-done">Done</button>
             </div>
           </div>
-          <small style="font-size:11px;color:var(--muted)">Choose one or more dates to watch.</small>
-        </div>
-        <div class="create-field meal-field">
-          <button type="button" class="details-toggle" id="meal-toggle" aria-expanded="false" aria-controls="meal-details">Any meal</button>
-          <div id="meal-details" hidden>
-          <div class="meal-options">
-            <label><input type="checkbox" name="meal-period" value="BREAKFAST"> Breakfast</label>
-            <label><input type="checkbox" name="meal-period" value="LUNCH"> Lunch</label>
-            <label><input type="checkbox" name="meal-period" value="DINNER"> Dinner</label>
           </div>
-          <small>Leave unchecked for any meal.</small>
+          <div id="meal-chips" class="meal-chips" role="group" aria-label="Meal">
+            <button type="button" class="meal-chip" data-meal="ALL" aria-pressed="true">Any meal</button>
+            <button type="button" class="meal-chip" data-meal="BREAKFAST" aria-pressed="false">Breakfast</button>
+            <button type="button" class="meal-chip" data-meal="LUNCH" aria-pressed="false">Lunch</button>
+            <button type="button" class="meal-chip" data-meal="DINNER" aria-pressed="false">Dinner</button>
+          </div>
+          <div class="create-field time-fields-wrap">
+            <button type="button" class="details-toggle" id="time-toggle" aria-expanded="false" aria-controls="time-fields">Only certain times?</button>
+            <div id="time-fields" hidden>
+              <label class="create-field">Earliest Time
+                <input type="time" id="time-from">
+              </label>
+              <label class="create-field">Latest Time
+                <input type="time" id="time-to">
+              </label>
+            </div>
           </div>
         </div>
-        <div class="create-field time-fields-wrap">
-          <button type="button" class="details-toggle" id="time-toggle" aria-expanded="false" aria-controls="time-fields">Only certain times?</button>
-          <div id="time-fields" hidden>
-            <label class="create-field">Earliest Time
-              <input type="time" id="time-from">
-            </label>
-            <label class="create-field">Latest Time
-              <input type="time" id="time-to">
+      </div>
+      <div class="create-step">
+        <div class="step-label">Text me at</div>
+        <div class="step-body">
+          <div id="phone-setup" hidden>
+            <div id="phone-setup-heading">Where should we text you?</div>
+            <input type="tel" id="consumer-phone" autocomplete="tel" maxlength="40" placeholder="555-123-4567" />
+            <button type="button" class="details-toggle" id="phone-intl-toggle" aria-expanded="false" aria-controls="phone-intl-fields">Not a US number</button>
+            <div id="phone-intl-fields" hidden>
+              <label>Country code
+                <input type="text" id="phone-country" inputmode="numeric" autocomplete="tel-country-code" placeholder="44" maxlength="4" />
+              </label>
+              <label>Phone number
+                <input type="tel" id="phone-local" autocomplete="tel-national" maxlength="20" />
+              </label>
+            </div>
+            <p id="phone-setup-msg" role="status"></p>
+          </div>
+          <label class="create-field" id="guest-email-field" hidden>Email
+      <input type="email" id="guest-email" autocomplete="email" autocapitalize="none" spellcheck="false">
+      <small>We'll email you a sign-in link. Tap it and you go straight to payment.</small></label>
+          <div class="sms-consent">
+            <label>
+              <input type="checkbox" id="sms-consent" disabled>
+              <span>
+                I agree to receive text alerts from Magic Table Finder when matching Disney dining reservation openings are found.
+                Message frequency varies based on my watch activity and reservation availability. Message and data rates may apply.
+                Reply STOP to opt out. Reply HELP for help.
+                See <a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a> and
+                <a href="/terms.html" target="_blank" rel="noopener">Terms</a>.
+              </span>
             </label>
           </div>
         </div>
       </div>
-      <div class="sms-consent">
-        <label>
-          <input type="checkbox" id="sms-consent" disabled>
-          <span>
-            I agree to receive text alerts from Magic Table Finder when matching Disney dining reservation openings are found.
-            Message frequency varies based on my watch activity and reservation availability. Message and data rates may apply.
-            Reply STOP to opt out. Reply HELP for help.
-            See <a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a> and
-            <a href="/terms.html" target="_blank" rel="noopener">Terms</a>.
-          </span>
-        </label>
-      </div>
+      <p id="billing-next-banner">Pay $4.99 for this watch. You'll go to Stripe to pay, then we'll start watching. Paying is not text consent — check the box first.</p>
       <div class="create-actions">
         <button type="submit" id="create-btn" disabled>Create Watch</button>
         <div id="create-msg" role="status"></div>
       </div>
     </form>
+    </div>
     </div>
     <div id="watch-list">
       <div class="watch-list-hdr">
@@ -1267,9 +1286,42 @@ function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
+var mtfSessionUser = null;
+var allRestaurants = [];
+function isAnonymous() { return !mtfSessionUser && !getSecret(); }
+function placeCreateWatch(anonymous) {
+  var card = document.getElementById('create-watch');
+  var slot = document.getElementById('landing-watch-slot');
+  var home = document.getElementById('create-watch-home');
+  if (!card) return;
+  if (anonymous && slot) slot.appendChild(card);
+  else if (home) home.appendChild(card);
+}
+if (!document.documentElement.classList.contains('has-session')) {
+  placeCreateWatch(true);
+  applyEntitlementUI();
+}
+function readWatchDraft() {
+  try {
+    var raw = localStorage.getItem('mtfWatchDraft');
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (e) { return null; }
+}
+function saveWatchDraft(d) {
+  localStorage.setItem('mtfWatchDraft', JSON.stringify(d));
+}
+function clearWatchDraft() {
+  localStorage.removeItem('mtfWatchDraft');
+}
+
 function getSecret() { return localStorage.getItem('disneyApiSecret') || ''; }
 function getUserId() { return localStorage.getItem('disneyUserId') || ''; }
-var mtfSessionUser = null;
+// A 401 means the stored private secret is no longer valid; drop it so isAnonymous() is true.
+function forgetPrivateLogin() {
+  localStorage.removeItem('disneyApiSecret');
+  localStorage.removeItem('disneyUserId');
+}
 
 function canCreateWatchNow() {
   if (mtfSessionUser && mtfSessionUser.kind === 'consumer') return Boolean(mtfSessionUser.can_create_watch);
@@ -1278,6 +1330,7 @@ function canCreateWatchNow() {
 }
 function getPartySize() { return parseInt(document.getElementById('party-size').value, 10) || 2; }
 function payWatchLabel() {
+  if (isAnonymous()) return 'Continue to payment · $4.99';
   return (mtfSessionUser && mtfSessionUser.billing_mode === 'single_watch') ? 'Pay $4.99 and watch' : 'Create Watch';
 }
 function intlPhoneOpen() {
@@ -1348,14 +1401,17 @@ function activateTab(name) {
   if (btn) btn.classList.add('active');
   var panel = document.getElementById('tab-' + name);
   if (panel) panel.classList.add('active');
-  if (name === 'watches') loadWatches();
+  if (name === 'watches' && !isAnonymous()) loadWatches();
 }
 function showWatchesTab() { activateTab('watches'); }
 function smsConsentKey() {
   if (mtfSessionUser && mtfSessionUser.id) return 'disneySmsConsent:' + mtfSessionUser.id;
   return 'disneySmsConsent:' + getUserId();
 }
-function hasSmsConsent() { return localStorage.getItem(smsConsentKey()) === 'true'; }
+function hasSmsConsent() {
+  if (isAnonymous()) return false;
+  return localStorage.getItem(smsConsentKey()) === 'true';
+}
 
 function syncSmsConsentControls() {
   if (!canCreateWatchNow()) {
@@ -1373,6 +1429,7 @@ function syncSmsConsentControls() {
 }
 
 function setSmsConsentAccepted(accepted) {
+  if (isAnonymous()) return;
   if (!canCreateWatchNow()) return;
   if (accepted) localStorage.setItem(smsConsentKey(), 'true');
   else localStorage.removeItem(smsConsentKey());
@@ -1384,6 +1441,7 @@ function bindSmsConsentMemory() {
     var el = document.getElementById(id);
     if (!el) return;
     el.addEventListener('change', function() {
+      if (isAnonymous()) return;
       if (!canCreateWatchNow()) {
         el.checked = false;
         return;
@@ -1436,6 +1494,7 @@ async function apiFetch(path, opts) {
     var landingOpen = overlay && !overlay.classList.contains('hidden')
       && !document.documentElement.classList.contains('has-session');
     if (!landingOpen) {
+      forgetPrivateLogin();
       showLogin({
         scrollToSignin: true,
         message: (data && (data.detail || data.error)) || 'Session expired. Sign in to continue.',
@@ -1474,6 +1533,7 @@ async function postWatch(body) {
     return { redirected: true };
   }
   if (res.status === 401) {
+    forgetPrivateLogin();
     showLogin({
       scrollToSignin: true,
       message: (data && (data.detail || data.error)) || 'Session expired. Sign in to continue.',
@@ -1514,6 +1574,10 @@ function showLogin(opts) {
   } else {
     overlay.scrollTop = 0;
   }
+  mtfSessionUser = null;
+  placeCreateWatch(true);
+  applyEntitlementUI();
+  if (!allRestaurants.length) loadRestaurants();
 }
 
 function hideLogin() {
@@ -1524,6 +1588,7 @@ function hideLogin() {
   document.body.classList.remove('landing-open');
   document.documentElement.classList.add('has-session');
   if (shell) shell.removeAttribute('aria-hidden');
+  placeCreateWatch(false);
 }
 
 function scrollLandingTo(id, focusPwd) {
@@ -1587,13 +1652,45 @@ async function attemptMagicLink() {
 }
 
 function applyEntitlementUI() {
+  var banner = document.getElementById('billing-next-banner');
+  var createBtn = document.getElementById('create-btn');
+  var guestEmail = document.getElementById('guest-email-field');
+  if (isAnonymous()) {
+    if (createBtn) {
+      createBtn.disabled = false;
+      createBtn.textContent = payWatchLabel();
+    }
+    var smsGuest = document.getElementById('sms-consent');
+    var smsGuestWrap = smsGuest && smsGuest.closest('.sms-consent');
+    if (smsGuest) {
+      smsGuest.disabled = false;
+      smsGuest.required = true;
+      smsGuest.checked = false;
+    }
+    if (smsGuestWrap) smsGuestWrap.classList.remove('entitlement-locked');
+    var phoneSetupGuest = document.getElementById('phone-setup');
+    if (phoneSetupGuest) phoneSetupGuest.hidden = false;
+    var headingGuest = document.getElementById('phone-setup-heading');
+    if (headingGuest) headingGuest.textContent = 'Mobile number';
+    if (guestEmail) guestEmail.hidden = false;
+    if (banner) banner.style.display = 'none';
+    var billingActionsGuest = document.getElementById('billing-actions');
+    if (billingActionsGuest) billingActionsGuest.hidden = true;
+    var upgradeGuest = document.getElementById('upgrade-prompt');
+    if (upgradeGuest) upgradeGuest.hidden = true;
+    var planLineGuest = document.getElementById('plan-line');
+    if (planLineGuest) planLineGuest.hidden = true;
+    var modalPhoneGuest = document.getElementById('modal-phone-wrap');
+    if (modalPhoneGuest) modalPhoneGuest.hidden = true;
+    return;
+  }
+  if (banner) banner.style.display = '';
+  if (guestEmail) guestEmail.hidden = true;
   var allowed = canCreateWatchNow();
   var mode = (mtfSessionUser && mtfSessionUser.billing_mode) || (allowed ? 'internal' : 'blocked');
   var code = (mtfSessionUser && mtfSessionUser.billing_code) || '';
   document.documentElement.classList.toggle('can-create-watch', allowed);
   document.documentElement.classList.toggle('single-watch-billing', mode === 'single_watch');
-  var banner = document.getElementById('billing-next-banner');
-  var createBtn = document.getElementById('create-btn');
   var bulkBtn = document.getElementById('bulk-btn');
   var sms = document.getElementById('sms-consent');
   var modalSms = document.getElementById('modal-sms-consent');
@@ -1810,7 +1907,9 @@ async function bootSession() {
           window.history.replaceState({}, '', window.location.pathname);
         }
       }
-      onLogin();
+      if (paid === 'ok') clearWatchDraft();
+      if (paid === 'cancel') onLogin({ noAuto: true });
+      else onLogin();
       if (signin === 'ok') stripSigninQuery();
       if (paidNote) {
         var createMsg = document.getElementById('create-msg');
@@ -1911,12 +2010,18 @@ if (addWatchBtn) addWatchBtn.addEventListener('click', function() {
 
 // ── Restaurant browser ───────────────────────────────────────────────────────
 
-var allRestaurants = [];
 var debounce = null;
 
-async function loadRestaurants() {
+async function loadCatalog() {
   try {
-    const data = await apiFetch('/restaurants');
+    var data;
+    if (isAnonymous()) {
+      var res = await fetch('/restaurants.json', { credentials: 'same-origin' });
+      if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
+      data = await res.json();
+    } else {
+      data = await apiFetch('/restaurants');
+    }
     allRestaurants = data.restaurants || [];
     populateRestaurantSelect(allRestaurants);
     renderParkChips();
@@ -1924,6 +2029,10 @@ async function loadRestaurants() {
   } catch(e) {
     document.getElementById('rest-loading').textContent = 'Failed: ' + e.message;
   }
+}
+
+async function loadRestaurants() {
+  return loadCatalog();
 }
 
 function restaurantCardHtml(r) {
@@ -2479,10 +2588,9 @@ function applyBookingTypeUI() {
   var party = document.getElementById('party-size');
   party.max = maxParty;
   if (parseInt(party.value) > maxParty) party.value = maxParty;
-  document.querySelector('#watch-form .meal-field').style.display = sa ? 'none' : '';
-  if (sa) {
-    document.querySelectorAll('#watch-form input[name=meal-period]').forEach(function(c) { c.checked = false; });
-  }
+  var mealChips = document.getElementById('meal-chips');
+  if (mealChips) mealChips.style.display = sa ? 'none' : '';
+  if (sa) setSelectedMeals(['ALL']);
   var hint = document.getElementById('specialty-hint');
   hint.style.display = sa ? '' : 'none';
   hint.textContent = sa ? 'Up to ' + maxParty + ' guests for this experience. Use the time window to narrow times.' : '';
@@ -2635,55 +2743,73 @@ document.getElementById('dates').addEventListener('input', function() {
   renderCreateDatePicker();
 });
 
-document.getElementById('watch-form').addEventListener('submit', async function(e) {
-  e.preventDefault();
+function getSelectedMeals() {
+  var pressed = [];
+  document.querySelectorAll('#meal-chips .meal-chip').forEach(function(btn) {
+    if (btn.getAttribute('aria-pressed') === 'true') pressed.push(btn.getAttribute('data-meal'));
+  });
+  if (!pressed.length || pressed.indexOf('ALL') !== -1) return ['ALL'];
+  return ['BREAKFAST', 'LUNCH', 'DINNER'].filter(function(m) { return pressed.indexOf(m) !== -1; });
+}
+
+function setSelectedMeals(list) {
+  var want = (list && list.length) ? list : ['ALL'];
+  var wantAll = want.indexOf('ALL') !== -1;
+  document.querySelectorAll('#meal-chips .meal-chip').forEach(function(btn) {
+    var meal = btn.getAttribute('data-meal');
+    var on = wantAll ? meal === 'ALL' : want.indexOf(meal) !== -1;
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+}
+
+function readWatchForm() {
+  const restaurantId = document.getElementById('restaurant-select').value;
+  const partySize = parseInt(document.getElementById('party-size').value);
+  const datesText = document.getElementById('dates').value.trim();
+  const timeFrom = document.getElementById('time-from').value || null;
+  const timeTo = document.getElementById('time-to').value || null;
+  if (!restaurantId) return { body: null, error: 'Choose a restaurant first.' };
+  if (!datesText) return { body: null, error: 'Add at least one date (YYYY-MM-DD).' };
+  if (timeFrom && timeTo && timeFrom > timeTo) return { body: null, error: 'Earliest time must be before latest time.' };
+  const dates = parseWatchDates(datesText);
+  if (!dates.length) return { body: null, error: 'At least one date required.' };
+  const restaurant = allRestaurants.find(function(r) { return r.facility_id === restaurantId; });
+  if (!restaurant) return { body: null, error: 'Restaurant not found.' };
+  const specialty = isScheduledActivity(restaurant);
+  const body = {
+    facility_id: restaurantId,
+    name: restaurant.name,
+    slug: restaurant.slug,
+    party_size: partySize,
+    dates: dates,
+    meal_periods: specialty ? ['ALL'] : getSelectedMeals(),
+    booking_type: specialty ? 'scheduled_activity' : 'dining',
+    time_from: timeFrom,
+    time_to: timeTo,
+    sms_consent: true
+  };
+  return { body: body, error: null };
+}
+
+async function submitWatchForm() {
   const btn = document.getElementById('create-btn');
   const msg = document.getElementById('create-msg');
-  if (!canCreateWatchNow()) {
-    msg.className = 'err';
-    msg.textContent = (document.getElementById('billing-next-banner') && document.getElementById('billing-next-banner').textContent) || 'Paid watches are not available yet.';
-    return;
-  }
   if (!(await ensurePhoneSaved())) return;
-  var payLabel = payWatchLabel();
   btn.disabled = true; btn.textContent = 'Creating…'; msg.textContent = ''; msg.className = '';
   try {
-    const restaurantId = document.getElementById('restaurant-select').value;
-    const partySize = parseInt(document.getElementById('party-size').value);
-    const datesText = document.getElementById('dates').value.trim();
-    const timeFrom = document.getElementById('time-from').value || null;
-    const timeTo = document.getElementById('time-to').value || null;
-    const mealChecks = document.querySelectorAll('#watch-form input[name=meal-period]:checked');
-    const mealPeriods = Array.from(mealChecks).map(c => c.value);
     if (!document.getElementById('sms-consent').checked) {
       throw new Error('Please confirm text consent so we can send reservation alerts.');
     }
     setSmsConsentAccepted(true);
-    if (!restaurantId) throw new Error('Choose a restaurant first.');
-    if (!datesText) throw new Error('Add at least one date (YYYY-MM-DD).');
-    if (timeFrom && timeTo && timeFrom > timeTo) throw new Error('Earliest time must be before latest time.');
-    const dates = parseWatchDates(datesText);
-    if (!dates.length) throw new Error('At least one date required.');
-    const restaurant = allRestaurants.find(r => r.facility_id === restaurantId);
-    if (!restaurant) throw new Error('Restaurant not found.');
-    const specialty = isScheduledActivity(restaurant);
-    const body = {
-      facility_id: restaurantId,
-      name: restaurant.name,
-      slug: restaurant.slug,
-      party_size: partySize,
-      dates: dates,
-      meal_periods: specialty ? ['ALL'] : (mealPeriods.length ? mealPeriods : ['ALL']),
-      booking_type: specialty ? 'scheduled_activity' : 'dining',
-      time_from: timeFrom,
-      time_to: timeTo,
-      sms_consent: true
-    };
-    const result = await postWatch(body);
+    var parsed = readWatchForm();
+    if (parsed.error) throw new Error(parsed.error);
+    const result = await postWatch(parsed.body);
     if (result && result.redirected) return;
     const n = result.added.length;
     msg.textContent = 'Watching ' + n + ' date' + (n !== 1 ? 's' : '') + ' — you\'ll get a text when a slot opens.';
     document.getElementById('watch-form').reset();
+    setSelectedMeals(['ALL']);
+    clearWatchDraft();
     syncSmsConsentControls();
     document.getElementById('party-size').value = localStorage.getItem('disneyPartySize') || '2';
     selectRestaurant('');
@@ -2706,16 +2832,157 @@ document.getElementById('watch-form').addEventListener('submit', async function(
     btn.disabled = false;
     btn.textContent = payWatchLabel();
   }
+}
+
+// Mirrors netlify/functions/phone.js so guests learn about a bad number before the email step.
+function looksLikePhone(raw) {
+  var s = String(raw || '').trim();
+  if (!s || /[A-Za-z]/.test(s)) return false;
+  var digits = s.replace(/\D/g, '');
+  if (digits.length === 10) return true;
+  if (digits.length === 11 && digits[0] === '1') return true;
+  return s[0] === '+' && digits.length >= 8 && digits.length <= 15;
+}
+
+async function startGuestWatch() {
+  const btn = document.getElementById('create-btn');
+  const msg = document.getElementById('create-msg');
+  var parsed = readWatchForm();
+  if (parsed.error) {
+    msg.className = 'err';
+    msg.textContent = parsed.error;
+    return;
+  }
+  if (!document.getElementById('sms-consent').checked) {
+    msg.className = 'err';
+    msg.textContent = 'Please confirm text consent so we can send reservation alerts.';
+    return;
+  }
+  if (!getPhonePayload()) {
+    msg.className = 'err';
+    msg.textContent = 'Add a phone number so we can text you.';
+    focusPhoneField();
+    return;
+  }
+  if (!looksLikePhone(getPhonePayload())) {
+    msg.className = 'err';
+    msg.textContent = 'Use a 10-digit US mobile number.';
+    focusPhoneField();
+    return;
+  }
+  var emailEl = document.getElementById('guest-email');
+  var email = ((emailEl && emailEl.value) || '').trim();
+  if (!email || email.indexOf('@') === -1) {
+    msg.className = 'err';
+    msg.textContent = 'Enter your email so we can send your sign-in link.';
+    if (emailEl) emailEl.focus();
+    return;
+  }
+  saveWatchDraft({
+    body: parsed.body,
+    phone: getPhonePayload(),
+    email: email,
+    consent: true,
+    saved_at: Date.now()
+  });
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+  msg.className = '';
+  msg.textContent = '';
+  try {
+    var res = await fetch('/_api/auth/magic-link', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email })
+    });
+    if (!res.ok) throw new Error('send failed');
+    msg.className = '';
+    msg.textContent = 'Check your email — tap the sign-in link and we\'ll take you straight to payment. Open it on this device to keep this watch.';
+    btn.disabled = false;
+    btn.textContent = 'Resend link';
+  } catch (e) {
+    msg.className = 'err';
+    msg.textContent = 'We couldn\'t send the link. Check your connection and try again.';
+    btn.disabled = false;
+    btn.textContent = payWatchLabel();
+  }
+}
+
+document.getElementById('watch-form').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  if (isAnonymous()) {
+    startGuestWatch();
+    return;
+  }
+  if (!canCreateWatchNow()) {
+    const msg = document.getElementById('create-msg');
+    msg.className = 'err';
+    msg.textContent = (document.getElementById('billing-next-banner') && document.getElementById('billing-next-banner').textContent) || 'Paid watches are not available yet.';
+    return;
+  }
+  submitWatchForm();
 });
 
 initCreateDatePicker();
 bindSmsConsentMemory();
 
-async function onLogin() {
+async function resumeWatchDraft(opts) {
+  opts = opts || {};
+  var draft = readWatchDraft();
+  if (!draft) return;
+  if (!draft.saved_at || (Date.now() - draft.saved_at) >= 24 * 60 * 60 * 1000) {
+    clearWatchDraft();
+    return;
+  }
+  var body = draft.body || {};
+  if (body.facility_id) selectRestaurant(body.facility_id);
+  if (body.party_size) document.getElementById('party-size').value = body.party_size;
+  if (body.dates && body.dates.length) {
+    document.getElementById('dates').value = body.dates.join('\n');
+    syncDatePickerFromText();
+    renderCreateDatePicker();
+  }
+  setSelectedMeals(body.meal_periods || ['ALL']);
+  if (body.time_from) document.getElementById('time-from').value = body.time_from;
+  if (body.time_to) document.getElementById('time-to').value = body.time_to;
+  if (body.time_from || body.time_to) {
+    var timeFields = document.getElementById('time-fields');
+    var timeToggle = document.getElementById('time-toggle');
+    if (timeFields) timeFields.hidden = false;
+    if (timeToggle) timeToggle.setAttribute('aria-expanded', 'true');
+  }
+  if (mtfSessionUser && mtfSessionUser.kind === 'consumer' && draft.phone) {
+    var phoneEl = document.getElementById('consumer-phone');
+    if (phoneEl) phoneEl.value = draft.phone;
+  }
+  if (draft.consent === true && canCreateWatchNow()) {
+    var sms = document.getElementById('sms-consent');
+    if (sms) sms.checked = true;
+  }
+  var canAuto = draft.consent === true
+    && !draft.auto_attempted_at
+    && !opts.noAuto
+    && mtfSessionUser && mtfSessionUser.kind === 'consumer'
+    && canCreateWatchNow();
+  if (!canAuto) return;
+  draft.auto_attempted_at = Date.now();
+  saveWatchDraft(draft);
+  var msg = document.getElementById('create-msg');
+  if (msg) {
+    msg.className = '';
+    msg.textContent = 'Resuming your ' + (body.name || 'restaurant') + ' watch — taking you to payment…';
+  }
+  await submitWatchForm();
+}
+
+async function onLogin(opts) {
+  opts = opts || {};
   syncSmsConsentControls();
   applyEntitlementUI();
   refreshStatus();
-  loadRestaurants();
+  await loadRestaurants();
+  await resumeWatchDraft(opts);
   try {
     const data = await apiFetch('/watches');
     renderWatches(data.watches || []);
@@ -2759,12 +3026,23 @@ document.getElementById('phone-intl-toggle').addEventListener('click', function(
   fields.hidden = !open;
   this.setAttribute('aria-expanded', open ? 'true' : 'false');
 });
-document.getElementById('meal-toggle').addEventListener('click', function() {
-  var details = document.getElementById('meal-details');
-  var open = details.hidden;
-  details.hidden = !open;
-  this.setAttribute('aria-expanded', open ? 'true' : 'false');
-  this.textContent = open ? 'Choose meals' : 'Any meal';
+document.getElementById('meal-chips').addEventListener('click', function(e) {
+  var btn = e.target.closest('.meal-chip');
+  if (!btn) return;
+  var meal = btn.getAttribute('data-meal');
+  var pressed = btn.getAttribute('aria-pressed') === 'true';
+  if (meal === 'ALL') {
+    setSelectedMeals(['ALL']);
+    return;
+  }
+  if (pressed) {
+    btn.setAttribute('aria-pressed', 'false');
+    if (getSelectedMeals()[0] === 'ALL') setSelectedMeals(['ALL']);
+  } else {
+    btn.setAttribute('aria-pressed', 'true');
+    var allBtn = document.querySelector('#meal-chips .meal-chip[data-meal="ALL"]');
+    if (allBtn) allBtn.setAttribute('aria-pressed', 'false');
+  }
 });
 document.getElementById('time-toggle').addEventListener('click', function() {
   var fields = document.getElementById('time-fields');

@@ -242,6 +242,21 @@ class LandingContractTest(unittest.TestCase):
         self.assertIn("We do not guarantee a table will open.", INDEX)
         self.assertIn("Single Watch is $4.99 one-time.", INDEX)
 
+    def test_guest_watch_builder_landing(self):
+        self.assertIn('id="landing-watch-slot"', INDEX)
+        self.assertIn('id="create-watch-home"', INDEX)
+        self.assertIn("function placeCreateWatch(", INDEX)
+        self.assertIn("function isAnonymous()", INDEX)
+        self.assertIn("/restaurants.json", INDEX)
+        self.assertIn("mtfWatchDraft", INDEX)
+        self.assertIn("function resumeWatchDraft(", INDEX)
+        self.assertIn("function startGuestWatch()", INDEX)
+        self.assertIn('id="guest-email"', INDEX)
+        self.assertIn("Continue to payment · $4.99", INDEX)
+        self.assertIn("Already have watches?", INDEX)
+        hero = INDEX.split('class="l-hero"', 1)[1].split('id="how"', 1)[0]
+        self.assertNotIn('class="l-hero-actions"', hero)
+
 
 if __name__ == "__main__":
     unittest.main()
