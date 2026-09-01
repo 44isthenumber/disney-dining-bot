@@ -1818,9 +1818,11 @@ document.getElementById('logout-btn').addEventListener('click', function() {
   localStorage.removeItem('disneyApiSecret');
   localStorage.removeItem('disneyUserId');
   mtfSessionUser = null;
+  clearWatchDraft();
   fetch('/_api/auth/logout', { method: 'POST', credentials: 'include' }).catch(function() {});
   activateTab('watches');
   showLogin({ scrollToSignin: true });
+  resetWatchForm();
 });
 
 // ── Config inputs ────────────────────────────────────────────────────────────
@@ -2792,6 +2794,35 @@ function readWatchForm() {
   return { body: body, error: null };
 }
 
+// Shared reset for success and sign-out so one person's restaurant, dates, and phone never
+// linger in the form for the next person on the same device.
+function resetWatchForm() {
+  document.getElementById('watch-form').reset();
+  setSelectedMeals(['ALL']);
+  document.getElementById('party-size').value = localStorage.getItem('disneyPartySize') || '2';
+  selectRestaurant('');
+  createDatePicker.selected = new Set();
+  renderSelectedDateChips();
+  renderCreateDatePicker();
+  document.getElementById('date-picker-panel').classList.remove('open');
+  document.body.classList.remove('date-picker-modal-open');
+  document.getElementById('toggle-date-picker').setAttribute('aria-expanded', 'false');
+  document.querySelector('.date-field').classList.remove('manual-open');
+  document.getElementById('toggle-manual-dates').textContent = 'Enter dates manually';
+  var timeFields = document.getElementById('time-fields');
+  var timeToggle = document.getElementById('time-toggle');
+  if (timeFields) timeFields.hidden = true;
+  if (timeToggle) timeToggle.setAttribute('aria-expanded', 'false');
+  var intl = document.getElementById('phone-intl-fields');
+  var intlToggle = document.getElementById('phone-intl-toggle');
+  if (intl) intl.hidden = true;
+  if (intlToggle) intlToggle.setAttribute('aria-expanded', 'false');
+  ['create-msg', 'phone-setup-msg'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) { el.className = ''; el.textContent = ''; }
+  });
+}
+
 async function submitWatchForm() {
   const btn = document.getElementById('create-btn');
   const msg = document.getElementById('create-msg');
@@ -2807,21 +2838,10 @@ async function submitWatchForm() {
     const result = await postWatch(parsed.body);
     if (result && result.redirected) return;
     const n = result.added.length;
-    msg.textContent = 'Watching ' + n + ' date' + (n !== 1 ? 's' : '') + ' — you\'ll get a text when a slot opens.';
-    document.getElementById('watch-form').reset();
-    setSelectedMeals(['ALL']);
     clearWatchDraft();
+    resetWatchForm();
+    msg.textContent = 'Watching ' + n + ' date' + (n !== 1 ? 's' : '') + ' — you\'ll get a text when a slot opens.';
     syncSmsConsentControls();
-    document.getElementById('party-size').value = localStorage.getItem('disneyPartySize') || '2';
-    selectRestaurant('');
-    createDatePicker.selected = new Set();
-    renderSelectedDateChips();
-    renderCreateDatePicker();
-    document.getElementById('date-picker-panel').classList.remove('open');
-    document.body.classList.remove('date-picker-modal-open');
-    document.getElementById('toggle-date-picker').setAttribute('aria-expanded', 'false');
-    document.querySelector('.date-field').classList.remove('manual-open');
-    document.getElementById('toggle-manual-dates').textContent = 'Enter dates manually';
     loadWatches();
     loadRestaurants();
     refreshStatus();
