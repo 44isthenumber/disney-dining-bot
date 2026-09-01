@@ -1103,7 +1103,7 @@
       <button type="button" id="planner-checkout-btn">Start Planner · $14.99/mo</button>
       <button type="button" id="billing-portal-btn" hidden>Manage billing</button>
     </div>
-    <form id="watch-form">
+    <form id="watch-form" novalidate>
       <div class="create-step">
         <div class="step-label">Where</div>
         <div class="step-body">
@@ -2769,6 +2769,7 @@ function readWatchForm() {
   const timeFrom = document.getElementById('time-from').value || null;
   const timeTo = document.getElementById('time-to').value || null;
   if (!restaurantId) return { body: null, error: 'Choose a restaurant first.' };
+  if (!(partySize >= 1)) return { body: null, error: 'Enter your party size.' };
   if (!datesText) return { body: null, error: 'Add at least one date (YYYY-MM-DD).' };
   if (timeFrom && timeTo && timeFrom > timeTo) return { body: null, error: 'Earliest time must be before latest time.' };
   const dates = parseWatchDates(datesText);
