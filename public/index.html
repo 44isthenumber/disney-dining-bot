@@ -6,7 +6,8 @@
 <title>Magic Table Finder</title>
 <script>
   if (typeof document !== 'undefined') {
-    var hasSecret = typeof localStorage !== 'undefined' && localStorage.getItem('disneyApiSecret');
+    var hasSecret = false;
+    try { hasSecret = typeof localStorage !== 'undefined' && !!localStorage.getItem('disneyApiSecret'); } catch (e) {}
     var hasUi = typeof document.cookie === 'string' && /(?:^|; )mtf_ui=1(?:;|$)/.test(document.cookie);
     if (hasSecret || hasUi) document.documentElement.classList.add('has-session');
   }
@@ -338,7 +339,7 @@
     font-size: 13px; font-weight: 600; align-self: flex-start; padding: 0;
     text-align: left;
   }
-  #meal-details[hidden], #time-fields[hidden], #phone-intl-fields[hidden], #private-signin[hidden] { display: none !important; }
+  #time-fields[hidden], #phone-intl-fields[hidden], #private-signin[hidden] { display: none !important; }
   #time-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   #phone-setup {
     margin-bottom: 12px; padding: 0; border: 0;
@@ -1301,26 +1302,36 @@ if (!document.documentElement.classList.contains('has-session')) {
   placeCreateWatch(true);
   applyEntitlementUI();
 }
+// localStorage can throw (Safari private mode quota, storage blocked). Never let that break the page.
+function storageGet(key) {
+  try { return localStorage.getItem(key); } catch (e) { return null; }
+}
+function storageSet(key, value) {
+  try { localStorage.setItem(key, value); return true; } catch (e) { return false; }
+}
+function storageRemove(key) {
+  try { localStorage.removeItem(key); } catch (e) { /* nothing to clear */ }
+}
 function readWatchDraft() {
   try {
-    var raw = localStorage.getItem('mtfWatchDraft');
+    var raw = storageGet('mtfWatchDraft');
     if (!raw) return null;
     return JSON.parse(raw);
   } catch (e) { return null; }
 }
 function saveWatchDraft(d) {
-  localStorage.setItem('mtfWatchDraft', JSON.stringify(d));
+  return storageSet('mtfWatchDraft', JSON.stringify(d));
 }
 function clearWatchDraft() {
-  localStorage.removeItem('mtfWatchDraft');
+  storageRemove('mtfWatchDraft');
 }
 
-function getSecret() { return localStorage.getItem('disneyApiSecret') || ''; }
-function getUserId() { return localStorage.getItem('disneyUserId') || ''; }
+function getSecret() { return storageGet('disneyApiSecret') || ''; }
+function getUserId() { return storageGet('disneyUserId') || ''; }
 // A 401 means the stored private secret is no longer valid; drop it so isAnonymous() is true.
 function forgetPrivateLogin() {
-  localStorage.removeItem('disneyApiSecret');
-  localStorage.removeItem('disneyUserId');
+  storageRemove('disneyApiSecret');
+  storageRemove('disneyUserId');
 }
 
 function canCreateWatchNow() {
@@ -1819,6 +1830,7 @@ document.getElementById('logout-btn').addEventListener('click', function() {
   localStorage.removeItem('disneyUserId');
   mtfSessionUser = null;
   clearWatchDraft();
+  allRestaurants = [];
   fetch('/_api/auth/logout', { method: 'POST', credentials: 'include' }).catch(function() {});
   activateTab('watches');
   showLogin({ scrollToSignin: true });
@@ -2013,23 +2025,37 @@ if (addWatchBtn) addWatchBtn.addEventListener('click', function() {
 // ── Restaurant browser ───────────────────────────────────────────────────────
 
 var debounce = null;
+var catalogGeneration = 0;
 
 async function loadCatalog() {
+  // A guest static load and a signed-in API load can overlap around sign-in/out;
+  // only the newest request may write allRestaurants.
+  var generation = ++catalogGeneration;
+  var guest = isAnonymous();
   try {
     var data;
-    if (isAnonymous()) {
+    if (guest) {
       var res = await fetch('/restaurants.json', { credentials: 'same-origin' });
       if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
       data = await res.json();
     } else {
       data = await apiFetch('/restaurants');
     }
+    if (generation !== catalogGeneration) return;
     allRestaurants = data.restaurants || [];
     populateRestaurantSelect(allRestaurants);
     renderParkChips();
     filterAndRender();
   } catch(e) {
+    if (generation !== catalogGeneration) return;
     document.getElementById('rest-loading').textContent = 'Failed: ' + e.message;
+    if (guest) {
+      var createMsg = document.getElementById('create-msg');
+      if (createMsg) {
+        createMsg.className = 'err';
+        createMsg.textContent = "We couldn't load the restaurant list. Refresh to try again.";
+      }
+    }
   }
 }
 
@@ -2817,6 +2843,9 @@ function resetWatchForm() {
   var intlToggle = document.getElementById('phone-intl-toggle');
   if (intl) intl.hidden = true;
   if (intlToggle) intlToggle.setAttribute('aria-expanded', 'false');
+  // #modal-phone lives outside the form but feeds getPhonePayload(); clear it too.
+  var modalPhone = document.getElementById('modal-phone');
+  if (modalPhone) modalPhone.value = '';
   ['create-msg', 'phone-setup-msg'].forEach(function(id) {
     var el = document.getElementById(id);
     if (el) { el.className = ''; el.textContent = ''; }
@@ -2899,7 +2928,7 @@ async function startGuestWatch() {
     if (emailEl) emailEl.focus();
     return;
   }
-  saveWatchDraft({
+  var draftSaved = saveWatchDraft({
     body: parsed.body,
     phone: getPhonePayload(),
     email: email,
@@ -2919,7 +2948,9 @@ async function startGuestWatch() {
     });
     if (!res.ok) throw new Error('send failed');
     msg.className = '';
-    msg.textContent = 'Check your email — tap the sign-in link and we\'ll take you straight to payment. Open it on this device to keep this watch.';
+    msg.textContent = draftSaved
+      ? 'Check your email — tap the sign-in link and we\'ll take you straight to payment. Open it on this device to keep this watch.'
+      : 'Check your email — tap the sign-in link to continue. Your browser blocked saving this watch, so you\'ll re-enter it after signing in.';
     btn.disabled = false;
     btn.textContent = 'Resend link';
   } catch (e) {
