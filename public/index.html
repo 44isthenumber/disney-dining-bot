@@ -1588,11 +1588,10 @@ function showLogin(opts) {
   mtfSessionUser = null;
   placeCreateWatch(true);
   applyEntitlementUI();
-  // Any authenticated catalog (with watched_dates) must not survive into guest mode.
-  if (!allRestaurants.length || catalogSource !== 'guest') {
-    allRestaurants = [];
-    loadRestaurants();
-  }
+  // Any authenticated catalog (with watched_dates), including one still in flight, must not
+  // survive into guest mode: always start a fresh guest load, which supersedes older requests.
+  allRestaurants = [];
+  loadRestaurants();
 }
 
 function hideLogin() {
@@ -2026,7 +2025,6 @@ if (addWatchBtn) addWatchBtn.addEventListener('click', function() {
 
 var debounce = null;
 var catalogGeneration = 0;
-var catalogSource = '';
 
 async function loadCatalog() {
   // A guest static load and a signed-in API load can overlap around sign-in/out;
@@ -2044,7 +2042,6 @@ async function loadCatalog() {
     }
     if (generation !== catalogGeneration) return;
     allRestaurants = data.restaurants || [];
-    catalogSource = guest ? 'guest' : 'api';
     populateRestaurantSelect(allRestaurants);
     renderParkChips();
     filterAndRender();
