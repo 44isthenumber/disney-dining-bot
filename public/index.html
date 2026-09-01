@@ -1421,7 +1421,7 @@ function smsConsentKey() {
 }
 function hasSmsConsent() {
   if (isAnonymous()) return false;
-  return localStorage.getItem(smsConsentKey()) === 'true';
+  return storageGet(smsConsentKey()) === 'true';
 }
 
 function syncSmsConsentControls() {
@@ -1442,8 +1442,8 @@ function syncSmsConsentControls() {
 function setSmsConsentAccepted(accepted) {
   if (isAnonymous()) return;
   if (!canCreateWatchNow()) return;
-  if (accepted) localStorage.setItem(smsConsentKey(), 'true');
-  else localStorage.removeItem(smsConsentKey());
+  if (accepted) storageSet(smsConsentKey(), 'true');
+  else storageRemove(smsConsentKey());
   syncSmsConsentControls();
 }
 
@@ -1588,7 +1588,11 @@ function showLogin(opts) {
   mtfSessionUser = null;
   placeCreateWatch(true);
   applyEntitlementUI();
-  if (!allRestaurants.length) loadRestaurants();
+  // Any authenticated catalog (with watched_dates) must not survive into guest mode.
+  if (!allRestaurants.length || catalogSource !== 'guest') {
+    allRestaurants = [];
+    loadRestaurants();
+  }
 }
 
 function hideLogin() {
@@ -1624,7 +1628,7 @@ document.querySelectorAll('.landing-nav').forEach(function (a) {
 function loadSavedUsername() {
   var field = document.getElementById('login-profile');
   if (!field) return;
-  field.value = localStorage.getItem('disneyUserId') || '';
+  field.value = getUserId();
 }
 
 document.getElementById('login-btn').closest('form').addEventListener('submit', function (e) {
@@ -1811,8 +1815,8 @@ async function attemptLogin() {
       var data = {};
       try { data = await res.json(); } catch (e) {}
       var resolvedId = (data.profile && data.profile.id) || userId;
-      localStorage.setItem('disneyApiSecret', pwd);
-      localStorage.setItem('disneyUserId', resolvedId);
+      storageSet('disneyApiSecret', pwd);
+      storageSet('disneyUserId', resolvedId);
       hideLogin();
       onLogin();
     } else {
@@ -1826,11 +1830,9 @@ async function attemptLogin() {
 }
 
 document.getElementById('logout-btn').addEventListener('click', function() {
-  localStorage.removeItem('disneyApiSecret');
-  localStorage.removeItem('disneyUserId');
+  forgetPrivateLogin();
   mtfSessionUser = null;
   clearWatchDraft();
-  allRestaurants = [];
   fetch('/_api/auth/logout', { method: 'POST', credentials: 'include' }).catch(function() {});
   activateTab('watches');
   showLogin({ scrollToSignin: true });
@@ -1841,9 +1843,9 @@ document.getElementById('logout-btn').addEventListener('click', function() {
 
 (function initConfig() {
   const partyEl = document.getElementById('party-size');
-  partyEl.value = localStorage.getItem('disneyPartySize') || '2';
+  partyEl.value = storageGet('disneyPartySize') || '2';
   partyEl.addEventListener('change', function() {
-    localStorage.setItem('disneyPartySize', this.value);
+    storageSet('disneyPartySize', this.value);
   });
   loadSavedUsername();
 })();
@@ -1883,8 +1885,7 @@ async function bootSession() {
       var data = await res.json();
       mtfSessionUser = data.user || null;
       if (mtfSessionUser && mtfSessionUser.kind === 'consumer') {
-        localStorage.removeItem('disneyApiSecret');
-        localStorage.removeItem('disneyUserId');
+        forgetPrivateLogin();
       }
       writeUiCookie();
       hideLogin();
@@ -1953,8 +1954,7 @@ async function bootSession() {
         return;
       }
     } catch (e) { /* fall through */ }
-    localStorage.removeItem('disneyApiSecret');
-    localStorage.removeItem('disneyUserId');
+    forgetPrivateLogin();
     showLogin();
     return;
   }
@@ -2026,6 +2026,7 @@ if (addWatchBtn) addWatchBtn.addEventListener('click', function() {
 
 var debounce = null;
 var catalogGeneration = 0;
+var catalogSource = '';
 
 async function loadCatalog() {
   // A guest static load and a signed-in API load can overlap around sign-in/out;
@@ -2043,6 +2044,7 @@ async function loadCatalog() {
     }
     if (generation !== catalogGeneration) return;
     allRestaurants = data.restaurants || [];
+    catalogSource = guest ? 'guest' : 'api';
     populateRestaurantSelect(allRestaurants);
     renderParkChips();
     filterAndRender();
@@ -2825,7 +2827,7 @@ function readWatchForm() {
 function resetWatchForm() {
   document.getElementById('watch-form').reset();
   setSelectedMeals(['ALL']);
-  document.getElementById('party-size').value = localStorage.getItem('disneyPartySize') || '2';
+  document.getElementById('party-size').value = storageGet('disneyPartySize') || '2';
   selectRestaurant('');
   createDatePicker.selected = new Set();
   renderSelectedDateChips();
