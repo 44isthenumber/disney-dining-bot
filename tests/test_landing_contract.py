@@ -289,6 +289,11 @@ class LandingContractTest(unittest.TestCase):
         self.assertGreaterEqual(overlay.count("mtf-text"), 2)
         self.assertNotIn("Delivered", overlay)
         self.assertIn("We monitor the openings.</h1>", INDEX)
+        # Ink hero: the stage is dusk ink; the Create Watch card and its legal links stay legible.
+        ink_hero = INDEX.split("  .l-hero {\n    color: var(--paper);", 1)
+        self.assertEqual(len(ink_hero), 2)
+        self.assertIn("var(--ink);", ink_hero[1][:300])
+        self.assertIn("#login-overlay .l-hero #create-watch a", INDEX)
 
     def test_pop_restyle_motion_is_gated(self):
         self.assertIn("prefers-reduced-motion: reduce", INDEX)
