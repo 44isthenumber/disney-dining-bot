@@ -54,3 +54,7 @@ Use BRIEF language: Watch, Alert me, Party, Date, Time window, Any meal, Last ch
 - Poller / Disney session / Twilio / Gist
 - Deploy to `main`
 - Perfecting every line of marketing copy (style is the base; copy can still be tightened later)
+
+## Addendum — Landing pop restyle (2026-09-02)
+
+Approved extension of the Quiet Luxury base. Material layer: paper grain (`feTurbulence` at ~3.5% opacity), warm gold vignette behind the hero, ink-tinted elevation tokens (`--shadow-1/2/3`), and gold hairlines (`--hairline`) on landing and app cards. Hero “moment stage”: the cinematic wand remains the only fireworks; a sample text card (`.mtf-text.hero-text`) sits at the end of the wand’s dust trail. Motion is one-time and gated (`prefers-reduced-motion` + `IntersectionObserver` → `html.mtf-motion`): wand shaft draw-on, text-card arrival, and scroll reveals. FAQ items are `<details>` accordions. Planner is the one ink high-contrast card. How-it-works uses a gold hairline rail. No new sparkle, no status-dot pulse, locked copy unchanged.

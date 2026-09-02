@@ -13,6 +13,7 @@
   }
 </script>
 <meta name="description" content="We'll text you when your Walt Disney World reservations open up. You log in. You book." />
+<meta name="theme-color" content="#f6f1e8" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=Source+Sans+3:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet" />
@@ -35,6 +36,11 @@
     --moss: #3f5c4a;
     --font-serif: 'Fraunces', Georgia, 'Times New Roman', serif;
     --font-sans: 'Source Sans 3', system-ui, -apple-system, sans-serif;
+    --shadow-1: 0 1px 2px rgba(28,25,23,.06), 0 1px 1px rgba(28,25,23,.04);
+    --shadow-2: 0 6px 20px rgba(28,25,23,.08), 0 1px 2px rgba(28,25,23,.06);
+    --shadow-3: 0 18px 48px rgba(28,25,23,.14), 0 2px 6px rgba(28,25,23,.08);
+    --hairline: inset 0 0 0 1px rgba(176,137,74,.18);
+    --focus-ring: 0 0 0 3px rgba(176,137,74,.35);
   }
   html { scroll-behavior: smooth; color-scheme: light; }
   @media (prefers-reduced-motion: reduce) {
@@ -48,6 +54,18 @@
     -webkit-font-smoothing: antialiased;
   }
   body.landing-open { overflow: hidden; }
+  /* Paper grain sits below all content (negative z-index) so it never creates a stacking
+     context on #app-shell or the landing sections; the mobile date picker relies on that. */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: .035;
+    background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='grain'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%' height='100%' filter='url(%23grain)'/></svg>");
+    background-size: 180px 180px;
+  }
 
   html.has-session #login-overlay { display: none; }
 
@@ -142,7 +160,8 @@
     overflow: hidden; background: #fff;
     transition: box-shadow .15s, transform .15s;
   }
-  .card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.1); transform: translateY(-2px); }
+  .card { box-shadow: var(--hairline), var(--shadow-1); border-color: transparent; }
+  .card:hover { box-shadow: var(--hairline), var(--shadow-2); transform: translateY(-2px); }
   .card img { width: 100%; height: 120px; object-fit: cover; background: #f0f0f0; display: block; }
   .card-body { padding: 10px 12px; }
   .card-name { font-weight: 600; font-size: 13px; line-height: 1.3; margin-bottom: 3px; }
@@ -210,7 +229,10 @@
   #watch-count { font-size: 13px; color: var(--muted); font-weight: 400; margin-left: 6px; }
   #watches-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px,1fr)); gap: 12px; }
   .watch-card { border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; background: #fff; }
+  .watch-card { box-shadow: var(--hairline), var(--shadow-1); border-color: transparent; }
+  .watch-card:hover { box-shadow: var(--hairline), var(--shadow-2); }
   .watch-name { font-weight: 600; font-size: 15px; margin-bottom: 4px; }
+  .watch-name { font-family: var(--font-serif); font-size: 17px; font-weight: 500; letter-spacing: -.01em; }
   .watch-meta { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
   .watch-dates { display: flex; flex-wrap: wrap; gap: 6px; }
   .chip {
@@ -231,6 +253,7 @@
     border-radius: 4px; background: var(--paper-card);
     box-shadow: 0 4px 24px rgba(28,25,23,.04);
     border-top: 2px solid var(--gold); overflow: visible;
+    box-shadow: var(--hairline), var(--shadow-2); border-color: var(--gold) transparent transparent;
   }
   #create-watch h2 { font-family: var(--font-serif); font-size: 22px; font-weight: 500; margin-bottom: 4px; }
   #create-watch .hint { color: var(--muted); font-size: 13px; margin-bottom: 14px; }
@@ -513,6 +536,16 @@
     display: block;
   }
   #login-overlay.hidden { display: none; }
+  #login-overlay::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: -1;
+    opacity: .035;
+    background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='grain'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%' height='100%' filter='url(%23grain)'/></svg>");
+    background-size: 180px 180px;
+  }
   #login-overlay a { color: var(--ink); text-decoration-color: var(--gold); text-underline-offset: 3px; }
   #login-overlay .l-btn-primary,
   #login-overlay a.l-btn-primary,
@@ -586,9 +619,9 @@
   .l-btn-primary:disabled { background: #aaa; border-color: #aaa; cursor: default; }
   .l-btn-secondary { background: transparent; color: var(--ink); border-color: rgba(28,25,23,.24); }
   .l-btn-sm { padding: 6px 14px; font-size: 13px; }
-  .l-hero { padding: 72px 0 40px; text-align: center; scroll-margin-top: 84px; overflow: visible; }
+  .l-hero { padding: 72px 0 40px; text-align: center; scroll-margin-top: 84px; overflow: visible; background: radial-gradient(60% 50% at 50% 0%, rgba(176,137,74,.10), transparent 70%); }
   .hero-wand {
-    margin: 20px auto 0;
+    margin: 4px auto 0;
     width: min(920px, calc(100vw - 32px));
     color: var(--gold);
     overflow: visible;
@@ -623,7 +656,8 @@
   }
   .l-hero h1 {
     font-family: var(--font-serif); font-weight: 400; letter-spacing: -.02em;
-    font-size: clamp(2.1rem, 6vw, 3.6rem); line-height: 1.15; margin: 16px 0;
+    font-size: clamp(2.6rem, 7.5vw, 5rem); line-height: 1.05; margin: 16px 0;
+    font-variation-settings: "opsz" 144; text-wrap: balance;
   }
   .l-hero .lead { color: var(--muted); font-size: clamp(1.05rem, 2vw, 1.25rem); line-height: 1.55; max-width: 36em; margin: 0 auto 28px; }
   .l-hero-actions { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
@@ -635,7 +669,7 @@
   .l-pricing { display: grid; gap: 16px; max-width: 720px; margin: 0 auto; }
   @media (min-width: 768px) { .l-pricing { grid-template-columns: 1fr 1fr; } }
   .l-price { background: var(--paper-card); border: 1px solid rgba(28,25,23,.12); padding: 28px 22px; }
-  .l-price .amount { font-family: var(--font-serif); font-size: 1.8rem; margin: 8px 0 6px; }
+  .l-price .amount { font-family: var(--font-serif); font-size: clamp(2.2rem, 4vw, 3rem); font-variation-settings: "opsz" 144; letter-spacing: -.02em; padding-bottom: 8px; border-bottom: 1px solid rgba(176,137,74,.45); display: inline-block; margin: 8px 0 6px; }
   .l-price p { color: var(--muted); font-size: 15px; line-height: 1.55; }
   .l-step { background: var(--paper-card); border: 1px solid rgba(28,25,23,.12); padding: 28px 22px; }
   .l-num { font-family: var(--font-serif); font-style: italic; font-size: 1.7rem; color: var(--gold); }
@@ -677,6 +711,7 @@
     transition: background-color 9999s ease-out;
   }
   .signin-box input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 2px rgba(176,137,74,.35); }
+  .signin-box { box-shadow: var(--hairline), var(--shadow-2); border-color: transparent; }
   #login-btn { width: 100%; background: var(--ink); color: var(--paper); }
   #login-magic-btn { width: 100%; margin-top: 4px; }
   #login-error { color: #c0392b; font-size: 13px; min-height: 18px; margin: 10px 0 0; }
@@ -725,6 +760,102 @@
     .l-hero, .l-section { scroll-margin-top: 120px; }
   }
 
+  /* ── Landing pop restyle ─── */
+  h1, h2, h3 { text-wrap: balance; }
+  p, li, dd { text-wrap: pretty; }
+  button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible {
+    outline: none; box-shadow: var(--focus-ring);
+  }
+  .l-step, .l-price, .l-card, .l-sms {
+    box-shadow: var(--hairline), var(--shadow-2);
+    border-color: transparent;
+    border-top: 1px solid rgba(255,255,255,.6);
+  }
+  .l-eyebrow::before, .l-eyebrow::after { content: ''; width: 22px; height: 1px; background: var(--gold); opacity: .7; }
+  .l-sms .l-eyebrow::after, .hero-text .l-eyebrow::after { content: none; width: 0; }
+  .hero-stage { position: relative; width: min(920px, calc(100vw - 32px)); margin: 8px auto 0; }
+  .mtf-text { background: #fdfbf7; border-radius: 18px 18px 18px 6px; padding: 16px 18px; box-shadow: var(--hairline), var(--shadow-3); font-size: 14px; line-height: 1.5; text-align: left; overflow-wrap: anywhere; color: var(--ink); }
+  .mtf-text p { margin-top: 8px; }
+  .hero-text { max-width: 360px; margin: -40px 0 0 auto; position: relative; z-index: 1; }
+  @media (min-width: 900px) {
+    .hero-text { position: absolute; right: 24px; bottom: 96px; margin: 0; }
+    .hero-stage { min-height: 420px; }
+  }
+  @media (max-width: 899px) {
+    .hero-text { max-width: 360px; width: calc(100% - 24px); margin: -24px auto 0; }
+  }
+  .l-sms.mtf-text { border-left: 0; }
+  .l-dl { border-top: 1px dashed rgba(176,137,74,.5); padding-top: 12px; }
+  @media (min-width: 768px) {
+    .l-steps.l-rail { position: relative; gap: 28px; }
+    .l-steps.l-rail::before { content: ''; position: absolute; left: 0; right: 0; top: 22px; height: 1px; background: linear-gradient(90deg, transparent, rgba(176,137,74,.6) 10%, rgba(176,137,74,.6) 90%, transparent); }
+    .l-rail .l-step { background: transparent; border: 0; box-shadow: none; padding: 0 4px; }
+    .l-rail .l-num { display: inline-block; background: var(--paper); padding: 0 10px 0 0; position: relative; line-height: 1; margin-bottom: 14px; }
+    .l-rail .l-num::after { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); margin-left: 10px; vertical-align: middle; }
+  }
+  @media (max-width: 767px) {
+    .l-rail { border-left: 1px solid rgba(176,137,74,.5); padding-left: 20px; margin-left: 8px; }
+    .l-rail .l-step { background: transparent; border: 0; box-shadow: none; position: relative; padding: 0 0 20px; }
+    .l-rail .l-num { position: relative; left: -28px; background: var(--paper); display: inline-block; padding: 0 6px 0 0; }
+    .l-rail .l-num::after { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); margin-left: 8px; vertical-align: middle; }
+  }
+  .l-price-featured { background: var(--ink); color: var(--paper); box-shadow: var(--shadow-3); border-top-color: rgba(176,137,74,.55); }
+  .l-price-featured .l-num { color: var(--gold); }
+  .l-price-featured .amount { color: var(--paper); border-bottom-color: rgba(176,137,74,.7); }
+  .l-price-featured p { color: rgba(246,241,232,.78); }
+  .l-trust ul { gap: 10px 0; }
+  .l-trust li { padding: 0 22px; position: relative; }
+  .l-trust li + li::before { content: '·'; position: absolute; left: -4px; color: var(--gold); }
+  @media (max-width: 640px) { .l-trust li + li::before { content: none; } .l-trust li { padding: 0 12px; } }
+  .l-trust { box-shadow: inset 0 1px 0 rgba(255,255,255,.5), inset 0 -1px 0 rgba(28,25,23,.06); }
+  .l-faq details { border-top: 1px solid rgba(176,137,74,.35); }
+  .l-faq details:last-of-type { border-bottom: 1px solid rgba(176,137,74,.35); }
+  .l-faq summary { list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 16px; cursor: pointer; padding: 16px 0; }
+  .l-faq summary::-webkit-details-marker { display: none; }
+  .l-faq summary h3 { margin: 0; }
+  .l-faq-plus { width: 22px; height: 22px; position: relative; flex-shrink: 0; transition: transform .22s; }
+  .l-faq-plus::before, .l-faq-plus::after { content: ''; position: absolute; background: var(--gold); left: 50%; top: 50%; }
+  .l-faq-plus::before { width: 12px; height: 2px; transform: translate(-50%, -50%); }
+  .l-faq-plus::after { width: 2px; height: 12px; transform: translate(-50%, -50%); }
+  .l-faq details[open] .l-faq-plus { transform: rotate(45deg); }
+  .l-faq details p { padding: 0 0 16px; }
+  @supports (interpolate-size: allow-keywords) {
+    .l-faq details::details-content { transition: height .28s ease, content-visibility .28s allow-discrete; height: 0; overflow: clip; }
+    .l-faq details[open]::details-content { height: auto; }
+  }
+  .l-btn, .card-btn, #create-btn, #toggle-date-picker, #date-picker-done, #add-watch-btn, #goto-restaurants, .meal-chip, .park-chip {
+    transition: background-color .16s, color .16s, transform .16s, box-shadow .16s;
+  }
+  .l-btn:hover, .card-btn:hover, #create-btn:hover, #toggle-date-picker:hover, #date-picker-done:hover, #add-watch-btn:hover, #goto-restaurants:hover, .meal-chip:hover, .park-chip:hover {
+    transform: translateY(-1px);
+  }
+  .l-btn:active, .card-btn:active, #create-btn:active, #toggle-date-picker:active, #date-picker-done:active, #add-watch-btn:active, #goto-restaurants:active, .meal-chip:active, .park-chip:active {
+    transform: translateY(0) scale(.98);
+  }
+  .tabs { position: relative; }
+  .tab-btn { position: relative; }
+  .tab-btn::after {
+    content: ''; position: absolute; left: 18px; right: 18px; bottom: -2px; height: 2px;
+    background: var(--blue); transform: scaleX(0); transform-origin: left;
+    transition: transform .22s cubic-bezier(.2,.7,.2,1);
+  }
+  .tab-btn.active::after { transform: scaleX(1); }
+  .tab-btn.active { border-bottom-color: transparent; }
+  html.is-scrolled .landing-header, html.is-scrolled #app-shell > header { box-shadow: var(--shadow-1); }
+  html.mtf-motion .reveal { opacity: 0; transform: translateY(14px); transition: opacity .6s cubic-bezier(.2,.7,.2,1), transform .6s cubic-bezier(.2,.7,.2,1); }
+  html.mtf-motion .reveal.is-in { opacity: 1; transform: none; }
+  html.mtf-motion .reveal:nth-child(2) { transition-delay: .08s; }
+  html.mtf-motion .reveal:nth-child(3) { transition-delay: .16s; }
+  html.mtf-motion .hero-wand .wand-shaft { stroke-dasharray: 260; stroke-dashoffset: 260; animation: wand-draw .9s cubic-bezier(.2,.7,.2,1) .2s forwards; }
+  @keyframes wand-draw { to { stroke-dashoffset: 0; } }
+  html.mtf-motion .hero-text { opacity: 0; transform: translateY(10px); animation: text-arrive .6s cubic-bezier(.2,.7,.2,1) 1.2s forwards; }
+  @keyframes text-arrive { to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    html.mtf-motion .reveal, html.mtf-motion .hero-text, html.mtf-motion .hero-wand .wand-shaft {
+      animation: none; transition: none; opacity: 1; transform: none; stroke-dashoffset: 0;
+    }
+  }
+
   /* ── Logout ─── */
   #logout-btn {
     background: none; border: 1px solid rgba(28,25,23,.24); color: var(--ink);
@@ -757,6 +888,7 @@
       <p class="l-hero-links"><a href="#how" class="landing-nav">See how it works</a> ·
     <a href="#signin" class="landing-nav landing-go-signin">Already have watches? Sign in</a></p>
     </div>
+    <div class="hero-stage">
     <div class="hero-wand" aria-hidden="true">
       <svg class="hero-wand-svg" viewBox="0 0 900 380" fill="none" xmlns="http://www.w3.org/2000/svg">
         <defs>
@@ -774,7 +906,7 @@
           <circle cx="114" cy="294" r="8"/>
           <circle cx="114" cy="294" r="4.2" fill="none" stroke="currentColor" stroke-width="1.6"/>
           <circle cx="134" cy="272" r="5.6"/>
-          <line x1="144" y1="260" x2="350" y2="104" stroke="currentColor" stroke-width="8.5" stroke-linecap="round"/>
+          <line class="wand-shaft" x1="144" y1="260" x2="350" y2="104" stroke="currentColor" stroke-width="8.5" stroke-linecap="round"/>
           <line x1="150" y1="256" x2="348" y2="108" stroke="#f6f1e8" stroke-width="1.6" stroke-linecap="round" opacity="0.35"/>
           <path d="M378 34 392 72 430 86 392 100 378 138 364 100 326 86 364 72Z"/>
         </g>
@@ -922,23 +1054,28 @@
         <path class="dust-b" fill="currentColor" opacity="0.92" d="M842.3,258.8 845.0,266.6 852.8,269.3 845.0,272.1 842.3,279.8 839.6,272.1 831.8,269.3 839.6,266.6Z"/>
       </svg>
     </div>
+  <figure class="mtf-text hero-text" aria-label="Sample text alert">
+    <figcaption class="l-eyebrow">Sample text · 7:15 PM</figcaption>
+    <p>Disney Dining Alert!<br>New opening: California Grill<br>2026-09-18 at 7:15 PM | Party of 2 | Dinner<br>Book: disneyworld.disney.go.com/dine-res/restaurant/california-grill/<br>Reply STOP to opt out. Reply HELP for help.</p>
+  </figure>
+    </div>
   </section>
 
   <section id="how" class="l-section">
     <div class="l-narrow">
       <span class="l-eyebrow" style="display:flex;justify-content:center">How it works</span>
-      <h2>You pick. We watch. You get a text.</h2>
+      <h2 class="reveal">You pick. We watch. You get a text.</h2>
       <p class="sub">We scan frequently, around the clock.</p>
-      <div class="l-steps">
-        <article class="l-step">
+      <div class="l-steps l-rail">
+        <article class="l-step reveal">
           <div class="l-num">01</div>
           <h3>You select the restaurants and dining times you are interested in reserving.</h3>
         </article>
-        <article class="l-step">
+        <article class="l-step reveal">
           <div class="l-num">02</div>
           <h3>We'll keep watch for those reservations to open.</h3>
         </article>
-        <article class="l-step">
+        <article class="l-step reveal">
           <div class="l-num">03</div>
           <h3>We send you a text with the reservation link when it opens.</h3>
         </article>
@@ -949,15 +1086,15 @@
   <section id="pricing" class="l-section">
     <div class="l-narrow">
       <span class="l-eyebrow" style="display:flex;justify-content:center">Pricing</span>
-      <h2>Simple pricing</h2>
+      <h2 class="reveal">Simple pricing</h2>
       <p class="sub">Pay for a watch, or subscribe if you are watching more than one table.</p>
       <div class="l-pricing">
-        <article class="l-price">
+        <article class="l-price reveal">
           <div class="l-num">Single Watch</div>
           <div class="amount">$4.99</div>
           <p>One-time. One restaurant watch — party, meals, and the dates you choose.</p>
         </article>
-        <article class="l-price">
+        <article class="l-price l-price-featured reveal">
           <div class="l-num">Planner</div>
           <div class="amount">$14.99/month</div>
           <p>Up to 4 active watches. Add or remove anytime. Cancel Planner anytime.</p>
@@ -979,10 +1116,10 @@
   <section id="proof" class="l-section">
     <div class="l-wrap">
       <span class="l-eyebrow" style="display:flex;justify-content:center">Example</span>
-      <h2>A watch, then the text.</h2>
+      <h2 class="reveal">A watch, then the text.</h2>
       <p class="sub">A sample watch and the text sent when a matching opening appears.</p>
       <div class="l-proof">
-        <div class="l-card">
+        <div class="l-card reveal">
           <span class="l-badge">Watching</span>
           <h3>California Grill</h3>
           <dl class="l-dl">
@@ -992,7 +1129,7 @@
             <dt>Window</dt><dd>7:00–8:30 PM</dd>
           </dl>
         </div>
-        <div class="l-sms">
+        <div class="l-sms mtf-text reveal">
           <div class="l-eyebrow">Sample text · 7:15 PM</div>
           <p>Disney Dining Alert!<br>New opening: California Grill<br>2026-09-18 at 7:15 PM | Party of 2 | Dinner<br>Book: disneyworld.disney.go.com/dine-res/restaurant/california-grill/<br>Reply STOP to opt out. Reply HELP for help.</p>
         </div>
@@ -1002,21 +1139,35 @@
 
   <section id="faq" class="l-section">
     <div class="l-faq">
-      <h2>Questions</h2>
-      <h3>Do you text every open table?</h3>
-      <p>No. You get a text only when a time that matches your watch newly opens. Times that were already open stay quiet.</p>
-      <h3>Whose phone gets the alert?</h3>
-      <p>The signed-in account’s phone. Your watches text you, not someone else.</p>
-      <h3>Is this an official Disney product?</h3>
-      <p>No. Magic Table Finder is independent and is not affiliated with or endorsed by The Walt Disney Company.</p>
-      <h3>Do I need to keep refreshing Disney?</h3>
-      <p>No. That's our job. We keep scanning so you don't have to.</p>
-      <h3>When do you ask for text consent?</h3>
-      <p>When you create a watch — not when you sign in. The consent box starts unchecked. Reply STOP to opt out.</p>
-      <h3>How much does it cost?</h3>
-      <p>Single Watch is $4.99 one-time. Planner is $14.99/month and includes up to 4 active watches.</p>
-      <h3>What if nothing opens?</h3>
-      <p>You wait. We keep checking. We do not guarantee a table will open.</p>
+      <h2 class="reveal">Questions</h2>
+      <details class="l-faq-item reveal" open>
+        <summary><h3>Do you text every open table?</h3><span class="l-faq-plus" aria-hidden="true"></span></summary>
+        <p>No. You get a text only when a time that matches your watch newly opens. Times that were already open stay quiet.</p>
+      </details>
+      <details class="l-faq-item reveal">
+        <summary><h3>Whose phone gets the alert?</h3><span class="l-faq-plus" aria-hidden="true"></span></summary>
+        <p>The signed-in account’s phone. Your watches text you, not someone else.</p>
+      </details>
+      <details class="l-faq-item reveal">
+        <summary><h3>Is this an official Disney product?</h3><span class="l-faq-plus" aria-hidden="true"></span></summary>
+        <p>No. Magic Table Finder is independent and is not affiliated with or endorsed by The Walt Disney Company.</p>
+      </details>
+      <details class="l-faq-item reveal">
+        <summary><h3>Do I need to keep refreshing Disney?</h3><span class="l-faq-plus" aria-hidden="true"></span></summary>
+        <p>No. That's our job. We keep scanning so you don't have to.</p>
+      </details>
+      <details class="l-faq-item reveal">
+        <summary><h3>When do you ask for text consent?</h3><span class="l-faq-plus" aria-hidden="true"></span></summary>
+        <p>When you create a watch — not when you sign in. The consent box starts unchecked. Reply STOP to opt out.</p>
+      </details>
+      <details class="l-faq-item reveal">
+        <summary><h3>How much does it cost?</h3><span class="l-faq-plus" aria-hidden="true"></span></summary>
+        <p>Single Watch is $4.99 one-time. Planner is $14.99/month and includes up to 4 active watches.</p>
+      </details>
+      <details class="l-faq-item reveal">
+        <summary><h3>What if nothing opens?</h3><span class="l-faq-plus" aria-hidden="true"></span></summary>
+        <p>You wait. We keep checking. We do not guarantee a table will open.</p>
+      </details>
     </div>
   </section>
 
@@ -1328,6 +1479,30 @@ function clearWatchDraft() {
 
 function getSecret() { return storageGet('disneyApiSecret') || ''; }
 function getUserId() { return storageGet('disneyUserId') || ''; }
+(function motionSetup() {
+  var reduce = false;
+  try { reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+  if (reduce || typeof IntersectionObserver !== 'function') return;
+  document.documentElement.classList.add('mtf-motion');
+  document.querySelectorAll('.signin-box').forEach(function(el) { el.classList.add('reveal'); });
+  var io = new IntersectionObserver(function(entries) {
+    entries.forEach(function(en) { if (en.isIntersecting) { en.target.classList.add('is-in'); io.unobserve(en.target); } });
+  }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
+  document.querySelectorAll('.reveal').forEach(function(el) { io.observe(el); });
+})();
+(function scrolledHeader() {
+  function syncScrolled() {
+    var overlay = document.getElementById('login-overlay');
+    var top = 0;
+    if (overlay && !overlay.classList.contains('hidden')) top = overlay.scrollTop || 0;
+    else top = window.scrollY || document.documentElement.scrollTop || 0;
+    document.documentElement.classList.toggle('is-scrolled', top > 8);
+  }
+  var overlay = document.getElementById('login-overlay');
+  if (overlay) overlay.addEventListener('scroll', syncScrolled, { passive: true });
+  window.addEventListener('scroll', syncScrolled, { passive: true });
+  syncScrolled();
+})();
 // A 401 means the stored private secret is no longer valid; drop it so isAnonymous() is true.
 function forgetPrivateLogin() {
   storageRemove('disneyApiSecret');
@@ -1405,7 +1580,7 @@ async function ensurePhoneSaved() {
     return false;
   }
 }
-function activateTab(name) {
+function applyTab(name) {
   document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
   document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
   var btn = document.querySelector('.tab-btn[data-tab="' + name + '"]');
@@ -1413,6 +1588,12 @@ function activateTab(name) {
   var panel = document.getElementById('tab-' + name);
   if (panel) panel.classList.add('active');
   if (name === 'watches' && !isAnonymous()) loadWatches();
+}
+function activateTab(name) {
+  if (document.startViewTransition && document.documentElement.classList.contains('mtf-motion')) {
+    try { document.startViewTransition(function() { applyTab(name); }); return; } catch (e) {}
+  }
+  applyTab(name);
 }
 function showWatchesTab() { activateTab('watches'); }
 function smsConsentKey() {

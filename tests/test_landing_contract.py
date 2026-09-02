@@ -257,6 +257,64 @@ class LandingContractTest(unittest.TestCase):
         hero = INDEX.split('class="l-hero"', 1)[1].split('id="how"', 1)[0]
         self.assertNotIn('class="l-hero-actions"', hero)
 
+    def test_pop_restyle_material_layer(self):
+        self.assertIn('<meta name="theme-color" content="#f6f1e8"', INDEX)
+        self.assertIn("--shadow-1:", INDEX)
+        self.assertIn("--shadow-2:", INDEX)
+        self.assertIn("--shadow-3:", INDEX)
+        self.assertIn("--hairline:", INDEX)
+        self.assertIn("feTurbulence", INDEX)
+        grain = INDEX.split("body::before {", 1)[1][:700]
+        self.assertIn("pointer-events: none", grain)
+        self.assertIn("position: fixed", grain)
+        # Grain must sit below content without creating stacking contexts on #app-shell or the
+        # landing sections; the mobile position:fixed date picker depends on that.
+        self.assertIn("z-index: -1", grain)
+        self.assertIn("z-index: -1", INDEX.split("#login-overlay::before {", 1)[1][:400])
+        self.assertNotIn("#app-shell { position: relative; z-index: 1; }", INDEX)
+        self.assertNotIn("#login-overlay > :not(.landing-header)", INDEX)
+        self.assertIn("text-wrap: balance", INDEX)
+        self.assertIn("text-wrap: pretty", INDEX)
+        self.assertNotIn("filter: drop-shadow", INDEX)
+
+    def test_pop_restyle_hero_stage(self):
+        overlay = INDEX.split('id="login-overlay"', 1)[1].split('id="app-shell"', 1)[0]
+        hero = INDEX.split('class="l-hero"', 1)[1].split('id="how"', 1)[0]
+        self.assertIn('class="hero-stage"', hero)
+        self.assertIn('class="mtf-text hero-text"', hero)
+        self.assertIn("Sample text · 7:15 PM", hero)
+        self.assertIn("New opening: California Grill", hero)
+        self.assertIn('class="wand-shaft"', hero)
+        self.assertNotIn('class="hero-stage"', INDEX.split('id="app-shell"', 1)[1])
+        self.assertGreaterEqual(overlay.count("mtf-text"), 2)
+        self.assertNotIn("Delivered", overlay)
+        self.assertIn("We monitor the openings.</h1>", INDEX)
+
+    def test_pop_restyle_motion_is_gated(self):
+        self.assertIn("prefers-reduced-motion: reduce", INDEX)
+        self.assertIn("matchMedia('(prefers-reduced-motion: reduce)')", INDEX)
+        self.assertIn("classList.add('mtf-motion')", INDEX)
+        self.assertIn("html.mtf-motion .reveal {", INDEX)
+        self.assertIn("html.mtf-motion .reveal.is-in {", INDEX)
+        self.assertNotRegex(INDEX, r"\n\s*\.reveal \{")
+        self.assertIn("@keyframes wand-draw", INDEX)
+        self.assertIn("@keyframes text-arrive", INDEX)
+        self.assertIn("startViewTransition", INDEX)
+        self.assertIn("function activateTab(", INDEX)
+        self.assertIn("function applyTab(", INDEX)
+        self.assertNotIn("animation:", INDEX.split(".wordmark-wand-accent {", 1)[1][:400])
+        self.assertNotIn("#status-dot.ok   { animation", INDEX)
+
+    def test_pop_restyle_sections(self):
+        faq = INDEX.split('id="faq"', 1)[1].split('id="signin"', 1)[0]
+        self.assertEqual(faq.count("<details"), 7)
+        self.assertEqual(faq.count("<summary"), 7)
+        self.assertIn('class="l-steps l-rail"', INDEX)
+        self.assertIn('class="l-price l-price-featured reveal"', INDEX)
+        self.assertIn('class="l-sms mtf-text reveal"', INDEX)
+        self.assertIn("::details-content", INDEX)
+        self.assertIn(".l-faq { width: min(720px, calc(100% - 48px)); margin: 0 auto; }", INDEX)
+
 
 if __name__ == "__main__":
     unittest.main()
