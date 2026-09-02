@@ -12,7 +12,7 @@
     if (hasSecret || hasUi) document.documentElement.classList.add('has-session');
   }
 </script>
-<meta name="description" content="We'll text you when your Walt Disney World reservations open up. You log in. You book." />
+<meta name="description" content="Sold out? We'll text you the moment a Walt Disney World table opens. Pick the restaurant and your dates; we watch around the clock and text you a booking link." />
 <meta name="theme-color" content="#f6f1e8" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -656,7 +656,7 @@
   }
   .l-hero h1 {
     font-family: var(--font-serif); font-weight: 400; letter-spacing: -.02em;
-    font-size: clamp(2.6rem, 7.5vw, 5rem); line-height: 1.05; margin: 16px 0;
+    font-size: clamp(2.3rem, 4.6vw, 3.6rem); line-height: 1.08; margin: 14px 0 16px;
     font-variation-settings: "opsz" 144; text-wrap: balance;
   }
   .l-hero .lead { color: var(--muted); font-size: clamp(1.05rem, 2vw, 1.25rem); line-height: 1.55; max-width: 36em; margin: 0 auto 28px; }
@@ -773,17 +773,54 @@
   }
   .l-eyebrow::before, .l-eyebrow::after { content: ''; width: 22px; height: 1px; background: var(--gold); opacity: .7; }
   .l-sms .l-eyebrow::after, .hero-text .l-eyebrow::after { content: none; width: 0; }
-  .hero-stage { position: relative; width: min(920px, calc(100vw - 32px)); margin: 8px auto 0; }
+  /* Conversion hero: copy + two-field starter on the left, the wand landing on the sample
+     text on the right, so the outcome is on the first screen. Stacks on phones. */
+  .l-hero-grid {
+    width: min(1120px, calc(100% - 40px)); margin: 0 auto;
+    display: grid; grid-template-columns: 1.05fr .95fr; gap: 40px; align-items: center;
+  }
+  .l-hero-copy { text-align: left; min-width: 0; }
+  .l-hero-copy .l-eyebrow::after { content: none; width: 0; }
+  .l-hero .lead { margin: 0 0 22px; max-width: 34em; }
+  .l-hero #create-watch { margin: 0; max-width: none; }
+  .l-hero-trust {
+    list-style: none; display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 14px;
+    font-family: var(--font-serif); letter-spacing: .1em; text-transform: uppercase; font-size: 11px; color: var(--muted);
+  }
+  .l-hero-links { margin-top: 12px; }
+  .hero-stage { position: relative; width: 100%; margin: 0; padding-bottom: 128px; align-self: center; }
+  .l-hero-grid .hero-wand { width: 100%; margin: 0; }
   .mtf-text { background: #fdfbf7; border-radius: 18px 18px 18px 6px; padding: 16px 18px; box-shadow: var(--hairline), var(--shadow-3); font-size: 14px; line-height: 1.5; text-align: left; overflow-wrap: anywhere; color: var(--ink); }
   .mtf-text p { margin-top: 8px; }
-  .hero-text { max-width: 360px; margin: -40px 0 0 auto; position: relative; z-index: 1; }
-  @media (min-width: 900px) {
-    .hero-text { position: absolute; right: 24px; bottom: 96px; margin: 0; }
-    .hero-stage { min-height: 420px; }
+  .hero-text { position: absolute; right: 0; bottom: 0; max-width: 330px; margin: 0; z-index: 1; }
+  .hero-text p { margin-top: 6px; }
+  @media (max-width: 900px) {
+    .l-hero-grid { grid-template-columns: 1fr; gap: 18px; }
+    .hero-stage { padding-bottom: 0; margin-top: 8px; }
+    .hero-text { position: static; max-width: 100%; width: calc(100% - 20px); margin: -28px auto 0; }
   }
-  @media (max-width: 899px) {
-    .hero-text { max-width: 360px; width: calc(100% - 24px); margin: -24px auto 0; }
+  /* Quick-start chips and price note (guest starter only) */
+  .popular-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 10px 0 2px; font-size: 12px; color: var(--muted); }
+  .popular-chips[hidden] { display: none !important; }
+  .popular-label { margin-right: 2px; }
+  .popular-chip { border: 1px solid var(--border); background: #fff; color: var(--ink); border-radius: 20px; padding: 5px 10px; font-size: 12px; font-family: inherit; cursor: pointer; transition: background-color .16s, border-color .16s, transform .16s; }
+  .popular-chip:hover { border-color: var(--gold); transform: translateY(-1px); }
+  .create-fine { font-size: 12px; color: var(--muted); margin-top: 10px; line-height: 1.5; }
+  .create-fine[hidden] { display: none !important; }
+  /* Collapsed guest starter: restaurant + dates + CTA. Party, meal, time, phone, email, and
+     consent appear once a restaurant and at least one date are chosen. */
+  #create-watch.is-collapsed > h2, #create-watch.is-collapsed > .hint,
+  #create-watch.is-collapsed .party-row, #create-watch.is-collapsed #meal-chips,
+  #create-watch.is-collapsed .time-fields-wrap, #create-watch.is-collapsed .create-step-contact,
+  #create-watch.is-collapsed #billing-next-banner { display: none !important; }
+  #create-watch.is-collapsed .create-step { display: block; margin-bottom: 12px; }
+  #create-watch.is-collapsed .step-label { padding-top: 0; margin-bottom: 6px; }
+  #create-watch.is-collapsed #toggle-date-picker {
+    background: #fff; color: var(--ink); border: 1px solid var(--border); font-weight: 600;
   }
+  #create-watch.is-collapsed #toggle-date-picker:hover { background: var(--paper); }
+  #create-watch.is-collapsed .create-actions { margin-top: 4px; }
+  #create-watch.is-collapsed #create-btn { width: 100%; padding: 13px; }
   .l-sms.mtf-text { border-left: 0; }
   .l-dl { border-top: 1px dashed rgba(176,137,74,.5); padding-top: 12px; }
   @media (min-width: 768px) {
@@ -880,11 +917,18 @@
   </header>
 
   <section class="l-hero" id="hero">
-    <div class="l-narrow">
-      <span class="l-eyebrow">Private dining alerts</span>
-      <h1>We monitor the openings.</h1>
-      <p class="lead">We'll text you when your Walt Disney World reservations open up. You log in. You book. From $4.99 a watch, or $14.99/month for a Planner.</p>
+    <div class="l-hero-grid">
+    <div class="l-hero-copy">
+      <span class="l-eyebrow">Walt Disney World dining alerts</span>
+      <h1>Sold out? We'll text you the moment a table opens.</h1>
+      <p class="lead">Pick the restaurant and your dates. We watch Disney's reservation system around the clock and text you a booking link the second a matching table opens. You book it on Disney's site, on your own account.</p>
       <div id="landing-watch-slot"></div>
+      <ul class="l-hero-trust" aria-label="Product trust points">
+        <li>New openings only</li>
+        <li>Text alerts</li>
+        <li>Your phone only</li>
+        <li>Not affiliated with Disney</li>
+      </ul>
       <p class="l-hero-links"><a href="#how" class="landing-nav">See how it works</a> ·
     <a href="#signin" class="landing-nav landing-go-signin">Already have watches? Sign in</a></p>
     </div>
@@ -1058,6 +1102,7 @@
     <figcaption class="l-eyebrow">Sample text · 7:15 PM</figcaption>
     <p>Disney Dining Alert!<br>New opening: California Grill<br>2026-09-18 at 7:15 PM | Party of 2 | Dinner<br>Book: disneyworld.disney.go.com/dine-res/restaurant/california-grill/<br>Reply STOP to opt out. Reply HELP for help.</p>
   </figure>
+    </div>
     </div>
   </section>
 
@@ -1266,6 +1311,7 @@
             </select>
             <div id="restaurant-combo-list" role="listbox" hidden></div>
           </div>
+          <div id="popular-chips" class="popular-chips" role="group" aria-label="Hard-to-get tables" hidden></div>
           <div class="party-row">
             <label class="party-inline">Party of <input type="number" id="party-size" min="1" max="20" value="2" required></label>
             <small id="specialty-hint" style="display:none;font-size:11px;color:var(--muted)"></small>
@@ -1315,7 +1361,7 @@
           </div>
         </div>
       </div>
-      <div class="create-step">
+      <div class="create-step create-step-contact">
         <div class="step-label">Text me at</div>
         <div class="step-body">
           <div id="phone-setup" hidden>
@@ -1354,6 +1400,7 @@
         <button type="submit" id="create-btn" disabled>Create Watch</button>
         <div id="create-msg" role="status"></div>
       </div>
+      <p id="create-fine" class="create-fine" hidden>One-time for a single watch. Planner is $14.99/month for up to 4 watches. Cancel anytime. Text consent is asked before your first alert.</p>
     </form>
     </div>
     </div>
@@ -1448,6 +1495,7 @@ function placeCreateWatch(anonymous) {
   if (!card) return;
   if (anonymous && slot) slot.appendChild(card);
   else if (home) home.appendChild(card);
+  syncGuestStarter();
 }
 if (!document.documentElement.classList.contains('has-session')) {
   placeCreateWatch(true);
@@ -1516,8 +1564,37 @@ function canCreateWatchNow() {
 }
 function getPartySize() { return parseInt(document.getElementById('party-size').value, 10) || 2; }
 function payWatchLabel() {
-  if (isAnonymous()) return 'Continue to payment · $4.99';
+  if (isAnonymous()) return guestStarterCollapsed() ? 'Start my watch · from $4.99' : 'Start my watch · $4.99';
   return (mtfSessionUser && mtfSessionUser.billing_mode === 'single_watch') ? 'Pay $4.99 and watch' : 'Create Watch';
+}
+
+// Guest starter: the landing form opens with restaurant + dates + CTA only. Once both are
+// chosen it expands (and stays expanded) to party, meal, time, phone, email, and consent.
+var guestStarterExpanded = false;
+function guestStarterCollapsed() {
+  if (!isAnonymous() || guestStarterExpanded) return false;
+  var select = document.getElementById('restaurant-select');
+  var hasRestaurant = Boolean(select && select.value);
+  var hasDates = Boolean(createDatePicker && createDatePicker.selected && createDatePicker.selected.size);
+  if (hasRestaurant && hasDates) { guestStarterExpanded = true; return false; }
+  return true;
+}
+function syncGuestStarter() {
+  var card = document.getElementById('create-watch');
+  if (!card) return;
+  var anon = isAnonymous();
+  var collapsed = guestStarterCollapsed();
+  card.classList.toggle('is-collapsed', collapsed);
+  var msg = document.getElementById('create-msg');
+  if (msg && !collapsed && /^Choose (a restaurant first|at least one date)\.$/.test(msg.textContent)) {
+    msg.className = ''; msg.textContent = '';
+  }
+  var fine = document.getElementById('create-fine');
+  if (fine) fine.hidden = !anon;
+  var chips = document.getElementById('popular-chips');
+  if (chips) chips.hidden = !anon || !chips.children.length;
+  var btn = document.getElementById('create-btn');
+  if (btn && anon && !btn.disabled && !/…$/.test(btn.textContent)) btn.textContent = payWatchLabel();
 }
 function intlPhoneOpen() {
   var fields = document.getElementById('phone-intl-fields');
@@ -1877,8 +1954,10 @@ function applyEntitlementUI() {
     if (planLineGuest) planLineGuest.hidden = true;
     var modalPhoneGuest = document.getElementById('modal-phone-wrap');
     if (modalPhoneGuest) modalPhoneGuest.hidden = true;
+    syncGuestStarter();
     return;
   }
+  syncGuestStarter();
   if (banner) banner.style.display = '';
   if (guestEmail) guestEmail.hidden = true;
   var allowed = canCreateWatchNow();
@@ -2629,6 +2708,7 @@ function populateRestaurantSelect(restaurants) {
     document.getElementById('restaurant-combo-input').value = '';
   }
   applyBookingTypeUI();
+  renderPopularChips();
 }
 
 var selectedPark = '';
@@ -2656,6 +2736,36 @@ function selectRestaurant(facilityId) {
   input.value = r ? r.name : '';
   closeRestaurantCombo();
   applyBookingTypeUI();
+  syncGuestStarter();
+}
+
+// Quick-start chips for the guest starter. Matched against the live catalog by name so a
+// renamed or delisted restaurant simply drops out instead of pointing at a stale id.
+var POPULAR_WATCHES = [
+  { match: 'Be Our Guest Restaurant', label: 'Be Our Guest' },
+  { match: 'Space 220 Restaurant', label: 'Space 220' },
+  { match: "'Ohana", label: "'Ohana" },
+  { match: "Topolino's Terrace", label: "Topolino's Terrace" },
+  { match: 'California Grill', label: 'California Grill' }
+];
+function renderPopularChips() {
+  var host = document.getElementById('popular-chips');
+  if (!host) return;
+  var list = watchableRestaurants();
+  var html = '';
+  POPULAR_WATCHES.forEach(function(p) {
+    var r = list.find(function(x) { return (x.name || '').indexOf(p.match) !== -1; });
+    if (r) html += '<button type="button" class="popular-chip" data-id="' + esc(r.facility_id) + '">' + esc(p.label) + '</button>';
+  });
+  host.innerHTML = html ? '<span class="popular-label">Hard-to-get tables:</span>' + html : '';
+  host.querySelectorAll('.popular-chip').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      selectRestaurant(btn.dataset.id);
+      var toggle = document.getElementById('toggle-date-picker');
+      if (toggle && !createDatePicker.selected.size) toggle.focus();
+    });
+  });
+  syncGuestStarter();
 }
 
 function closeRestaurantCombo() {
@@ -2848,6 +2958,7 @@ function renderSelectedDateChips() {
   var toggle = document.getElementById('toggle-date-picker');
   var dates = Array.from(createDatePicker.selected).sort();
   toggle.textContent = selectedDateSummary();
+  syncGuestStarter();
   if (!dates.length) {
     chips.innerHTML = '<span style="font-size:12px;color:#999">No dates selected yet. Tap Choose Dates.</span>';
     return;
@@ -3004,6 +3115,7 @@ function readWatchForm() {
 // linger in the form for the next person on the same device.
 function resetWatchForm() {
   document.getElementById('watch-form').reset();
+  guestStarterExpanded = false;
   setSelectedMeals(['ALL']);
   document.getElementById('party-size').value = storageGet('disneyPartySize') || '2';
   selectRestaurant('');
@@ -3144,6 +3256,16 @@ async function startGuestWatch() {
 document.getElementById('watch-form').addEventListener('submit', async function(e) {
   e.preventDefault();
   if (isAnonymous()) {
+    if (guestStarterCollapsed()) {
+      // Still on the two-field starter: say what is missing and put the cursor there.
+      var starterMsg = document.getElementById('create-msg');
+      var hasRestaurant = Boolean(document.getElementById('restaurant-select').value);
+      starterMsg.className = 'err';
+      starterMsg.textContent = hasRestaurant ? 'Choose at least one date.' : 'Choose a restaurant first.';
+      var target = document.getElementById(hasRestaurant ? 'toggle-date-picker' : 'restaurant-combo-input');
+      if (target) target.focus();
+      return;
+    }
     startGuestWatch();
     return;
   }

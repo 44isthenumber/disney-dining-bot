@@ -23,9 +23,15 @@ class LandingContractTest(unittest.TestCase):
         self.assertIn("--blue: #1a56db", INDEX)
 
     def test_locked_promise_and_headline(self):
-        self.assertIn("We monitor the openings.", INDEX)
-        self.assertIn("We'll text you when your Walt Disney World reservations open up. You log in. You book.", INDEX)
+        # Conversion headline approved by Craig 2026-09-02 (replaces "We monitor the openings.").
+        self.assertIn("<h1>Sold out? We'll text you the moment a table opens.</h1>", INDEX)
+        self.assertIn("You book it on Disney's site, on your own account.", INDEX)
+        self.assertNotIn("We monitor the openings.", INDEX)
         self.assertNotIn("The table is being watched.", INDEX)
+        # Pricing stays out of the hero subhead; it lives under the CTA and in #pricing.
+        hero = INDEX.split('class="l-hero"', 1)[1].split('id="how"', 1)[0]
+        lead = hero.split('<p class="lead">', 1)[1].split("</p>", 1)[0]
+        self.assertNotIn("$", lead)
         self.assertIn("We text you when a matching table newly opens.", INDEX)
         self.assertNotIn("SMS when a matching table newly opens.", INDEX)
         self.assertIn("New openings only", INDEX)
@@ -252,8 +258,23 @@ class LandingContractTest(unittest.TestCase):
         self.assertIn("function resumeWatchDraft(", INDEX)
         self.assertIn("function startGuestWatch()", INDEX)
         self.assertIn('id="guest-email"', INDEX)
-        self.assertIn("Continue to payment · $4.99", INDEX)
+        self.assertNotIn("Continue to payment", INDEX)
+        self.assertIn("'Start my watch · from $4.99'", INDEX)
+        self.assertIn("'Start my watch · $4.99'", INDEX)
         self.assertIn("Already have watches?", INDEX)
+        # Progressive guest starter: restaurant + dates + CTA first; the rest after both are chosen.
+        self.assertIn('id="popular-chips"', INDEX)
+        self.assertIn("Hard-to-get tables:", INDEX)
+        self.assertIn('id="create-fine"', INDEX)
+        self.assertIn("Planner is $14.99/month for up to 4 watches. Cancel anytime.", INDEX)
+        self.assertIn('class="create-step create-step-contact"', INDEX)
+        self.assertIn("function guestStarterCollapsed()", INDEX)
+        self.assertIn("function syncGuestStarter()", INDEX)
+        self.assertIn("#create-watch.is-collapsed .create-step-contact", INDEX)
+        self.assertIn("'Choose a restaurant first.'", INDEX)
+        self.assertIn("'Choose at least one date.'", INDEX)
+        for popular in ("Be Our Guest Restaurant", "Space 220 Restaurant", "California Grill"):
+            self.assertIn(popular, INDEX)
         hero = INDEX.split('class="l-hero"', 1)[1].split('id="how"', 1)[0]
         self.assertNotIn('class="l-hero-actions"', hero)
 
@@ -288,7 +309,10 @@ class LandingContractTest(unittest.TestCase):
         self.assertNotIn('class="hero-stage"', INDEX.split('id="app-shell"', 1)[1])
         self.assertGreaterEqual(overlay.count("mtf-text"), 2)
         self.assertNotIn("Delivered", overlay)
-        self.assertIn("We monitor the openings.</h1>", INDEX)
+        self.assertIn('class="l-hero-grid"', hero)
+        self.assertIn('class="l-hero-copy"', hero)
+        self.assertIn('class="l-hero-trust"', hero)
+        self.assertIn("Not affiliated with Disney", hero)
 
     def test_pop_restyle_motion_is_gated(self):
         self.assertIn("prefers-reduced-motion: reduce", INDEX)
