@@ -619,7 +619,7 @@
   .l-btn-primary:disabled { background: #aaa; border-color: #aaa; cursor: default; }
   .l-btn-secondary { background: transparent; color: var(--ink); border-color: rgba(28,25,23,.24); }
   .l-btn-sm { padding: 6px 14px; font-size: 13px; }
-  .l-hero { padding: 72px 0 40px; text-align: center; scroll-margin-top: 84px; overflow: visible; }
+  .l-hero { padding: 72px 0 40px; text-align: center; scroll-margin-top: 84px; overflow: visible; background: radial-gradient(60% 50% at 50% 0%, rgba(176,137,74,.10), transparent 70%); }
   .hero-wand {
     margin: 4px auto 0;
     width: min(920px, calc(100vw - 32px));
@@ -785,19 +785,6 @@
     .hero-text { max-width: 360px; width: calc(100% - 24px); margin: -24px auto 0; }
   }
   .l-sms.mtf-text { border-left: 0; }
-  /* Ink hero: the gold wand and paper Create Watch card sit on a dusk-ink stage so the first
-     screen reads as an evening at the parks. Everything below the hero stays paper. */
-  .l-hero {
-    color: var(--paper);
-    background: radial-gradient(70% 55% at 50% 0%, rgba(176,137,74,.26), transparent 70%), var(--ink);
-    border-bottom: 1px solid rgba(176,137,74,.35);
-  }
-  .l-hero .lead, .l-hero .l-hero-links { color: rgba(246,241,232,.74); }
-  #login-overlay .l-hero a { color: var(--paper); text-decoration-color: var(--gold); }
-  #login-overlay .l-hero #create-watch a, #login-overlay .l-hero .hero-text a { color: var(--blue); text-decoration-color: currentColor; }
-  .l-hero #create-watch { color: var(--text); box-shadow: var(--hairline), 0 30px 80px rgba(0,0,0,.45), 0 2px 8px rgba(0,0,0,.25); }
-  .l-hero .hero-text { box-shadow: var(--hairline), 0 0 0 1px rgba(176,137,74,.35), 0 24px 60px rgba(0,0,0,.5); }
-  .l-hero .hero-wand .wand-body line[stroke="#f6f1e8"] { opacity: .5; }
   .l-dl { border-top: 1px dashed rgba(176,137,74,.5); padding-top: 12px; }
   @media (min-width: 768px) {
     .l-steps.l-rail { position: relative; gap: 28px; }
