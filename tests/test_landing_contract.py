@@ -270,7 +270,14 @@ class LandingContractTest(unittest.TestCase):
         self.assertIn('class="create-step create-step-contact"', INDEX)
         self.assertIn("function guestStarterCollapsed()", INDEX)
         self.assertIn("function syncGuestStarter()", INDEX)
-        self.assertIn("#create-watch.is-collapsed .create-step-contact", INDEX)
+        self.assertRegex(
+            INDEX,
+            r"#create-watch\.is-collapsed \.create-step-contact,\s*\n\s*#create-watch\.is-collapsed #billing-next-banner \{ display: none !important; \}",
+        )
+        self.assertIn(
+            "if (isAnonymous()) return guestStarterCollapsed() ? 'Start my watch · from $4.99' : 'Start my watch · $4.99';",
+            INDEX,
+        )
         self.assertIn("'Choose a restaurant first.'", INDEX)
         self.assertIn("'Choose at least one date.'", INDEX)
         for popular in ("Be Our Guest Restaurant", "Space 220 Restaurant", "California Grill"):
