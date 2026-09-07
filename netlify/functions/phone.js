@@ -25,7 +25,7 @@ function formatUsPhoneDisplay(raw) {
   if (!trimmed) return "";
   if (trimmed.charAt(0) === "+" && !/^\+1/.test(trimmed)) return trimmed;
   let digits = digitsOnly(trimmed);
-  if (digits.charAt(0) === "1") digits = digits.slice(1);
+  if (digits.length >= 11 && digits.charAt(0) === "1") digits = digits.slice(1);
   digits = digits.slice(0, 10);
   if (!digits) return trimmed.charAt(0) === "+" ? "+" : "";
   if (digits.length <= 3) return digits;

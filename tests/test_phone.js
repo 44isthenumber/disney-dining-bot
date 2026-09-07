@@ -43,6 +43,7 @@ assert.strictEqual(formatUsPhoneDisplay("2564252474"), "(256) 425-2474");
 assert.strictEqual(formatUsPhoneDisplay("256425247"), "(256) 425-247");
 assert.strictEqual(formatUsPhoneDisplay("2564"), "(256) 4");
 assert.strictEqual(formatUsPhoneDisplay("256"), "256");
+assert.strictEqual(formatUsPhoneDisplay("12345"), "(123) 45");
 assert.strictEqual(formatUsPhoneDisplay("+12564252474"), "(256) 425-2474");
 assert.strictEqual(formatUsPhoneDisplay("1 (256) 425-2474"), "(256) 425-2474");
 assert.strictEqual(formatUsPhoneDisplay("+447700900000"), "+447700900000");
