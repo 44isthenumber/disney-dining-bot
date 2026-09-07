@@ -261,17 +261,41 @@
   .create-step { margin-bottom: 16px; align-items: start; }
   .step-label {
     font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
-    color: var(--gold); padding-top: 8px;
+    color: #aa8b54; padding-top: 8px;
   }
   .step-body { min-width: 0; }
-  .party-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 10px; }
-  .party-inline {
-    display: inline-flex; align-items: center; gap: 8px;
-    font-size: 14px; color: var(--ink);
+  .create-step-who .who-box {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 12px 10px;
   }
-  .party-inline input[type=number] {
-    width: 64px; padding: 6px 8px; border: 1px solid var(--border);
-    border-radius: 7px; background: #fff; color: var(--text); font-size: 14px;
+  .party-caption {
+    font-weight: 700; color: var(--ink); font-size: 16px; line-height: 1.3;
+    margin: 0 0 10px;
+  }
+  .party-chips {
+    display: flex; flex-wrap: nowrap; align-items: center; justify-content: space-between;
+    gap: 6px;
+  }
+  .party-chip {
+    width: 36px; height: 36px; padding: 0; flex: 0 0 36px;
+    border-radius: 50%; border: 1px solid #1c1917; background: #fff; color: #000;
+    font-size: 14px; font-weight: 600; font-family: inherit; line-height: 1;
+    cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+  }
+  .party-chip[aria-checked="true"] {
+    background: #000; color: #fff; border-color: #000;
+  }
+  .party-chip:disabled { opacity: .35; cursor: default; }
+  .party-chip:focus-visible { outline: 2px solid #aa8b54; outline-offset: 2px; }
+  @keyframes who-gold-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(170,139,84,.0); }
+    35% { box-shadow: 0 0 0 4px rgba(170,139,84,.45); }
+    100% { box-shadow: 0 0 0 0 rgba(170,139,84,.0); }
+  }
+  .who-box.who-pulse { animation: who-gold-pulse 1.15s ease-out 1; }
+  @media (prefers-reduced-motion: reduce) {
+    .who-box.who-pulse { animation: none; }
   }
   .meal-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
   .meal-chip {
@@ -498,6 +522,7 @@
     #rest-grid .rest-section-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
     .create-step { display: block; }
     .step-label { padding-top: 0; margin-bottom: 6px; }
+    .party-chip { width: 34px; height: 34px; flex-basis: 34px; font-size: 13px; }
     #time-fields { grid-template-columns: 1fr; }
     #phone-intl-fields { grid-template-columns: 1fr; }
     .date-input-row { flex-direction: column; }
@@ -807,10 +832,10 @@
   .popular-chip:hover { border-color: var(--gold); transform: translateY(-1px); }
   .create-fine { font-size: 12px; color: var(--muted); margin-top: 10px; line-height: 1.5; }
   .create-fine[hidden] { display: none !important; }
-  /* Collapsed guest starter: restaurant + dates + CTA. Party, meal, time, phone, email, and
-     consent appear once a restaurant and at least one date are chosen. */
+  /* Collapsed guest starter: WHERE + WHEN + WHO + CTA. Meal, time, phone, email,
+     and consent appear after Start my watch with restaurant, dates, and party. */
   #create-watch.is-collapsed > h2, #create-watch.is-collapsed > .hint,
-  #create-watch.is-collapsed .party-row, #create-watch.is-collapsed #meal-chips,
+  #create-watch.is-collapsed #meal-chips,
   #create-watch.is-collapsed .time-fields-wrap, #create-watch.is-collapsed .create-step-contact,
   #create-watch.is-collapsed #billing-next-banner { display: none !important; }
   #create-watch.is-collapsed .create-step { display: block; margin-bottom: 12px; }
@@ -1313,10 +1338,6 @@
             <div id="restaurant-combo-list" role="listbox" hidden></div>
           </div>
           <div id="popular-chips" class="popular-chips" role="group" aria-label="Hard-to-get tables" hidden></div>
-          <div class="party-row">
-            <label class="party-inline">Party of <input type="number" id="party-size" min="1" max="20" value="2" required></label>
-            <small id="specialty-hint" style="display:none;font-size:11px;color:var(--muted)"></small>
-          </div>
         </div>
       </div>
       <div class="create-step">
@@ -1359,6 +1380,26 @@
                 <input type="time" id="time-to">
               </label>
             </div>
+          </div>
+        </div>
+      </div>
+      <div class="create-step create-step-who" id="who-step">
+        <div class="step-label">Who</div>
+        <div class="step-body">
+          <div class="who-box">
+            <p id="party-caption" class="party-caption">Party of 2</p>
+            <div id="party-chips" class="party-chips" role="radiogroup" aria-label="Party size">
+              <button type="button" class="party-chip" data-party="1" role="radio" aria-checked="false">1</button>
+              <button type="button" class="party-chip" data-party="2" role="radio" aria-checked="true">2</button>
+              <button type="button" class="party-chip" data-party="3" role="radio" aria-checked="false">3</button>
+              <button type="button" class="party-chip" data-party="4" role="radio" aria-checked="false">4</button>
+              <button type="button" class="party-chip" data-party="5" role="radio" aria-checked="false">5</button>
+              <button type="button" class="party-chip" data-party="6" role="radio" aria-checked="false">6</button>
+              <button type="button" class="party-chip" data-party="7" role="radio" aria-checked="false">7</button>
+              <button type="button" class="party-chip" data-party="8" role="radio" aria-checked="false">8</button>
+            </div>
+            <input type="number" id="party-size" class="sr-only" min="1" max="8" value="2" required tabindex="-1" aria-hidden="true">
+            <small id="specialty-hint" style="display:none;font-size:11px;color:var(--muted)"></small>
           </div>
         </div>
       </div>
@@ -1569,16 +1610,64 @@ function payWatchLabel() {
   return (mtfSessionUser && mtfSessionUser.billing_mode === 'single_watch') ? 'Pay $4.99 and watch' : 'Create Watch';
 }
 
-// Guest starter: the landing form opens with restaurant + dates + CTA only. Once both are
-// chosen it expands (and stays expanded) to party, meal, time, phone, email, and consent.
+// Guest starter: landing is WHERE + WHEN + WHO + CTA. Meal, time, phone, email,
+// and consent expand after Start my watch with restaurant, dates, and party.
 var guestStarterExpanded = false;
+var PARTY_CHIP_MAX = 8;
 function guestStarterCollapsed() {
   if (!isAnonymous() || guestStarterExpanded) return false;
-  var select = document.getElementById('restaurant-select');
-  var hasRestaurant = Boolean(select && select.value);
-  var hasDates = Boolean(createDatePicker && createDatePicker.selected && createDatePicker.selected.size);
-  if (hasRestaurant && hasDates) { guestStarterExpanded = true; return false; }
   return true;
+}
+function syncPartyChips() {
+  var input = document.getElementById('party-size');
+  var n = parseInt(input && input.value, 10);
+  if (!(n >= 1)) n = 2;
+  if (n > PARTY_CHIP_MAX) n = PARTY_CHIP_MAX;
+  if (input) input.value = String(n);
+  var caption = document.getElementById('party-caption');
+  if (caption) caption.textContent = 'Party of ' + n;
+  document.querySelectorAll('#party-chips .party-chip').forEach(function(btn) {
+    var v = parseInt(btn.getAttribute('data-party'), 10);
+    btn.setAttribute('aria-checked', v === n ? 'true' : 'false');
+  });
+}
+function setPartySize(n, persist) {
+  var input = document.getElementById('party-size');
+  var max = parseInt(input && input.max, 10) || PARTY_CHIP_MAX;
+  n = parseInt(n, 10);
+  if (!(n >= 1)) n = 2;
+  if (n > max) n = max;
+  if (n > PARTY_CHIP_MAX) n = PARTY_CHIP_MAX;
+  if (input) input.value = String(n);
+  if (persist !== false) storageSet('disneyPartySize', String(n));
+  syncPartyChips();
+}
+function bindPartyChips() {
+  var group = document.getElementById('party-chips');
+  if (!group || group.dataset.bound) return;
+  group.dataset.bound = '1';
+  group.addEventListener('click', function(e) {
+    var btn = e.target.closest('.party-chip');
+    if (!btn || btn.disabled) return;
+    setPartySize(btn.getAttribute('data-party'));
+  });
+}
+function pulseWhoStep() {
+  var box = document.querySelector('#who-step .who-box') || document.getElementById('who-step');
+  if (!box) return;
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  box.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
+  var selected = document.querySelector('#party-chips .party-chip[aria-checked="true"]');
+  if (selected) selected.focus();
+  box.classList.remove('who-pulse');
+  void box.offsetWidth;
+  if (reduce) return;
+  box.classList.add('who-pulse');
+  function onEnd() {
+    box.classList.remove('who-pulse');
+    box.removeEventListener('animationend', onEnd);
+  }
+  box.addEventListener('animationend', onEnd);
 }
 function syncGuestStarter() {
   var card = document.getElementById('create-watch');
@@ -2162,10 +2251,14 @@ document.getElementById('logout-btn').addEventListener('click', function() {
 
 (function initConfig() {
   const partyEl = document.getElementById('party-size');
-  partyEl.value = storageGet('disneyPartySize') || '2';
+  var stored = parseInt(storageGet('disneyPartySize'), 10);
+  partyEl.value = stored >= 1 ? String(Math.min(stored, PARTY_CHIP_MAX)) : '2';
   partyEl.addEventListener('change', function() {
     storageSet('disneyPartySize', this.value);
+    syncPartyChips();
   });
+  bindPartyChips();
+  syncPartyChips();
   loadSavedUsername();
 })();
 
@@ -2962,10 +3055,15 @@ function maxPartyFor(r) { return (r && r.max_party_size) || 20; }
 function applyBookingTypeUI() {
   var r = findRestaurant(document.getElementById('restaurant-select').value);
   var sa = isScheduledActivity(r);
-  var maxParty = maxPartyFor(r);
+  var maxParty = Math.min(maxPartyFor(r), PARTY_CHIP_MAX);
   var party = document.getElementById('party-size');
   party.max = maxParty;
-  if (parseInt(party.value) > maxParty) party.value = maxParty;
+  if (parseInt(party.value, 10) > maxParty) party.value = maxParty;
+  document.querySelectorAll('#party-chips .party-chip').forEach(function(btn) {
+    var v = parseInt(btn.getAttribute('data-party'), 10);
+    btn.disabled = v > maxParty;
+  });
+  syncPartyChips();
   var mealChips = document.getElementById('meal-chips');
   if (mealChips) mealChips.style.display = sa ? 'none' : '';
   if (sa) setSelectedMeals(['ALL']);
@@ -3108,9 +3206,7 @@ document.getElementById('date-picker-done').addEventListener('click', function()
   panel.classList.remove('open');
   document.body.classList.remove('date-picker-modal-open');
   document.getElementById('toggle-date-picker').setAttribute('aria-expanded', 'false');
-  if (!window.matchMedia('(max-width: 860px)').matches) {
-    document.getElementById('toggle-date-picker').scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }
+  pulseWhoStep();
 });
 document.getElementById('date-picker-clear').addEventListener('click', function() {
   createDatePicker.selected = new Set();
@@ -3178,6 +3274,7 @@ function resetWatchForm() {
   guestStarterExpanded = false;
   setSelectedMeals(['ALL']);
   document.getElementById('party-size').value = storageGet('disneyPartySize') || '2';
+  syncPartyChips();
   selectRestaurant('');
   createDatePicker.selected = new Set();
   renderSelectedDateChips();
@@ -3307,13 +3404,38 @@ document.getElementById('watch-form').addEventListener('submit', async function(
   e.preventDefault();
   if (isAnonymous()) {
     if (guestStarterCollapsed()) {
-      // Still on the two-field starter: say what is missing and put the cursor there.
       var starterMsg = document.getElementById('create-msg');
       var hasRestaurant = Boolean(document.getElementById('restaurant-select').value);
+      var hasDates = Boolean(createDatePicker && createDatePicker.selected && createDatePicker.selected.size);
+      var partySize = parseInt(document.getElementById('party-size').value, 10);
+      var hasParty = partySize >= 1;
       starterMsg.className = 'err';
-      starterMsg.textContent = hasRestaurant ? 'Choose at least one date.' : 'Choose a restaurant first.';
-      var target = document.getElementById(hasRestaurant ? 'toggle-date-picker' : 'restaurant-combo-input');
-      if (target) target.focus();
+      if (!hasRestaurant) {
+        starterMsg.textContent = 'Choose a restaurant first.';
+        var where = document.getElementById('restaurant-combo-input');
+        if (where) where.focus();
+        return;
+      }
+      if (!hasDates) {
+        starterMsg.textContent = 'Choose at least one date.';
+        var when = document.getElementById('toggle-date-picker');
+        if (when) when.focus();
+        return;
+      }
+      if (!hasParty) {
+        starterMsg.textContent = 'Enter your party size.';
+        var who = document.getElementById('who-step');
+        if (who) who.scrollIntoView({ block: 'center' });
+        var partyFocus = document.querySelector('#party-chips .party-chip');
+        if (partyFocus) partyFocus.focus();
+        return;
+      }
+      guestStarterExpanded = true;
+      syncGuestStarter();
+      starterMsg.className = '';
+      starterMsg.textContent = '';
+      var phone = document.getElementById('consumer-phone');
+      if (phone) phone.focus();
       return;
     }
     startGuestWatch();
@@ -3341,7 +3463,7 @@ async function resumeWatchDraft(opts) {
   }
   var body = draft.body || {};
   if (body.facility_id) selectRestaurant(body.facility_id);
-  if (body.party_size) document.getElementById('party-size').value = body.party_size;
+  if (body.party_size) setPartySize(body.party_size, false);
   if (body.dates && body.dates.length) {
     document.getElementById('dates').value = body.dates.join('\n');
     syncDatePickerFromText();

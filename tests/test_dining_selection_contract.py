@@ -102,8 +102,11 @@ class DiningSelectionContractTest(unittest.TestCase):
         self.assertIn("function getPartySize()", INDEX)
         self.assertIn("document.getElementById('party-size').value", INDEX)
         self.assertIn("disneyPartySize", INDEX)
-        self.assertIn("storageGet('disneyPartySize') || '2'", INDEX)
+        self.assertIn("storageGet('disneyPartySize')", INDEX)
         self.assertIn("storageSet('disneyPartySize', this.value)", INDEX)
+        self.assertIn('id="who-step"', INDEX)
+        self.assertIn("function setPartySize(", INDEX)
+        self.assertIn("function syncPartyChips()", INDEX)
 
     def test_park_chips_not_free_text_park_filter(self):
         self.assertIn('id="park-chips"', INDEX)
