@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /_api/
+
+Sitemap: https://magictablefinder.com/sitemap.xml

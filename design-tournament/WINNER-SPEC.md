@@ -62,3 +62,14 @@ Approved extension of the Quiet Luxury base. Material layer: paper grain (`feTur
 ## Addendum — Conversion hero (2026-09-02, approved by Craig)
 
 Replaces the locked headline and subhead above. Headline: **"Sold out? We'll text you the moment a table opens."** Subhead explains the mechanism and states that booking happens on Disney's site on the guest's own account. Pricing leaves the subhead; it lives in a note under the CTA and in `#pricing`. Desktop hero is two columns: copy and a guest starter (WHERE restaurant + WHEN dates + WHO party + CTA, with quick-start chips for hard-to-get tables) on the left, the wand landing on the sample text on the right. WHO (party chips 1–8, default Party of 2) is always visible above the CTA. Meal, time window, phone, email, and text consent appear after Start my watch with restaurant, dates, and party (`#create-watch.is-collapsed`); date selection alone does not expand those fields. The consent gate and Stripe handoff are unchanged. CTA copy: "Start my watch · from $4.99" / "Start my watch · $4.99" (never "Continue to payment"). The signed-in app form uses the same WHO control. An ink-background hero was tried and rejected the same day; the hero stays paper.
+
+## Addendum — Phase 1 Quiet Luxury identity (2026-09-07)
+
+Craig locked the production identity. This addendum **supersedes** the Visual system type, hexes, and 5-point star wand above for anything shipped in `public/`.
+
+- Jewelry wand only: pommel · tapered shaft · lozenge tip · gold dust. Canonical SVG: `public/brand/mark.svg`. Favicon weight: `public/brand/favicon.svg`.
+- Not a 5-point Disney star, Mickey ears, castle, or CSL red (`#EF0107`).
+- Tokens: cream `#f5f1e9`, gold `#aa8b54`, ink `#000000`, paper `#ffffff`, plus `--mtf-*` in `public/index.html`.
+- `--paper` is the cream page ground (`var(--mtf-cream)`). `--paper-card` / `--mtf-paper` is white card surface.
+- Wordmark: Playfair Display, ink. Body: Inter / system sans. Gold is never a CTA flood fill. `--blue` stays for selected dates, tabs, and chips.
+- Header lockup is gold wand + Playfair “Magic Table Finder” on cream. OG card: `public/og-1200x630.png`.
