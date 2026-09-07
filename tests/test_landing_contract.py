@@ -265,7 +265,7 @@ class LandingContractTest(unittest.TestCase):
         self.assertIn("'Start my watch · from $4.99'", INDEX)
         self.assertIn("'Start my watch · $4.99'", INDEX)
         self.assertIn("Already have watches?", INDEX)
-        # Progressive guest starter: restaurant + dates + CTA first; the rest after both are chosen.
+        # Progressive guest starter: restaurant + dates + WHO + CTA first; meal/contact after Start my watch.
         self.assertIn('id="popular-chips"', INDEX)
         self.assertIn("Hard-to-get tables:", INDEX)
         self.assertIn('id="create-fine"', INDEX)
@@ -273,6 +273,15 @@ class LandingContractTest(unittest.TestCase):
         self.assertIn('class="create-step create-step-contact"', INDEX)
         self.assertIn("function guestStarterCollapsed()", INDEX)
         self.assertIn("function syncGuestStarter()", INDEX)
+        self.assertIn('id="who-step"', INDEX)
+        self.assertIn('id="party-chips"', INDEX)
+        self.assertIn('id="party-caption"', INDEX)
+        self.assertNotIn("hasRestaurant && hasDates", INDEX)
+        collapsed_css = INDEX.split("#create-watch.is-collapsed > h2", 1)[1].split("{", 1)[0]
+        self.assertNotIn("who-step", collapsed_css)
+        self.assertNotIn("party-chips", collapsed_css)
+        self.assertNotIn("party-caption", collapsed_css)
+        self.assertNotIn(".party-row", collapsed_css)
         self.assertRegex(
             INDEX,
             r"#create-watch\.is-collapsed \.create-step-contact,\s*\n\s*#create-watch\.is-collapsed #billing-next-banner \{ display: none !important; \}",
