@@ -5,8 +5,8 @@
 [functions]
   directory = "netlify/functions"
 
-# Static robots/sitemap in public/ win over the SPA splat (no force on /*).
-# Pin MIME so crawlers never treat these as the HTML shell.
+# Pin crawler MIME. There is no /* → index.html splat, so missing
+# files 404 (public/404.html on Netlify) instead of soft-200ing home.
 [[headers]]
   for = "/robots.txt"
   [headers.values]
@@ -28,9 +28,29 @@
   status = 200
   force = true
 
-# SPA fallback — unmatched paths serve index.html.
-# Do not set force=true; that would shadow robots.txt / sitemap.xml.
+# Pretty legal URLs. No /* → index.html splat: unknown paths must 404,
+# not soft-200 the homepage. The signed-in app is `/` plus hash/query only.
 [[redirects]]
-  from = "/*"
-  to = "/index.html"
+  from = "/privacy"
+  to = "/privacy.html"
   status = 200
+
+[[redirects]]
+  from = "/terms"
+  to = "/terms.html"
+  status = 200
+
+[[redirects]]
+  from = "/sms-consent"
+  to = "/sms-consent.html"
+  status = 200
+
+[[redirects]]
+  from = "/text-consent"
+  to = "/sms-consent"
+  status = 301
+
+[[redirects]]
+  from = "/text-consent.html"
+  to = "/sms-consent"
+  status = 301
