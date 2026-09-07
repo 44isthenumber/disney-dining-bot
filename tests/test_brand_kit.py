@@ -80,8 +80,16 @@ class BrandKitTest(unittest.TestCase):
 
     def test_html_meta_and_links(self):
         self.assertIn('href="/brand/favicon.svg"', INDEX)
-        self.assertIn('href="/favicon-32.png"', INDEX)
-        self.assertIn('href="/apple-touch-icon.png"', INDEX)
+        for href in (
+            "/favicon-16.png",
+            "/favicon-32.png",
+            "/favicon-48.png",
+            "/favicon-64.png",
+            "/favicon-512.png",
+            "/apple-touch-icon.png",
+            "/favicon.ico",
+        ):
+            self.assertIn(f'href="{href}"', INDEX)
         self.assertIn('content="https://magictablefinder.com/og-1200x630.png"', INDEX)
         self.assertIn('property="og:image"', INDEX)
         self.assertIn('name="twitter:image"', INDEX)
