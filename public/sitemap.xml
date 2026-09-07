@@ -6,17 +6,17 @@
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://magictablefinder.com/privacy.html</loc>
+    <loc>https://magictablefinder.com/privacy</loc>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
   <url>
-    <loc>https://magictablefinder.com/terms.html</loc>
+    <loc>https://magictablefinder.com/terms</loc>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
   <url>
-    <loc>https://magictablefinder.com/sms-consent.html</loc>
+    <loc>https://magictablefinder.com/sms-consent</loc>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
