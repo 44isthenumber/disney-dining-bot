@@ -13,34 +13,63 @@
   }
 </script>
 <meta name="description" content="Sold out? We'll text you the moment a Walt Disney World table opens. Pick the restaurant and your dates; we watch around the clock and text you a booking link." />
-<meta name="theme-color" content="#f6f1e8" />
+<meta name="theme-color" content="#f5f1e9" />
+<link rel="icon" href="/brand/favicon.svg" type="image/svg+xml" />
+<link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
+<link rel="icon" href="/favicon-16.png" type="image/png" sizes="16x16" />
+<link rel="shortcut icon" href="/favicon.ico" />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Magic Table Finder" />
+<meta property="og:url" content="https://magictablefinder.com/" />
+<meta property="og:title" content="Magic Table Finder" />
+<meta property="og:description" content="Sold out? We'll text you the moment a Walt Disney World table opens. Pick the restaurant and your dates; we watch around the clock and text you a booking link." />
+<meta property="og:image" content="https://magictablefinder.com/og-1200x630.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Magic Table Finder" />
+<meta name="twitter:description" content="Sold out? We'll text you the moment a Walt Disney World table opens. Pick the restaurant and your dates; we watch around the clock and text you a booking link." />
+<meta name="twitter:image" content="https://magictablefinder.com/og-1200x630.png" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=Source+Sans+3:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet" />
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
+    --mtf-cream: #f5f1e9;
+    --mtf-gold: #aa8b54;
+    --mtf-ink: #000000;
+    --mtf-paper: #ffffff;
+    --mtf-ink-soft: #1a1814;
+    --mtf-mist: #8c8476;
+    --mtf-gold-soft: #c4a97a;
+    --mtf-gold-deep: #8a6f3f;
+    --mtf-cream-deep: #ebe4d6;
+    --mtf-line: rgba(26,24,20,0.12);
+    --mtf-line-gold: rgba(170,139,84,0.35);
+    --mtf-font-display: "Playfair Display", "Times New Roman", Times, serif;
     --blue: #1a56db;
     --blue-dark: #1245b8;
     --green: #276749;
     --green-bg: #e3f9e5;
     --grey: #f0f0f0;
-    --border: #e4dcd0;
-    --text: #1c1917;
-    --muted: #57534e;
-    --ink: #1c1917;
-    --ink-hover: #2d2926;
-    --gold: #b0894a;
-    --paper: #f6f1e8;
-    --paper-card: #faf6f0;
+    --border: var(--mtf-cream-deep);
+    --text: var(--mtf-ink);
+    --muted: var(--mtf-mist);
+    --ink: var(--mtf-ink);
+    --ink-hover: var(--mtf-ink-soft);
+    --gold: var(--mtf-gold);
+    --paper: var(--mtf-cream);
+    --paper-card: var(--mtf-paper);
     --moss: #3f5c4a;
-    --font-serif: 'Fraunces', Georgia, 'Times New Roman', serif;
-    --font-sans: 'Source Sans 3', system-ui, -apple-system, sans-serif;
-    --shadow-1: 0 1px 2px rgba(28,25,23,.06), 0 1px 1px rgba(28,25,23,.04);
-    --shadow-2: 0 6px 20px rgba(28,25,23,.08), 0 1px 2px rgba(28,25,23,.06);
-    --shadow-3: 0 18px 48px rgba(28,25,23,.14), 0 2px 6px rgba(28,25,23,.08);
-    --hairline: inset 0 0 0 1px rgba(176,137,74,.18);
-    --focus-ring: 0 0 0 3px rgba(176,137,74,.35);
+    --font-serif: var(--mtf-font-display);
+    --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+    --shadow-1: 0 1px 2px rgba(26,24,20,.06), 0 1px 1px rgba(26,24,20,.04);
+    --shadow-2: 0 6px 20px rgba(26,24,20,.08), 0 1px 2px rgba(26,24,20,.06);
+    --shadow-3: 0 18px 48px rgba(26,24,20,.14), 0 2px 6px rgba(26,24,20,.08);
+    --hairline: inset 0 0 0 1px var(--mtf-line-gold);
+    --focus-ring: 0 0 0 3px rgba(170,139,84,.35);
   }
   html { scroll-behavior: smooth; color-scheme: light; }
   @media (prefers-reduced-motion: reduce) {
@@ -71,14 +100,14 @@
 
   /* ── App header (not the landing header) ─── */
   #app-shell > header {
-    background: rgba(246, 241, 232, 0.94);
+    background: rgba(245, 241, 233, 0.94);
     color: var(--ink);
     padding: 12px 20px;
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
     align-items: center;
-    border-bottom: 1px solid rgba(28,25,23,.12);
+    border-bottom: 1px solid var(--mtf-line);
     backdrop-filter: blur(8px);
     overflow: visible;
   }
@@ -89,7 +118,7 @@
     white-space: nowrap;
     letter-spacing: -0.02em;
   }
-  .hdr-sep { width: 1px; height: 20px; background: rgba(28,25,23,.16); flex-shrink: 0; }
+  .hdr-sep { width: 1px; height: 20px; background: var(--mtf-line); flex-shrink: 0; }
   .hdr-field { display: flex; align-items: center; gap: 5px; }
   .hdr-field label { font-size: 12px; color: var(--muted); white-space: nowrap; }
   .hdr-field input {
@@ -113,7 +142,7 @@
   #status-text { color: var(--muted); }
   .owner-chip {
     display: inline-flex; align-items: center;
-    background: rgba(176,137,74,.12); border: 1px solid rgba(176,137,74,.35);
+    background: rgba(170,139,84,.12); border: 1px solid var(--mtf-line-gold);
     padding: 2px 10px; border-radius: 20px; font-size: 12px; color: var(--ink);
   }
 
@@ -192,7 +221,7 @@
   #restaurant-combo-list {
     position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 30;
     max-height: 280px; overflow-y: auto; background: #fff; border: 1px solid var(--border);
-    border-radius: 8px; box-shadow: 0 12px 28px rgba(28,25,23,.12);
+    border-radius: 8px; box-shadow: 0 12px 28px rgba(26,24,20,.12);
   }
   #restaurant-combo-list[hidden] { display: none; }
   .combo-group {
@@ -251,7 +280,7 @@
   #create-watch {
     margin-bottom: 20px; padding: 20px 22px; border: 1px solid var(--border);
     border-radius: 4px; background: var(--paper-card);
-    box-shadow: 0 4px 24px rgba(28,25,23,.04);
+    box-shadow: 0 4px 24px rgba(26,24,20,.04);
     border-top: 2px solid var(--gold); overflow: visible;
     box-shadow: var(--hairline), var(--shadow-2); border-color: var(--gold) transparent transparent;
   }
@@ -279,7 +308,7 @@
   }
   .party-chip {
     width: 36px; height: 36px; padding: 0; flex: 0 0 36px;
-    border-radius: 50%; border: 1px solid #1c1917; background: #fff; color: #000;
+    border-radius: 50%; border: 1px solid #000000; background: #fff; color: #000;
     font-size: 14px; font-weight: 600; font-family: inherit; line-height: 1;
     cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
   }
@@ -586,8 +615,8 @@
   #login-overlay .l-narrow { width: min(720px, calc(100% - 40px)); margin: 0 auto; }
   .landing-header {
     position: sticky; top: 0; z-index: 2;
-    background: rgba(246,241,232,.94); backdrop-filter: blur(8px);
-    border-bottom: 1px solid rgba(28,25,23,.12);
+    background: rgba(245,241,233,.94); backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--mtf-line);
     padding: 14px 0;
     overflow: visible;
   }
@@ -601,33 +630,29 @@
   .landing-promise { grid-area: promise; }
   .landing-header-inner > .landing-go-signin { grid-area: signin; }
   .landing-wordmark {
-    display: inline-flex; align-items: baseline; gap: 0;
-    font-family: var(--font-serif); font-size: 18px; font-weight: 500;
-    color: var(--ink); text-decoration: none; white-space: nowrap;
+    display: inline-flex; align-items: center; gap: 0.28em;
+    font-family: var(--mtf-font-display); font-size: 18px; font-weight: 500;
+    color: var(--mtf-ink); text-decoration: none; white-space: nowrap;
     overflow: visible;
-    padding-left: 1.12em;
+    padding-left: 0;
   }
-  .wordmark-name { letter-spacing: -0.02em; }
-  .wordmark-magic {
-    position: relative; display: inline-block;
-    overflow: visible;
-  }
+  .wordmark-name { letter-spacing: -0.02em; color: var(--mtf-ink); }
   .wordmark-wand-accent {
-    position: absolute;
-    left: -1.08em;
-    top: -0.38em;
-    height: 2.15em;
-    width: auto;
+    display: block;
+    height: 1.85em;
+    width: 1.85em;
+    flex-shrink: 0;
+    margin-right: -0.12em;
     overflow: visible;
     pointer-events: none;
-    color: var(--gold);
   }
   #app-shell > header h1.brand-wordmark {
-    display: inline-flex; align-items: baseline; gap: 0;
-    font-family: var(--font-serif); font-size: 18px; font-weight: 500;
+    display: inline-flex; align-items: center; gap: 0.28em;
+    font-family: var(--mtf-font-display); font-size: 18px; font-weight: 500;
+    color: var(--mtf-ink);
     white-space: nowrap; letter-spacing: -0.02em;
     overflow: visible;
-    padding-left: 1.12em;
+    padding-left: 0;
   }
   .landing-promise {
     margin: 0; text-align: center; font-size: 13px; color: var(--muted);
@@ -642,9 +667,9 @@
   .l-btn-primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
   .l-btn-primary:hover { background: var(--ink-hover); }
   .l-btn-primary:disabled { background: #aaa; border-color: #aaa; cursor: default; }
-  .l-btn-secondary { background: transparent; color: var(--ink); border-color: rgba(28,25,23,.24); }
+  .l-btn-secondary { background: transparent; color: var(--ink); border-color: var(--mtf-line); }
   .l-btn-sm { padding: 6px 14px; font-size: 13px; }
-  .l-hero { padding: 72px 0 40px; text-align: center; scroll-margin-top: 84px; overflow: visible; background: radial-gradient(60% 50% at 50% 0%, rgba(176,137,74,.10), transparent 70%); }
+  .l-hero { padding: 72px 0 40px; text-align: center; scroll-margin-top: 84px; overflow: visible; background: radial-gradient(60% 50% at 50% 0%, rgba(170,139,84,.10), transparent 70%); }
   .hero-wand {
     margin: 4px auto 0;
     width: min(920px, calc(100vw - 32px));
@@ -682,30 +707,30 @@
   .l-hero h1 {
     font-family: var(--font-serif); font-weight: 400; letter-spacing: -.02em;
     font-size: clamp(2.3rem, 4.6vw, 3.6rem); line-height: 1.08; margin: 14px 0 16px;
-    font-variation-settings: "opsz" 144; text-wrap: balance;
+    text-wrap: balance;
   }
   .l-hero .lead { color: var(--muted); font-size: clamp(1.05rem, 2vw, 1.25rem); line-height: 1.55; max-width: 36em; margin: 0 auto 28px; }
   .l-hero-actions { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
-  .l-section { padding: 72px 0; border-top: 1px solid rgba(28,25,23,.12); scroll-margin-top: 84px; }
+  .l-section { padding: 72px 0; border-top: 1px solid var(--mtf-line); scroll-margin-top: 84px; }
   .l-section h2 { font-family: var(--font-serif); font-weight: 400; font-size: clamp(1.6rem, 3vw, 2.2rem); text-align: center; margin: 8px 0; }
   .l-section .sub { text-align: center; color: var(--muted); margin-bottom: 36px; }
   .l-steps { display: grid; gap: 16px; }
   @media (min-width: 768px) { .l-steps { grid-template-columns: repeat(3, 1fr); } }
   .l-pricing { display: grid; gap: 16px; max-width: 720px; margin: 0 auto; }
   @media (min-width: 768px) { .l-pricing { grid-template-columns: 1fr 1fr; } }
-  .l-price { background: var(--paper-card); border: 1px solid rgba(28,25,23,.12); padding: 28px 22px; }
-  .l-price .amount { font-family: var(--font-serif); font-size: clamp(2.2rem, 4vw, 3rem); font-variation-settings: "opsz" 144; letter-spacing: -.02em; padding-bottom: 8px; border-bottom: 1px solid rgba(176,137,74,.45); display: inline-block; margin: 8px 0 6px; }
+  .l-price { background: var(--paper-card); border: 1px solid var(--mtf-line); padding: 28px 22px; }
+  .l-price .amount { font-family: var(--font-serif); font-size: clamp(2.2rem, 4vw, 3rem); letter-spacing: -.02em; padding-bottom: 8px; border-bottom: 1px solid var(--mtf-line-gold); display: inline-block; margin: 8px 0 6px; }
   .l-price p { color: var(--muted); font-size: 15px; line-height: 1.55; }
-  .l-step { background: var(--paper-card); border: 1px solid rgba(28,25,23,.12); padding: 28px 22px; }
+  .l-step { background: var(--paper-card); border: 1px solid var(--mtf-line); padding: 28px 22px; }
   .l-num { font-family: var(--font-serif); font-style: italic; font-size: 1.7rem; color: var(--gold); }
   .l-step h3 { font-family: var(--font-serif); font-size: 1.15rem; font-weight: 400; line-height: 1.4; margin: 10px 0 0; }
   .l-step p { color: var(--muted); font-size: 15px; line-height: 1.55; }
-  .l-trust { background: #ede7dc; border-top: 1px solid rgba(28,25,23,.12); border-bottom: 1px solid rgba(28,25,23,.12); padding: 22px 0; }
+  .l-trust { background: var(--mtf-cream-deep); border-top: 1px solid var(--mtf-line); border-bottom: 1px solid var(--mtf-line); padding: 22px 0; }
   .l-trust ul { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 28px; list-style: none; }
   .l-trust li { font-family: var(--font-serif); letter-spacing: .12em; text-transform: uppercase; font-size: 12px; }
   .l-proof { display: grid; gap: 24px; }
   @media (min-width: 768px) { .l-proof { grid-template-columns: 1fr 1fr; } }
-  .l-card { background: var(--paper-card); border: 1px solid rgba(28,25,23,.12); padding: 28px; }
+  .l-card { background: var(--paper-card); border: 1px solid var(--mtf-line); padding: 28px; }
   .l-card h3 { font-family: var(--font-serif); font-size: 1.35rem; margin-bottom: 12px; }
   .l-badge { float: right; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--moss); }
   .l-dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; font-size: 15px; }
@@ -716,14 +741,14 @@
   .l-faq h3 { font-family: var(--font-serif); font-size: 1.2rem; font-weight: 500; margin: 20px 0 6px; }
   .l-faq p { color: var(--muted); line-height: 1.55; }
   .signin-box {
-    background: var(--paper-card); border: 1px solid rgba(28,25,23,.12);
+    background: var(--paper-card); border: 1px solid rgba(26,24,20,.12);
     padding: 32px; max-width: 420px; margin: 24px auto 0;
     color: var(--ink); color-scheme: light; text-align: left;
   }
   .signin-box label { display: block; font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
   .signin-box input[type=text], .signin-box input[type=password], .signin-box input[type=email] {
     width: 100%; padding: 11px 14px; margin-bottom: 16px;
-    border: 1px solid rgba(28,25,23,.24); border-radius: 2px; background: #fdfbf7;
+    border: 1px solid rgba(26,24,20,.24); border-radius: 2px; background: #fdfbf7;
     font-size: 15px; font-family: inherit; color: var(--ink);
     color-scheme: light; -webkit-text-fill-color: var(--ink); caret-color: var(--ink);
   }
@@ -735,7 +760,7 @@
     box-shadow: 0 0 0 1000px #fdfbf7 inset;
     transition: background-color 9999s ease-out;
   }
-  .signin-box input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 2px rgba(176,137,74,.35); }
+  .signin-box input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 2px rgba(170,139,84,.35); }
   .signin-box { box-shadow: var(--hairline), var(--shadow-2); border-color: transparent; }
   #login-btn { width: 100%; background: var(--ink); color: var(--paper); }
   #login-magic-btn { width: 100%; margin-top: 4px; }
@@ -750,7 +775,7 @@
   #billing-next-banner {
     display: none;
     background: #fdfbf7;
-    border: 1px solid rgba(176,137,74,.45);
+    border: 1px solid rgba(170,139,84,.45);
     color: var(--ink);
     padding: 12px 14px;
     margin: 0 0 16px;
@@ -760,16 +785,16 @@
   #billing-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
   #billing-actions[hidden], #upgrade-prompt[hidden] { display: none !important; }
   #planner-checkout-btn, #billing-portal-btn {
-    background: transparent; color: var(--ink); border: 1px solid rgba(28,25,23,.24);
+    background: transparent; color: var(--ink); border: 1px solid rgba(26,24,20,.24);
     padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer;
   }
   #upgrade-prompt {
-    background: #fdfbf7; border: 1px solid rgba(176,137,74,.45);
+    background: #fdfbf7; border: 1px solid rgba(170,139,84,.45);
     color: var(--ink); padding: 12px 14px; margin: 0 0 12px; font-size: 14px; line-height: 1.45;
   }
   .sms-consent.entitlement-locked, .modal-sms-consent.entitlement-locked { display: none; }
   .signin-legal { font-size: 12px; color: var(--muted); text-align: center; line-height: 1.5; margin-top: 16px; }
-  .landing-footer { background: #ede7dc; border-top: 1px solid rgba(28,25,23,.12); padding: 36px 20px; text-align: center; color: var(--muted); font-size: 13px; }
+  .landing-footer { background: var(--mtf-cream-deep); border-top: 1px solid var(--mtf-line); padding: 36px 20px; text-align: center; color: var(--muted); font-size: 13px; }
   .landing-footer ul { display: flex; justify-content: center; gap: 20px; list-style: none; margin-bottom: 12px; flex-wrap: wrap; }
   @media (max-width: 640px) {
     .landing-header-inner {
@@ -848,31 +873,31 @@
   #create-watch.is-collapsed #create-msg { text-align: left; }
   #create-watch.is-collapsed #create-btn { width: 100%; padding: 13px; }
   .l-sms.mtf-text { border-left: 0; }
-  .l-dl { border-top: 1px dashed rgba(176,137,74,.5); padding-top: 12px; }
+  .l-dl { border-top: 1px dashed rgba(170,139,84,.5); padding-top: 12px; }
   @media (min-width: 768px) {
     .l-steps.l-rail { position: relative; gap: 28px; }
-    .l-steps.l-rail::before { content: ''; position: absolute; left: 0; right: 0; top: 22px; height: 1px; background: linear-gradient(90deg, transparent, rgba(176,137,74,.6) 10%, rgba(176,137,74,.6) 90%, transparent); }
+    .l-steps.l-rail::before { content: ''; position: absolute; left: 0; right: 0; top: 22px; height: 1px; background: linear-gradient(90deg, transparent, rgba(170,139,84,.6) 10%, rgba(170,139,84,.6) 90%, transparent); }
     .l-rail .l-step { background: transparent; border: 0; box-shadow: none; padding: 0 4px; }
     .l-rail .l-num { display: inline-block; background: var(--paper); padding: 0 10px 0 0; position: relative; line-height: 1; margin-bottom: 14px; }
     .l-rail .l-num::after { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); margin-left: 10px; vertical-align: middle; }
   }
   @media (max-width: 767px) {
-    .l-rail { border-left: 1px solid rgba(176,137,74,.5); padding-left: 20px; margin-left: 8px; }
+    .l-rail { border-left: 1px solid rgba(170,139,84,.5); padding-left: 20px; margin-left: 8px; }
     .l-rail .l-step { background: transparent; border: 0; box-shadow: none; position: relative; padding: 0 0 20px; }
     .l-rail .l-num { position: relative; left: -28px; background: var(--paper); display: inline-block; padding: 0 6px 0 0; }
     .l-rail .l-num::after { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); margin-left: 8px; vertical-align: middle; }
   }
-  .l-price-featured { background: var(--ink); color: var(--paper); box-shadow: var(--shadow-3); border-top-color: rgba(176,137,74,.55); }
+  .l-price-featured { background: var(--ink); color: var(--paper); box-shadow: var(--shadow-3); border-top-color: rgba(170,139,84,.55); }
   .l-price-featured .l-num { color: var(--gold); }
-  .l-price-featured .amount { color: var(--paper); border-bottom-color: rgba(176,137,74,.7); }
-  .l-price-featured p { color: rgba(246,241,232,.78); }
+  .l-price-featured .amount { color: var(--paper); border-bottom-color: rgba(170,139,84,.7); }
+  .l-price-featured p { color: rgba(245,241,233,.78); }
   .l-trust ul { gap: 10px 0; }
   .l-trust li { padding: 0 22px; position: relative; }
   .l-trust li + li::before { content: '·'; position: absolute; left: -4px; color: var(--gold); }
   @media (max-width: 640px) { .l-trust li + li::before { content: none; } .l-trust li { padding: 0 12px; } }
-  .l-trust { box-shadow: inset 0 1px 0 rgba(255,255,255,.5), inset 0 -1px 0 rgba(28,25,23,.06); }
-  .l-faq details { border-top: 1px solid rgba(176,137,74,.35); }
-  .l-faq details:last-of-type { border-bottom: 1px solid rgba(176,137,74,.35); }
+  .l-trust { box-shadow: inset 0 1px 0 rgba(255,255,255,.5), inset 0 -1px 0 rgba(26,24,20,.06); }
+  .l-faq details { border-top: 1px solid rgba(170,139,84,.35); }
+  .l-faq details:last-of-type { border-bottom: 1px solid rgba(170,139,84,.35); }
   .l-faq summary { list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 16px; cursor: pointer; padding: 16px 0; }
   .l-faq summary::-webkit-details-marker { display: none; }
   .l-faq summary h3 { margin: 0; }
@@ -921,7 +946,7 @@
 
   /* ── Logout ─── */
   #logout-btn {
-    background: none; border: 1px solid rgba(28,25,23,.24); color: var(--ink);
+    background: none; border: 1px solid rgba(26,24,20,.24); color: var(--ink);
     padding: 3px 10px; border-radius: 2px; font-size: 11px; cursor: pointer;
   }
   #logout-btn:hover { border-color: var(--ink); }
@@ -935,7 +960,8 @@
   <header class="landing-header">
     <div class="landing-header-inner">
       <a href="#hero" class="landing-wordmark landing-nav" aria-label="Magic Table Finder">
-        <span class="wordmark-name"><span class="wordmark-magic"><svg class="wordmark-wand-accent" viewBox="0 0 48 48" fill="none" aria-hidden="true"><circle cx="6.2" cy="40.2" r="2.3" fill="currentColor"/><circle cx="6.2" cy="40.2" r="1.2" fill="none" stroke="currentColor" stroke-width="0.7"/><circle cx="10.4" cy="34.4" r="1.25" fill="currentColor"/><line x1="11.6" y1="32.8" x2="21.4" y2="14.8" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/><path fill="currentColor" d="M22.4 4.8 23.7 8.6 27.5 9.9 23.7 11.2 22.4 15 21.1 11.2 17.3 9.9 21.1 8.6Z"/><path fill="currentColor" d="M28.6 8.4 29.3 10.6 31.5 11.3 29.3 12 28.6 14.2 27.9 12 25.7 11.3 27.9 10.6Z"/><circle cx="27.6" cy="13.2" r="1.7" fill="currentColor"/><circle cx="30.8" cy="16.0" r="1.45" fill="currentColor"/><circle cx="28.4" cy="19.2" r="1.3" fill="currentColor"/><circle cx="33.4" cy="18.2" r="1.25" fill="currentColor"/><circle cx="31.2" cy="22.4" r="1.15" fill="currentColor"/><circle cx="35.2" cy="21.4" r="1.05" fill="currentColor"/><circle cx="33.0" cy="26.2" r="0.95" fill="currentColor"/><circle cx="36.6" cy="25.0" r="0.85" fill="currentColor"/><circle cx="34.4" cy="30.2" r="0.75" fill="currentColor"/><circle cx="37.6" cy="28.8" r="0.65" fill="currentColor"/></svg>M</span>agic Table Finder</span>
+        <img class="wordmark-wand-accent" src="/brand/mark.svg" width="40" height="40" alt="" />
+        <span class="wordmark-name">Magic Table Finder</span>
       </a>
       <p class="landing-promise">We text you when a matching table newly opens.</p>
       <a href="#signin" class="l-btn l-btn-secondary l-btn-sm landing-nav landing-go-signin">Sign in</a>
@@ -963,22 +989,26 @@
       <svg class="hero-wand-svg" viewBox="0 0 900 380" fill="none" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <radialGradient id="heroWandGlow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stop-color="#B0894A" stop-opacity="0.42"/>
-            <stop offset="55%" stop-color="#B0894A" stop-opacity="0.1"/>
-            <stop offset="100%" stop-color="#F6F1E8" stop-opacity="0"/>
+            <stop offset="0%" stop-color="#aa8b54" stop-opacity="0.42"/>
+            <stop offset="55%" stop-color="#aa8b54" stop-opacity="0.1"/>
+            <stop offset="100%" stop-color="#f5f1e9" stop-opacity="0"/>
           </radialGradient>
         </defs>
         <circle cx="378" cy="82" r="72" fill="url(#heroWandGlow)"/>
-        <g class="wand-body" fill="currentColor">
-          <circle cx="88" cy="322" r="15"/>
-          <circle cx="88" cy="322" r="9" fill="none" stroke="currentColor" stroke-width="2.4"/>
-          <circle cx="88" cy="322" r="4.2"/>
-          <circle cx="114" cy="294" r="8"/>
-          <circle cx="114" cy="294" r="4.2" fill="none" stroke="currentColor" stroke-width="1.6"/>
-          <circle cx="134" cy="272" r="5.6"/>
-          <line class="wand-shaft" x1="144" y1="260" x2="350" y2="104" stroke="currentColor" stroke-width="8.5" stroke-linecap="round"/>
-          <line x1="150" y1="256" x2="348" y2="108" stroke="#f6f1e8" stroke-width="1.6" stroke-linecap="round" opacity="0.35"/>
-          <path d="M378 34 392 72 430 86 392 100 378 138 364 100 326 86 364 72Z"/>
+        <line class="wand-shaft" x1="203.9" y1="339.4" x2="258.2" y2="64.8" stroke="currentColor" stroke-width="8.5" stroke-linecap="round" opacity="0"/>
+        <g class="wand-body" fill="currentColor" transform="translate(48,-36) scale(7.15)">
+          <polygon id="shaft" points="24.3,53.4 19.3,51.6 28.7,13.4 30.1,14.8"/>
+          <ellipse id="pommel" cx="21.8" cy="52.5" rx="3.7" ry="3.15"/>
+          <polygon id="tip" points="29.4,9.5 32.5,14.1 29.4,18.7 26.3,14.1"/>
+          <g id="dust">
+            <circle cx="35.8" cy="17.3" r="1.4"/>
+            <circle cx="41.0" cy="23.0" r="1.0"/>
+            <circle cx="37.1" cy="29.5" r="0.85"/>
+            <circle cx="43.5" cy="34.6" r="0.65"/>
+            <circle cx="39.6" cy="41.0" r="0.5"/>
+            <rect x="40.55" y="21.2" width="0.9" height="3.6" rx="0.4"/>
+            <rect x="39.2" y="22.55" width="3.6" height="0.9" rx="0.4"/>
+          </g>
         </g>
         <circle class="dust-a" cx="383.2" cy="122.8" r="5.6" fill="currentColor" opacity="0.66"/>
         <circle class="dust-c" cx="465.1" cy="103.7" r="4.5" fill="currentColor" opacity="0.62"/>
@@ -1104,24 +1134,19 @@
         <circle class="dust-c" cx="772.0" cy="242.3" r="7.5" fill="currentColor" opacity="0.56"/>
         <circle class="dust-c" cx="799.1" cy="297.2" r="7.5" fill="currentColor" opacity="0.75"/>
         <circle class="dust-c" cx="865.4" cy="253.1" r="6.5" fill="currentColor" opacity="0.73"/>
-        <path class="dust-a" fill="currentColor" opacity="0.92" d="M393.9,110.0 396.6,117.7 404.4,120.5 396.6,123.2 393.9,131.0 391.2,123.2 383.4,120.5 391.2,117.7Z"/>
-        <path class="dust-b" fill="currentColor" opacity="0.92" d="M410.3,87.9 413.7,97.6 423.3,100.9 413.7,104.3 410.3,113.9 406.9,104.3 397.3,100.9 406.9,97.6Z"/>
-        <path class="dust-b" fill="currentColor" opacity="0.92" d="M481.3,62.5 483.5,68.8 489.8,71.0 483.5,73.2 481.3,79.5 479.1,73.2 472.8,71.0 479.1,68.8Z"/>
-        <path class="dust-a" fill="currentColor" opacity="0.92" d="M474.4,66.0 477.8,75.6 487.4,79.0 477.8,82.4 474.4,92.0 471.0,82.4 461.4,79.0 471.0,75.6Z"/>
-        <path class="dust-c" fill="currentColor" opacity="0.92" d="M483.7,133.3 487.1,142.9 496.7,146.3 487.1,149.7 483.7,159.3 480.3,149.7 470.7,146.3 480.3,142.9Z"/>
-        <path class="dust-a" fill="currentColor" opacity="0.92" d="M550.6,133.0 554.0,142.6 563.6,146.0 554.0,149.3 550.6,159.0 547.2,149.3 537.6,146.0 547.2,142.6Z"/>
-        <path class="dust-a" fill="currentColor" opacity="0.92" d="M567.9,124.0 570.1,130.3 576.4,132.5 570.1,134.7 567.9,141.0 565.7,134.7 559.4,132.5 565.7,130.3Z"/>
-        <path class="dust-b" fill="currentColor" opacity="0.92" d="M589.8,127.0 592.5,134.7 600.3,137.5 592.5,140.2 589.8,148.0 587.1,140.2 579.3,137.5 587.1,134.7Z"/>
-        <path class="dust-c" fill="currentColor" opacity="0.92" d="M596.0,189.6 599.4,199.2 609.0,202.6 599.4,205.9 596.0,215.6 592.6,205.9 583.0,202.6 592.6,199.2Z"/>
-        <path class="dust-a" fill="currentColor" opacity="0.92" d="M622.8,125.0 625.0,131.3 631.3,133.5 625.0,135.7 622.8,142.0 620.5,135.7 614.3,133.5 620.5,131.3Z"/>
-        <path class="dust-c" fill="currentColor" opacity="0.92" d="M691.4,162.8 693.6,169.0 699.9,171.3 693.6,173.5 691.4,179.8 689.2,173.5 682.9,171.3 689.2,169.0Z"/>
-        <path class="dust-c" fill="currentColor" opacity="0.92" d="M723.4,163.1 726.1,170.9 733.9,173.6 726.1,176.3 723.4,184.1 720.7,176.3 712.9,173.6 720.7,170.9Z"/>
-        <path class="dust-c" fill="currentColor" opacity="0.92" d="M741.7,170.1 743.9,176.4 750.2,178.6 743.9,180.8 741.7,187.1 739.5,180.8 733.2,178.6 739.5,176.4Z"/>
-        <path class="dust-c" fill="currentColor" opacity="0.92" d="M737.1,174.2 739.8,182.0 747.6,184.7 739.8,187.5 737.1,195.2 734.3,187.5 726.6,184.7 734.3,182.0Z"/>
-        <path class="dust-a" fill="currentColor" opacity="0.92" d="M748.7,236.7 750.4,241.6 755.2,243.2 750.4,244.9 748.7,249.7 747.0,244.9 742.2,243.2 747.0,241.6Z"/>
-        <path class="dust-c" fill="currentColor" opacity="0.92" d="M781.0,271.6 783.7,279.4 791.5,282.1 783.7,284.8 781.0,292.6 778.3,284.8 770.5,282.1 778.3,279.4Z"/>
-        <path class="dust-c" fill="currentColor" opacity="0.92" d="M815.4,282.1 817.6,288.4 823.9,290.6 817.6,292.8 815.4,299.1 813.2,292.8 806.9,290.6 813.2,288.4Z"/>
-        <path class="dust-b" fill="currentColor" opacity="0.92" d="M842.3,258.8 845.0,266.6 852.8,269.3 845.0,272.1 842.3,279.8 839.6,272.1 831.8,269.3 839.6,266.6Z"/>
+
+        <g class="dust-a" fill="currentColor" opacity="0.88" transform="translate(394,118)">
+          <rect x="-0.7" y="-2.8" width="1.4" height="5.6" rx="0.5"/>
+          <rect x="-2.8" y="-0.7" width="5.6" height="1.4" rx="0.5"/>
+        </g>
+        <g class="dust-b" fill="currentColor" opacity="0.8" transform="translate(552,146)">
+          <rect x="-0.6" y="-2.4" width="1.2" height="4.8" rx="0.45"/>
+          <rect x="-2.4" y="-0.6" width="4.8" height="1.2" rx="0.45"/>
+        </g>
+        <g class="dust-c" fill="currentColor" opacity="0.78" transform="translate(724,176)">
+          <rect x="-0.55" y="-2.1" width="1.1" height="4.2" rx="0.4"/>
+          <rect x="-2.1" y="-0.55" width="4.2" height="1.1" rx="0.4"/>
+        </g>
       </svg>
     </div>
   <figure class="mtf-text hero-text" aria-label="Sample text alert">
@@ -1285,7 +1310,7 @@
 <div id="app-shell" aria-hidden="true">
 <!-- ── Header ──────────────────────────────────────────────────────── -->
 <header>
-  <h1 class="brand-wordmark" aria-label="Magic Table Finder"><span class="wordmark-name"><span class="wordmark-magic"><svg class="wordmark-wand-accent" viewBox="0 0 48 48" fill="none" aria-hidden="true"><circle cx="6.2" cy="40.2" r="2.3" fill="currentColor"/><circle cx="6.2" cy="40.2" r="1.2" fill="none" stroke="currentColor" stroke-width="0.7"/><circle cx="10.4" cy="34.4" r="1.25" fill="currentColor"/><line x1="11.6" y1="32.8" x2="21.4" y2="14.8" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/><path fill="currentColor" d="M22.4 4.8 23.7 8.6 27.5 9.9 23.7 11.2 22.4 15 21.1 11.2 17.3 9.9 21.1 8.6Z"/><path fill="currentColor" d="M28.6 8.4 29.3 10.6 31.5 11.3 29.3 12 28.6 14.2 27.9 12 25.7 11.3 27.9 10.6Z"/><circle cx="27.6" cy="13.2" r="1.7" fill="currentColor"/><circle cx="30.8" cy="16.0" r="1.45" fill="currentColor"/><circle cx="28.4" cy="19.2" r="1.3" fill="currentColor"/><circle cx="33.4" cy="18.2" r="1.25" fill="currentColor"/><circle cx="31.2" cy="22.4" r="1.15" fill="currentColor"/><circle cx="35.2" cy="21.4" r="1.05" fill="currentColor"/><circle cx="33.0" cy="26.2" r="0.95" fill="currentColor"/><circle cx="36.6" cy="25.0" r="0.85" fill="currentColor"/><circle cx="34.4" cy="30.2" r="0.75" fill="currentColor"/><circle cx="37.6" cy="28.8" r="0.65" fill="currentColor"/></svg>M</span>agic Table Finder</span></h1>
+  <h1 class="brand-wordmark" aria-label="Magic Table Finder"><img class="wordmark-wand-accent" src="/brand/mark.svg" width="40" height="40" alt="" /><span class="wordmark-name">Magic Table Finder</span></h1>
   <div class="hdr-sep"></div>
   <span id="profile-label" class="owner-chip"></span>
   <span id="plan-line" hidden></span>

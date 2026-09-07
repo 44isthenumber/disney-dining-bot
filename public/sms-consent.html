@@ -4,33 +4,58 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SMS Consent Flow | Magic Table Finder</title>
+<meta name="theme-color" content="#f5f1e9">
+<link rel="icon" href="/brand/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://magictablefinder.com/sms-consent.html">
+<meta property="og:title" content="SMS Consent Flow | Magic Table Finder">
+<meta property="og:image" content="https://magictablefinder.com/og-1200x630.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://magictablefinder.com/og-1200x630.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Playfair+Display:wght@500&display=swap" rel="stylesheet">
 <style>
   :root {
-    --ink: #172033;
-    --muted: #5d6678;
-    --line: #d9dfeb;
-    --panel: #ffffff;
+    --mtf-cream: #f5f1e9;
+    --mtf-gold: #aa8b54;
+    --mtf-ink: #000000;
+    --mtf-paper: #ffffff;
+    --mtf-ink-soft: #1a1814;
+    --mtf-mist: #8c8476;
+    --mtf-gold-soft: #c4a97a;
+    --mtf-line: rgba(26,24,20,0.12);
+    --mtf-line-gold: rgba(170,139,84,0.35);
+    --mtf-font-display: "Playfair Display", "Times New Roman", Times, serif;
+    --ink: var(--mtf-ink);
+    --muted: var(--mtf-mist);
+    --line: var(--mtf-line);
+    --panel: var(--mtf-paper);
     --blue: #1a56db;
-    --blue-soft: #eef3ff;
+    --blue-soft: #f5f1e9;
     --green: #18794e;
     --green-soft: #eaf8f0;
-    --bg: #f6f8fc;
+    --bg: var(--mtf-cream);
   }
   * { box-sizing: border-box; }
   body {
     margin: 0;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     color: var(--ink);
     background: var(--bg);
     line-height: 1.55;
   }
   header {
-    background: #111827;
-    color: #fff;
+    background: var(--mtf-cream);
+    color: var(--mtf-ink);
     padding: 28px 20px;
+    border-bottom: 1px solid var(--mtf-line);
   }
   .wrap { max-width: 980px; margin: 0 auto; }
-  header p { color: #cbd5e1; max-width: 720px; margin: 8px 0 0; }
+  header p { color: var(--mtf-mist); max-width: 720px; margin: 8px 0 0; }
+  header h1 { font-family: var(--mtf-font-display); font-weight: 500; }
   h1 { margin: 0; font-size: 30px; line-height: 1.15; }
   h2 { font-size: 20px; margin: 0 0 12px; }
   h3 { font-size: 15px; margin: 18px 0 8px; }
@@ -46,8 +71,8 @@
   .steps { margin: 0; padding-left: 22px; }
   .steps li { margin: 0 0 10px; }
   .review-box {
-    background: var(--blue-soft);
-    border: 1px solid #c9d8ff;
+    background: var(--mtf-paper);
+    border: 1px solid var(--mtf-line-gold);
     border-radius: 8px;
     padding: 16px;
   }
@@ -81,9 +106,9 @@
     display: inline-flex;
     align-items: center;
     border-radius: 999px;
-    background: var(--blue-soft);
-    color: #123ea8;
-    border: 1px solid #c9d8ff;
+    background: rgba(170,139,84,.12);
+    color: var(--mtf-ink);
+    border: 1px solid var(--mtf-line-gold);
     padding: 5px 9px;
     font-size: 12px;
     font-weight: 700;
@@ -111,8 +136,8 @@
     width: 100%;
     border: 0;
     border-radius: 8px;
-    background: var(--blue);
-    color: #fff;
+    background: var(--mtf-ink);
+    color: var(--mtf-paper);
     padding: 12px;
     font-weight: 800;
     margin-top: 14px;
@@ -123,7 +148,7 @@
   }
   .ok strong { color: var(--green); }
   p, li { color: var(--muted); }
-  a { color: var(--blue); font-weight: 700; }
+  a { color: var(--mtf-ink); font-weight: 700; text-decoration-color: var(--mtf-gold); text-underline-offset: 3px; }
   code {
     background: #f1f5f9;
     border: 1px solid #dbe3ef;
