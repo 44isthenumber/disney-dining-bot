@@ -94,6 +94,7 @@ class BrandKitTest(unittest.TestCase):
         self.assertIn('property="og:image"', INDEX)
         self.assertIn('name="twitter:image"', INDEX)
         self.assertIn('name="twitter:card" content="summary_large_image"', INDEX)
+        self.assertIn('<link rel="canonical" href="https://magictablefinder.com/" />', INDEX)
         self.assertIn('content="#f5f1e9"', INDEX)
 
     def test_legal_pages_have_favicon_and_og(self):

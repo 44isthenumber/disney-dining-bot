@@ -5,13 +5,31 @@
 [functions]
   directory = "netlify/functions"
 
+# Static robots/sitemap in public/ win over the SPA splat (no force on /*).
+# Pin MIME so crawlers never treat these as the HTML shell.
+[[headers]]
+  for = "/robots.txt"
+  [headers.values]
+    Content-Type = "text/plain; charset=utf-8"
+
+[[headers]]
+  for = "/sitemap.xml"
+  [headers.values]
+    Content-Type = "application/xml; charset=utf-8"
+
+[[headers]]
+  for = "/sitemap_index.xml"
+  [headers.values]
+    Content-Type = "application/xml; charset=utf-8"
+
 [[redirects]]
   from = "/_api/*"
   to = "/.netlify/functions/api/:splat"
   status = 200
   force = true
 
-# SPA fallback — any unmatched path serves index.html
+# SPA fallback — unmatched paths serve index.html.
+# Do not set force=true; that would shadow robots.txt / sitemap.xml.
 [[redirects]]
   from = "/*"
   to = "/index.html"
