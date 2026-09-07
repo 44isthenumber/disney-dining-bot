@@ -921,6 +921,12 @@ async function handlePostWatch(event, user) {
   if (consumer && sms_consent !== true) {
     return response(422, { detail: "Please confirm text consent so we can send reservation alerts." });
   }
+  if (consumer && !String(user.phone || "").trim() && body.phone) {
+    const parsedPhone = normalizePhone(body.phone);
+    if (parsedPhone.ok && parsedPhone.phone) {
+      user = await userStore.put({ ...user, phone: parsedPhone.phone.slice(0, 40) });
+    }
+  }
   if (consumer && !String(user.phone || "").trim()) {
     return response(422, {
       code: "phone_required",

@@ -63,6 +63,9 @@ class DiningSelectionContractTest(unittest.TestCase):
         self.assertIn("function ensurePhoneSaved()", INDEX)
         self.assertGreaterEqual(INDEX.count("ensurePhoneSaved()"), 4)
         self.assertIn("return '+' + cc + local;", INDEX)
+        self.assertIn("function formatUsPhoneDisplay(", INDEX)
+        self.assertIn("function looksLikePhone(", INDEX)
+        self.assertIn("if (!looksLikePhone(raw))", INDEX)
 
     def test_no_trip_header_filter(self):
         self.assertNotIn('id="trip-start"', INDEX)

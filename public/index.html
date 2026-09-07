@@ -1367,7 +1367,7 @@
         <div class="step-body">
           <div id="phone-setup" hidden>
             <div id="phone-setup-heading">Where should we text you?</div>
-            <input type="tel" id="consumer-phone" autocomplete="tel" maxlength="40" placeholder="555-123-4567" />
+            <input type="tel" id="consumer-phone" autocomplete="tel" inputmode="tel" maxlength="40" placeholder="(555) 123-4567" />
             <button type="button" class="details-toggle" id="phone-intl-toggle" aria-expanded="false" aria-controls="phone-intl-fields">Not a US number</button>
             <div id="phone-intl-fields" hidden>
               <label>Country code
@@ -1459,7 +1459,7 @@
       </div>
       <label class="phone-field" id="modal-phone-wrap" hidden>
         Phone number
-        <input type="tel" id="modal-phone" autocomplete="tel" maxlength="40" />
+        <input type="tel" id="modal-phone" autocomplete="tel" inputmode="tel" maxlength="40" placeholder="(555) 123-4567" />
         <span class="phone-on-file" id="modal-phone-on-file" hidden>We'll text the number on your account.</span>
       </label>
       <label class="modal-sms-consent">
@@ -1601,19 +1601,75 @@ function intlPhoneOpen() {
   var fields = document.getElementById('phone-intl-fields');
   return Boolean(fields && !fields.hidden);
 }
-function getPhonePayload() {
-  if (intlPhoneOpen()) {
-    var cc = (document.getElementById('phone-country').value || '').trim();
-    var local = (document.getElementById('phone-local').value || '').trim();
-    if (!cc && !local) return '';
-    return '+' + cc + local;
+// Mirrors netlify/functions/phone.js so the field, guest check, and PATCH /me agree.
+function phoneDigitCount(raw) {
+  return String(raw == null ? '' : raw).replace(/\D/g, '').length;
+}
+function looksLikePhone(raw) {
+  var s = String(raw == null ? '' : raw).trim();
+  if (!s || /[A-Za-z]/.test(s)) return false;
+  var digits = s.replace(/\D/g, '');
+  if (digits.length === 10) return true;
+  if (digits.length === 11 && digits[0] === '1') return true;
+  return s[0] === '+' && digits.length >= 8 && digits.length <= 15;
+}
+function formatUsPhoneDisplay(raw) {
+  var trimmed = String(raw == null ? '' : raw).trim();
+  if (!trimmed) return '';
+  if (trimmed.charAt(0) === '+' && !/^\+1/.test(trimmed)) return trimmed;
+  var digits = trimmed.replace(/\D/g, '');
+  if (digits.length >= 11 && digits.charAt(0) === '1') digits = digits.slice(1);
+  digits = digits.slice(0, 10);
+  if (!digits) return trimmed.charAt(0) === '+' ? '+' : '';
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return '(' + digits.slice(0, 3) + ') ' + digits.slice(3);
+  return '(' + digits.slice(0, 3) + ') ' + digits.slice(3, 6) + '-' + digits.slice(6);
+}
+function applyPhoneFieldValue(el, raw, keepCaret) {
+  if (!el) return;
+  var formatted = formatUsPhoneDisplay(raw);
+  if (keepCaret) {
+    var start = typeof el.selectionStart === 'number' ? el.selectionStart : String(el.value || '').length;
+    var digitsBefore = String(el.value || '').slice(0, start).replace(/\D/g, '').length;
+    el.value = formatted;
+    var pos = 0;
+    var seen = 0;
+    while (pos < formatted.length && seen < digitsBefore) {
+      if (/\d/.test(formatted.charAt(pos))) seen += 1;
+      pos += 1;
+    }
+    try { el.setSelectionRange(pos, pos); } catch (e) {}
+  } else {
+    el.value = formatted;
   }
+}
+function readUsPhoneField() {
   var overlay = document.getElementById('modal-overlay');
   var modalOpen = overlay && overlay.classList.contains('open');
   var modal = document.getElementById('modal-phone');
   var main = document.getElementById('consumer-phone');
-  if (modalOpen && modal && (modal.value || '').trim()) return (modal.value || '').trim();
-  return ((main && main.value) || '').trim();
+  var modalVal = modal ? String(modal.value || '').trim() : '';
+  var mainVal = main ? String(main.value || '').trim() : '';
+  if (modalOpen && phoneDigitCount(modalVal)) return modalVal;
+  if (phoneDigitCount(mainVal)) return mainVal;
+  if (modalOpen && modalVal) return modalVal;
+  return mainVal;
+}
+function getIntlPhonePayload() {
+  if (!intlPhoneOpen()) return '';
+  var cc = (document.getElementById('phone-country').value || '').trim();
+  var local = (document.getElementById('phone-local').value || '').trim();
+  if (!cc && !local) return '';
+  return '+' + cc + local;
+}
+function getPhonePayload() {
+  var us = readUsPhoneField();
+  var intl = getIntlPhonePayload();
+  if (looksLikePhone(us)) return us;
+  if (looksLikePhone(intl)) return intl;
+  if (phoneDigitCount(us)) return us;
+  if (intl) return intl;
+  return us;
 }
 function showPhoneError(detail) {
   var setup = document.getElementById('phone-setup-msg');
@@ -1640,9 +1696,9 @@ function syncPhoneFields(sourceId) {
 async function ensurePhoneSaved() {
   if (!mtfSessionUser || mtfSessionUser.kind !== 'consumer') return true;
   var raw = getPhonePayload();
-  if (!raw) {
-    if (mtfSessionUser.has_phone) return true;
-    showPhoneError('Add a phone number so we can text you.');
+  if (!looksLikePhone(raw)) {
+    if (!phoneDigitCount(raw) && mtfSessionUser.has_phone) return true;
+    showPhoneError(phoneDigitCount(raw) ? 'Use a 10-digit US mobile number.' : 'Add a phone number so we can text you.');
     focusPhoneField();
     return false;
   }
@@ -1787,11 +1843,14 @@ async function postWatch(body) {
     if (secret) headers['X-API-Secret'] = secret;
     if (userId) headers['X-User-Id'] = userId;
   }
+  var payload = Object.assign({}, body);
+  var phone = getPhonePayload();
+  if (phone) payload.phone = phone;
   const res = await fetch('/_api/watches', {
     method: 'POST',
     credentials: 'include',
     headers: headers,
-    body: JSON.stringify(body)
+    body: JSON.stringify(payload)
   });
   var data = null;
   var text = await res.text();
@@ -3177,16 +3236,6 @@ async function submitWatchForm() {
   }
 }
 
-// Mirrors netlify/functions/phone.js so guests learn about a bad number before the email step.
-function looksLikePhone(raw) {
-  var s = String(raw || '').trim();
-  if (!s || /[A-Za-z]/.test(s)) return false;
-  var digits = s.replace(/\D/g, '');
-  if (digits.length === 10) return true;
-  if (digits.length === 11 && digits[0] === '1') return true;
-  return s[0] === '+' && digits.length >= 8 && digits.length <= 15;
-}
-
 async function startGuestWatch() {
   const btn = document.getElementById('create-btn');
   const msg = document.getElementById('create-msg');
@@ -3309,7 +3358,7 @@ async function resumeWatchDraft(opts) {
   }
   if (mtfSessionUser && mtfSessionUser.kind === 'consumer' && draft.phone) {
     var phoneEl = document.getElementById('consumer-phone');
-    if (phoneEl) phoneEl.value = draft.phone;
+    if (phoneEl) applyPhoneFieldValue(phoneEl, draft.phone, false);
   }
   if (draft.consent === true && canCreateWatchNow()) {
     var sms = document.getElementById('sms-consent');
@@ -3373,7 +3422,13 @@ document.getElementById('billing-portal-btn').addEventListener('click', openBill
 ['consumer-phone', 'modal-phone'].forEach(function(id) {
   var el = document.getElementById(id);
   if (!el) return;
-  el.addEventListener('input', function() { syncPhoneFields(id); });
+  function refreshPhoneField(keepCaret) {
+    applyPhoneFieldValue(el, el.value, keepCaret);
+    syncPhoneFields(id);
+  }
+  el.addEventListener('input', function() { refreshPhoneField(true); });
+  el.addEventListener('change', function() { refreshPhoneField(false); });
+  el.addEventListener('blur', function() { refreshPhoneField(false); });
 });
 document.getElementById('phone-intl-toggle').addEventListener('click', function() {
   var fields = document.getElementById('phone-intl-fields');
