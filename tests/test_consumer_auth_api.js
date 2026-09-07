@@ -303,6 +303,19 @@ function cookieHeaderFrom(res) {
   assert.strictEqual(patchTenDigit.status, 200);
   assert.strictEqual(patchTenDigit.body.user.has_phone, true);
 
+  const patchCraigRepro = parse(
+    await handler(
+      ev("PATCH", "/_api/me", {
+        headers: { cookie, "content-type": "application/json" },
+        body: { phone: "2564252474" },
+      })
+    )
+  );
+  assert.strictEqual(patchCraigRepro.status, 200);
+  assert.strictEqual(patchCraigRepro.body.user.has_phone, true);
+  const afterRepro = await store.getById(me.body.user.id);
+  assert.strictEqual(afterRepro.phone, "+12564252474");
+
   const patchInvalid = parse(
     await handler(
       ev("PATCH", "/_api/me", {
@@ -377,6 +390,33 @@ function cookieHeaderFrom(res) {
     meal_periods: ["DINNER"],
     sms_consent: true,
   };
+
+  const cleared = await store.getById(me.body.user.id);
+  await store.put({ ...cleared, phone: "" });
+  const missingPhone = parse(
+    await handler(
+      ev("POST", "/_api/watches", {
+        headers: { cookie, "x-forwarded-proto": "https", "content-type": "application/json" },
+        body: watchPayload,
+      })
+    )
+  );
+  assert.strictEqual(missingPhone.status, 422);
+  assert.strictEqual(missingPhone.body.code, "phone_required");
+
+  const rawTenDigit = parse(
+    await handler(
+      ev("POST", "/_api/watches", {
+        headers: { cookie, "x-forwarded-proto": "https", "content-type": "application/json" },
+        body: { ...watchPayload, phone: "2564252474" },
+      })
+    )
+  );
+  assert.strictEqual(rawTenDigit.status, 402);
+  assert.strictEqual(rawTenDigit.body.code, "checkout_required");
+  const savedRaw = await store.getById(me.body.user.id);
+  assert.strictEqual(savedRaw.phone, "+12564252474");
+
   const checkout = parse(
     await handler(
       ev("POST", "/_api/watches", {
