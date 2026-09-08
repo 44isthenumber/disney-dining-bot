@@ -202,6 +202,23 @@ class LandingContractTest(unittest.TestCase):
         self.assertIn('href="/terms.html"', INDEX)
         self.assertIn('href="/sms-consent.html"', INDEX)
 
+    def test_money_page_footer_and_watch_query(self):
+        self.assertIn('href="/disney-world-dining-alerts"', INDEX)
+        self.assertIn('href="/be-our-guest-dining-alerts"', INDEX)
+        self.assertIn('href="/california-grill-dining-alerts"', INDEX)
+        self.assertIn("function applyWatchQuery(", INDEX)
+        self.assertIn("params.get('watch')", INDEX)
+        self.assertIn("selectRestaurant(match.facility_id)", INDEX)
+        catalog = INDEX.split("async function loadCatalog()", 1)[1].split(
+            "async function loadRestaurants", 1
+        )[0]
+        self.assertIn("populateRestaurantSelect(allRestaurants)", catalog)
+        self.assertIn("applyWatchQuery()", catalog)
+        self.assertLess(
+            catalog.find("populateRestaurantSelect(allRestaurants)"),
+            catalog.find("applyWatchQuery()"),
+        )
+
     def test_empty_watch_and_create_copy(self):
         self.assertIn("No watches yet. Create one above.", INDEX)
         self.assertNotIn("No watches yet. Browse restaurants", INDEX)

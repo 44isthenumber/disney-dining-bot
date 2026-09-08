@@ -1304,6 +1304,9 @@
 
   <footer class="landing-footer">
     <ul>
+      <li><a href="/disney-world-dining-alerts">Dining alerts</a></li>
+      <li><a href="/be-our-guest-dining-alerts">Be Our Guest</a></li>
+      <li><a href="/california-grill-dining-alerts">California Grill</a></li>
       <li><a href="/privacy.html">Privacy</a></li>
       <li><a href="/terms.html">Terms</a></li>
       <li><a href="/sms-consent.html">Text consent</a></li>
@@ -2486,6 +2489,7 @@ async function loadCatalog() {
     if (generation !== catalogGeneration) return;
     allRestaurants = data.restaurants || [];
     populateRestaurantSelect(allRestaurants);
+    applyWatchQuery();
     renderParkChips();
     filterAndRender();
   } catch(e) {
@@ -2910,6 +2914,16 @@ function placeGroup(r) {
   return 'Resorts';
 }
 
+
+function applyWatchQuery() {
+  var params = new URLSearchParams(window.location.search);
+  var raw = (params.get('watch') || '').trim();
+  if (!raw) return;
+  var match = watchableRestaurants().find(function(r) {
+    return r.slug === raw || r.facility_id === raw;
+  });
+  if (match) selectRestaurant(match.facility_id);
+}
 
 function selectRestaurant(facilityId) {
   var select = document.getElementById('restaurant-select');

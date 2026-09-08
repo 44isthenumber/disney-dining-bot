@@ -54,3 +54,19 @@
   from = "/text-consent.html"
   to = "/sms-consent"
   status = 301
+
+# Pretty money-page URLs. Real HTML files — not a homepage splat.
+[[redirects]]
+  from = "/disney-world-dining-alerts"
+  to = "/disney-world-dining-alerts.html"
+  status = 200
+
+[[redirects]]
+  from = "/be-our-guest-dining-alerts"
+  to = "/be-our-guest-dining-alerts.html"
+  status = 200
+
+[[redirects]]
+  from = "/california-grill-dining-alerts"
+  to = "/california-grill-dining-alerts.html"
+  status = 200
