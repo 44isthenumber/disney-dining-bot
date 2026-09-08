@@ -35,6 +35,36 @@ PAGES = {
         "cta_href": "/?watch=cinderella-royal-table",
         "meta": "Watch Cinderella’s Royal Table.",
     },
+    "california-grill": {
+        "file": "alerts/california-grill.html",
+        "pretty": "/alerts/california-grill",
+        "title": "California Grill reservation alerts | Magic Table Finder",
+        "h1": "California Grill booked up? We’ll text matching opens.",
+        "cta_href": "/?watch=california-grill",
+        "meta": "Watch California Grill at Disney’s Contemporary.",
+        "catalog_slug": "california-grill",
+        "catalog_name": "California Grill",
+    },
+    "be-our-guest": {
+        "file": "alerts/be-our-guest.html",
+        "pretty": "/alerts/be-our-guest",
+        "title": "Be Our Guest reservation alerts | Magic Table Finder",
+        "h1": "Be Our Guest gone at 60 days? Text alerts for new tables.",
+        "cta_href": "/?watch=be-our-guest-restaurant",
+        "meta": "Watch Be Our Guest Restaurant in Magic Kingdom.",
+        "catalog_slug": "be-our-guest-restaurant",
+        "catalog_name": "Be Our Guest Restaurant",
+    },
+    "topolinos-terrace": {
+        "file": "alerts/topolinos-terrace.html",
+        "pretty": "/alerts/topolinos-terrace",
+        "title": "Topolino’s Terrace reservation alerts | Magic Table Finder",
+        "h1": "Topolino’s Terrace full? We’ll text when a table opens.",
+        "cta_href": "/?watch=topolinos-terrace",
+        "meta": "Watch Topolino’s Terrace at Disney’s Riviera.",
+        "catalog_slug": "topolinos-terrace",
+        "catalog_name": "Topolino's Terrace",
+    },
 }
 
 FORBIDDEN = (
@@ -71,8 +101,8 @@ class MoneyPagesTest(unittest.TestCase):
             self.assertIn(spec["meta"], html)
             titles.append(spec["title"])
             h1s.append(spec["h1"])
-        self.assertEqual(len(set(titles)), 3)
-        self.assertEqual(len(set(h1s)), 3)
+        self.assertEqual(len(set(titles)), len(PAGES))
+        self.assertEqual(len(set(h1s)), len(PAGES))
 
     def test_pretty_rewrites_and_no_splat(self):
         self.assertNotRegex(NETLIFY, r'from = "/\*"\s+to = "/index.html"')
@@ -113,6 +143,12 @@ class MoneyPagesTest(unittest.TestCase):
         self.assertIn("\"name\": \"'Ohana\"", catalog)
         self.assertIn('"slug": "cinderella-royal-table"', catalog)
         self.assertIn("\"name\": \"Cinderella's Royal Table\"", catalog)
+        self.assertIn('"slug": "california-grill"', catalog)
+        self.assertIn('"name": "California Grill"', catalog)
+        self.assertIn('"slug": "be-our-guest-restaurant"', catalog)
+        self.assertIn('"name": "Be Our Guest Restaurant"', catalog)
+        self.assertIn('"slug": "topolinos-terrace"', catalog)
+        self.assertIn("\"name\": \"Topolino's Terrace", catalog)
 
     def test_ink_cta_not_gold_flood(self):
         self.assertIn(".mp-btn-primary {", CSS)
@@ -151,14 +187,51 @@ class MoneyPagesTest(unittest.TestCase):
         self.assertIn('href="/alerts/cinderellas-royal-table"', ohana)
         self.assertIn('href="/alerts/space-220"', crt)
         self.assertIn('href="/alerts/ohana"', crt)
+        california = self.pages["california-grill"]
+        be_our_guest = self.pages["be-our-guest"]
+        topolino = self.pages["topolinos-terrace"]
+        for html in (california, be_our_guest, topolino):
+            existing = sum(
+                1
+                for href in (
+                    "/alerts/space-220",
+                    "/alerts/ohana",
+                    "/alerts/cinderellas-royal-table",
+                )
+                if f'href="{href}"' in html
+            )
+            self.assertGreaterEqual(existing, 2)
 
     def test_homepage_hard_to_book_block(self):
         self.assertIn("<title>Walt Disney World dining alerts | Magic Table Finder</title>", INDEX)
         block = INDEX.split('id="hard-tables"', 1)[1].split('id="proof"', 1)[0]
         self.assertIn("Hard-to-book watches", block)
+        self.assertIn("Six restaurants.", block)
         self.assertIn('href="/alerts/space-220"', block)
         self.assertIn('href="/alerts/ohana"', block)
         self.assertIn('href="/alerts/cinderellas-royal-table"', block)
+        self.assertIn('href="/alerts/california-grill"', block)
+        self.assertIn('href="/alerts/be-our-guest"', block)
+        self.assertIn('href="/alerts/topolinos-terrace"', block)
+
+    def test_cta_watch_slugs_resolve_in_catalog(self):
+        import json
+
+        catalog = json.loads((ROOT / "restaurants.json").read_text(encoding="utf-8"))
+        by_slug = {row["slug"]: row for row in catalog["restaurants"]}
+        wave2 = ("california-grill", "be-our-guest", "topolinos-terrace")
+        for key in wave2:
+            spec = PAGES[key]
+            slug = spec["cta_href"].split("watch=", 1)[1]
+            self.assertEqual(slug, spec["catalog_slug"])
+            self.assertIn(slug, by_slug)
+            self.assertIn(spec["catalog_name"], by_slug[slug]["name"])
+        self.assertEqual(PAGES["be-our-guest"]["pretty"], "/alerts/be-our-guest")
+        self.assertEqual(PAGES["be-our-guest"]["cta_href"], "/?watch=be-our-guest-restaurant")
+        self.assertNotEqual(
+            PAGES["be-our-guest"]["catalog_slug"],
+            PAGES["be-our-guest"]["pretty"].rsplit("/", 1)[-1],
+        )
 
     def test_no_forbidden_copy_or_pixels(self):
         html_blob = "".join(self.pages.values())
