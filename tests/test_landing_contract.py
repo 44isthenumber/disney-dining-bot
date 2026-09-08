@@ -107,7 +107,6 @@ class LandingContractTest(unittest.TestCase):
         self.assertNotIn("🏰", INDEX)
         self.assertNotIn("Mickey", INDEX)
         self.assertNotIn("Tinker Bell", INDEX)
-        self.assertNotIn("Cinderella", INDEX)
 
     def test_hero_wand_is_the_only_fireworks(self):
         self.assertIn('class="hero-wand"', INDEX)
@@ -201,6 +200,27 @@ class LandingContractTest(unittest.TestCase):
         self.assertIn('href="/privacy.html"', INDEX)
         self.assertIn('href="/terms.html"', INDEX)
         self.assertIn('href="/sms-consent.html"', INDEX)
+
+    def test_hard_to_book_watches_and_watch_query(self):
+        self.assertIn('<title>Walt Disney World dining alerts | Magic Table Finder</title>', INDEX)
+        self.assertIn('id="hard-tables"', INDEX)
+        self.assertIn("Hard-to-book watches", INDEX)
+        self.assertIn('href="/alerts/space-220"', INDEX)
+        self.assertIn('href="/alerts/ohana"', INDEX)
+        self.assertIn('href="/alerts/cinderellas-royal-table"', INDEX)
+        self.assertIn("Cinderella", INDEX)
+        self.assertIn("function applyWatchQuery(", INDEX)
+        self.assertIn("params.get('watch')", INDEX)
+        self.assertIn("selectRestaurant(match.facility_id)", INDEX)
+        catalog = INDEX.split("async function loadCatalog()", 1)[1].split(
+            "async function loadRestaurants", 1
+        )[0]
+        self.assertIn("populateRestaurantSelect(allRestaurants)", catalog)
+        self.assertIn("applyWatchQuery()", catalog)
+        self.assertLess(
+            catalog.find("populateRestaurantSelect(allRestaurants)"),
+            catalog.find("applyWatchQuery()"),
+        )
 
     def test_empty_watch_and_create_copy(self):
         self.assertIn("No watches yet. Create one above.", INDEX)
