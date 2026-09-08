@@ -22,7 +22,7 @@ PAGES = {
     "ohana": {
         "file": "alerts/ohana.html",
         "pretty": "/alerts/ohana",
-        "title": "‘Ohana reservation alerts | Magic Table Finder",
+        "title": "'Ohana reservation alerts | Magic Table Finder",
         "h1": "Missed ‘Ohana at 60 days? We’ll text new openings.",
         "cta_href": "/?watch=ohana",
         "meta": "Watch ‘Ohana at Disney’s Polynesian.",
