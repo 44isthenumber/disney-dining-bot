@@ -107,7 +107,6 @@ class LandingContractTest(unittest.TestCase):
         self.assertNotIn("🏰", INDEX)
         self.assertNotIn("Mickey", INDEX)
         self.assertNotIn("Tinker Bell", INDEX)
-        self.assertNotIn("Cinderella", INDEX)
 
     def test_hero_wand_is_the_only_fireworks(self):
         self.assertIn('class="hero-wand"', INDEX)
@@ -202,10 +201,14 @@ class LandingContractTest(unittest.TestCase):
         self.assertIn('href="/terms.html"', INDEX)
         self.assertIn('href="/sms-consent.html"', INDEX)
 
-    def test_money_page_footer_and_watch_query(self):
-        self.assertIn('href="/disney-world-dining-alerts"', INDEX)
-        self.assertIn('href="/be-our-guest-dining-alerts"', INDEX)
-        self.assertIn('href="/california-grill-dining-alerts"', INDEX)
+    def test_hard_to_book_watches_and_watch_query(self):
+        self.assertIn('<title>Walt Disney World dining alerts | Magic Table Finder</title>', INDEX)
+        self.assertIn('id="hard-tables"', INDEX)
+        self.assertIn("Hard-to-book watches", INDEX)
+        self.assertIn('href="/alerts/space-220"', INDEX)
+        self.assertIn('href="/alerts/ohana"', INDEX)
+        self.assertIn('href="/alerts/cinderellas-royal-table"', INDEX)
+        self.assertIn("Cinderella", INDEX)
         self.assertIn("function applyWatchQuery(", INDEX)
         self.assertIn("params.get('watch')", INDEX)
         self.assertIn("selectRestaurant(match.facility_id)", INDEX)

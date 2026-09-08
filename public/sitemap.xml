@@ -21,18 +21,18 @@
     <priority>0.3</priority>
   </url>
   <url>
-    <loc>https://magictablefinder.com/disney-world-dining-alerts</loc>
+    <loc>https://magictablefinder.com/alerts/space-220</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://magictablefinder.com/be-our-guest-dining-alerts</loc>
+    <loc>https://magictablefinder.com/alerts/ohana</loc>
     <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
+    <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://magictablefinder.com/california-grill-dining-alerts</loc>
+    <loc>https://magictablefinder.com/alerts/cinderellas-royal-table</loc>
     <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
+    <priority>0.8</priority>
   </url>
 </urlset>
