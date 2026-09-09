@@ -246,7 +246,7 @@ class MoneyPagesTest(unittest.TestCase):
             self.assertGreaterEqual(existing, 2)
 
     def test_homepage_hard_to_book_block(self):
-        self.assertIn("<title>Walt Disney World dining alerts | Magic Table Finder</title>", INDEX)
+        self.assertIn("<title>Walt Disney World Dining Alerts | Magic Table Finder</title>", INDEX)
         block = INDEX.split('id="hard-tables"', 1)[1].split('id="proof"', 1)[0]
         self.assertIn("Hard-to-book watches", block)
         self.assertIn("Nine restaurants.", block)

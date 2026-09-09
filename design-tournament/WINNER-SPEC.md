@@ -67,7 +67,7 @@ Replaces the locked headline and subhead above. Headline: **"Sold out? We'll tex
 
 **Supersedes** the Conversion hero addendum for H1 / immediate-sub assignment only. `.lead`, trust strip, guest starter, wand, and paper hero stay.
 
-- **H1** = `Walt Disney World dining alerts` — same category phrase as `<title>` / `og:title` / `twitter:title` (`Walt Disney World dining alerts | Magic Table Finder`). Do not shorten to “Disney World dining alerts.”
+- **H1** = `Walt Disney World Dining Alerts` — same category phrase as `<title>` / `og:title` / `twitter:title` (`Walt Disney World Dining Alerts | Magic Table Finder`). Do not shorten to “Disney World dining alerts.”
 - **Immediate sub** (`.l-hero-sub`, not a second H1) = `Sold out? We'll text you the moment a table opens.` Still prominent serif/ink; clearly secondary to the H1.
 - Remove the gold hero eyebrow that whispered the same category phrase. Other section eyebrows (How it works, Pricing, Sample text, Sign in) stay.
 - Do not leave two competing on-page versions of the dining-alerts phrase.

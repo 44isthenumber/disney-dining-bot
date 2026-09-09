@@ -41,7 +41,7 @@ class LandingContractTest(unittest.TestCase):
         # Option 2 (Helm/Craig): category H1 matches <title>/OG; sold-out line is the subhead.
         # Supersedes the 2026-09-02 conversion headline as H1.
         hero_copy = INDEX.split('class="l-hero-copy"', 1)[1].split('class="hero-stage"', 1)[0]
-        self.assertIn("<h1>Walt Disney World dining alerts</h1>", hero_copy)
+        self.assertIn("<h1>Walt Disney World Dining Alerts</h1>", hero_copy)
         self.assertEqual(hero_copy.count("<h1>"), 1)
         self.assertIn(
             '<p class="l-hero-sub">Sold out? We\'ll text you the moment a table opens.</p>',
@@ -51,9 +51,13 @@ class LandingContractTest(unittest.TestCase):
         self.assertNotIn('class="l-eyebrow">Walt Disney World dining alerts</span>', hero_copy)
         self.assertNotIn('<span class="l-eyebrow">Walt Disney World dining alerts</span>', INDEX)
         title = re.search(r"<title>(.*?)</title>", INDEX).group(1)
-        self.assertTrue(title.startswith("Walt Disney World dining alerts"))
+        self.assertTrue(title.startswith("Walt Disney World Dining Alerts"))
         self.assertIn(
-            'property="og:title" content="Walt Disney World dining alerts | Magic Table Finder"',
+            'property="og:title" content="Walt Disney World Dining Alerts | Magic Table Finder"',
+            INDEX,
+        )
+        self.assertIn(
+            'name="twitter:title" content="Walt Disney World Dining Alerts | Magic Table Finder"',
             INDEX,
         )
         h1_css = INDEX.split(".l-hero h1 {", 1)[1].split("}", 1)[0]
@@ -237,7 +241,7 @@ class LandingContractTest(unittest.TestCase):
         self.assertIn('href="/sms-consent.html"', INDEX)
 
     def test_hard_to_book_watches_and_watch_query(self):
-        self.assertIn('<title>Walt Disney World dining alerts | Magic Table Finder</title>', INDEX)
+        self.assertIn('<title>Walt Disney World Dining Alerts | Magic Table Finder</title>', INDEX)
         self.assertIn('id="hard-tables"', INDEX)
         self.assertIn("Hard-to-book watches", INDEX)
         self.assertIn("Nine restaurants.", INDEX)
