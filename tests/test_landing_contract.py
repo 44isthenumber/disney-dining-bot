@@ -38,12 +38,48 @@ class LandingContractTest(unittest.TestCase):
         self.assertIn("--blue: #1a56db", INDEX)
 
     def test_locked_promise_and_headline(self):
-        # Conversion headline approved by Craig 2026-09-02 (replaces "We monitor the openings.").
-        self.assertIn("<h1>Sold out? We'll text you the moment a table opens.</h1>", INDEX)
+        # Option 2 (Helm/Craig): category H1 matches <title>/OG; sold-out line is the subhead.
+        # Supersedes the 2026-09-02 conversion headline as H1.
+        hero_copy = INDEX.split('class="l-hero-copy"', 1)[1].split('class="hero-stage"', 1)[0]
+        self.assertIn("<h1>Walt Disney World Dining Alerts</h1>", hero_copy)
+        self.assertEqual(hero_copy.count("<h1>"), 1)
+        self.assertIn(
+            '<p class="l-hero-sub">Sold out? We\'ll text you the moment a table opens.</p>',
+            hero_copy,
+        )
+        self.assertNotIn("<h1>Sold out? We'll text you the moment a table opens.</h1>", INDEX)
+        self.assertNotIn('class="l-eyebrow">Walt Disney World dining alerts</span>', hero_copy)
+        self.assertNotIn('<span class="l-eyebrow">Walt Disney World dining alerts</span>', INDEX)
+        title = re.search(r"<title>(.*?)</title>", INDEX).group(1)
+        self.assertTrue(title.startswith("Walt Disney World Dining Alerts"))
+        self.assertIn(
+            'property="og:title" content="Walt Disney World Dining Alerts | Magic Table Finder"',
+            INDEX,
+        )
+        self.assertIn(
+            'name="twitter:title" content="Walt Disney World Dining Alerts | Magic Table Finder"',
+            INDEX,
+        )
+        h1_css = INDEX.split(".l-hero h1 {", 1)[1].split("}", 1)[0]
+        self.assertIn("font-family: var(--font-serif)", h1_css)
+        self.assertIn("color: var(--ink)", h1_css)
+        # Category H1 is a longer phrase; do not reuse the sold-out billboard clamp.
+        self.assertNotIn("3.6rem", h1_css)
+        self.assertNotIn("clamp(2.3rem", h1_css)
+        self.assertNotIn("4.6vw", h1_css)
+        self.assertIn("2.35rem", h1_css)
+        self.assertIn("line-height: 1.2", h1_css)
+        sub_css = INDEX.split(".l-hero .l-hero-sub {", 1)[1].split("}", 1)[0]
+        self.assertIn("color: var(--mtf-ink-soft)", sub_css)
+        self.assertIn("font-family: var(--font-serif)", sub_css)
+        self.assertNotIn("text-transform: uppercase", sub_css)
+        self.assertNotIn("color: var(--gold)", sub_css)
+        self.assertNotIn("2.05rem", sub_css)
+        self.assertIn("1.3rem", sub_css)
         self.assertIn("You book it on Disney's site, on your own account.", INDEX)
         self.assertNotIn("We monitor the openings.", INDEX)
         self.assertNotIn("The table is being watched.", INDEX)
-        # Pricing stays out of the hero subhead; it lives under the CTA and in #pricing.
+        # Pricing stays out of the hero lead; it lives under the CTA and in #pricing.
         hero = INDEX.split('class="l-hero"', 1)[1].split('id="how"', 1)[0]
         lead = hero.split('<p class="lead">', 1)[1].split("</p>", 1)[0]
         self.assertNotIn("$", lead)
@@ -205,7 +241,7 @@ class LandingContractTest(unittest.TestCase):
         self.assertIn('href="/sms-consent.html"', INDEX)
 
     def test_hard_to_book_watches_and_watch_query(self):
-        self.assertIn('<title>Walt Disney World dining alerts | Magic Table Finder</title>', INDEX)
+        self.assertIn('<title>Walt Disney World Dining Alerts | Magic Table Finder</title>', INDEX)
         self.assertIn('id="hard-tables"', INDEX)
         self.assertIn("Hard-to-book watches", INDEX)
         self.assertIn("Nine restaurants.", INDEX)

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Walt Disney World dining alerts | Magic Table Finder</title>
+<title>Walt Disney World Dining Alerts | Magic Table Finder</title>
 <script>
   if (typeof document !== 'undefined') {
     var hasSecret = false;
@@ -25,13 +25,13 @@
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="Magic Table Finder" />
 <meta property="og:url" content="https://magictablefinder.com/" />
-<meta property="og:title" content="Walt Disney World dining alerts | Magic Table Finder" />
+<meta property="og:title" content="Walt Disney World Dining Alerts | Magic Table Finder" />
 <meta property="og:description" content="Sold out? We'll text you the moment a Walt Disney World table opens. Pick the restaurant and your dates; we watch around the clock and text you a booking link." />
 <meta property="og:image" content="https://magictablefinder.com/og-1200x630.png" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
 <meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:title" content="Walt Disney World dining alerts | Magic Table Finder" />
+<meta name="twitter:title" content="Walt Disney World Dining Alerts | Magic Table Finder" />
 <meta name="twitter:description" content="Sold out? We'll text you the moment a Walt Disney World table opens. Pick the restaurant and your dates; we watch around the clock and text you a booking link." />
 <meta name="twitter:image" content="https://magictablefinder.com/og-1200x630.png" />
 <link rel="canonical" href="https://magictablefinder.com/" />
@@ -711,8 +711,13 @@
   }
   .l-hero h1 {
     font-family: var(--font-serif); font-weight: 400; letter-spacing: -.02em;
-    font-size: clamp(2.3rem, 4.6vw, 3.6rem); line-height: 1.08; margin: 14px 0 16px;
-    text-wrap: balance;
+    font-size: clamp(1.7rem, 3.2vw, 2.35rem); line-height: 1.2; margin: 0 0 8px;
+    text-wrap: balance; color: var(--ink);
+  }
+  .l-hero .l-hero-sub {
+    font-family: var(--font-serif); font-weight: 400; letter-spacing: -.01em;
+    font-size: clamp(1.1rem, 1.8vw, 1.3rem); line-height: 1.4; margin: 0 0 14px;
+    text-wrap: pretty; color: var(--mtf-ink-soft);
   }
   .l-hero .lead { color: var(--muted); font-size: clamp(1.05rem, 2vw, 1.25rem); line-height: 1.55; max-width: 36em; margin: 0 auto 28px; }
   .l-hero-actions { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
@@ -989,8 +994,8 @@
   <section class="l-hero" id="hero">
     <div class="l-hero-grid">
     <div class="l-hero-copy">
-      <span class="l-eyebrow">Walt Disney World dining alerts</span>
-      <h1>Sold out? We'll text you the moment a table opens.</h1>
+      <h1>Walt Disney World Dining Alerts</h1>
+      <p class="l-hero-sub">Sold out? We'll text you the moment a table opens.</p>
       <p class="lead">Pick the restaurant and your dates. We watch Disney's reservation system around the clock and text you a booking link the second a matching table opens. You book it on Disney's site, on your own account.</p>
       <div id="landing-watch-slot"></div>
       <ul class="l-hero-trust" aria-label="Product trust points">

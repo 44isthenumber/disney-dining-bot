@@ -63,6 +63,15 @@ Approved extension of the Quiet Luxury base. Material layer: paper grain (`feTur
 
 Replaces the locked headline and subhead above. Headline: **"Sold out? We'll text you the moment a table opens."** Subhead explains the mechanism and states that booking happens on Disney's site on the guest's own account. Pricing leaves the subhead; it lives in a note under the CTA and in `#pricing`. Desktop hero is two columns: copy and a guest starter (WHERE restaurant + WHEN dates + WHO party + CTA, with quick-start chips for hard-to-get tables) on the left, the wand landing on the sample text on the right. WHO (party chips 1–8, default Party of 2) is always visible above the CTA. Meal, time window, phone, email, and text consent appear after Start my watch with restaurant, dates, and party (`#create-watch.is-collapsed`); date selection alone does not expand those fields. The consent gate and Stripe handoff are unchanged. CTA copy: "Start my watch · from $4.99" / "Start my watch · $4.99" (never "Continue to payment"). The signed-in app form uses the same WHO control. An ink-background hero was tried and rejected the same day; the hero stays paper.
 
+## Addendum — Category H1 (Option 2, Helm/Craig)
+
+**Supersedes** the Conversion hero addendum for H1 / immediate-sub assignment only. `.lead`, trust strip, guest starter, wand, and paper hero stay.
+
+- **H1** = `Walt Disney World Dining Alerts` — same category phrase as `<title>` / `og:title` / `twitter:title` (`Walt Disney World Dining Alerts | Magic Table Finder`). Do not shorten to “Disney World dining alerts.”
+- **Immediate sub** (`.l-hero-sub`, not a second H1) = `Sold out? We'll text you the moment a table opens.` Still prominent serif/ink; clearly secondary to the H1.
+- Remove the gold hero eyebrow that whispered the same category phrase. Other section eyebrows (How it works, Pricing, Sample text, Sign in) stay.
+- Do not leave two competing on-page versions of the dining-alerts phrase.
+
 ## Addendum — Phase 1 Quiet Luxury identity (2026-09-07)
 
 Craig locked the production identity. This addendum **supersedes** the Visual system type, hexes, and 5-point star wand above for anything shipped in `public/`.
