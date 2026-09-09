@@ -711,8 +711,13 @@
   }
   .l-hero h1 {
     font-family: var(--font-serif); font-weight: 400; letter-spacing: -.02em;
-    font-size: clamp(2.3rem, 4.6vw, 3.6rem); line-height: 1.08; margin: 14px 0 16px;
-    text-wrap: balance;
+    font-size: clamp(2.3rem, 4.6vw, 3.6rem); line-height: 1.08; margin: 0 0 10px;
+    text-wrap: balance; color: var(--ink);
+  }
+  .l-hero .l-hero-sub {
+    font-family: var(--font-serif); font-weight: 400; letter-spacing: -.015em;
+    font-size: clamp(1.45rem, 2.8vw, 2.05rem); line-height: 1.22; margin: 0 0 16px;
+    text-wrap: balance; color: var(--ink);
   }
   .l-hero .lead { color: var(--muted); font-size: clamp(1.05rem, 2vw, 1.25rem); line-height: 1.55; max-width: 36em; margin: 0 auto 28px; }
   .l-hero-actions { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
@@ -989,8 +994,8 @@
   <section class="l-hero" id="hero">
     <div class="l-hero-grid">
     <div class="l-hero-copy">
-      <span class="l-eyebrow">Walt Disney World dining alerts</span>
-      <h1>Sold out? We'll text you the moment a table opens.</h1>
+      <h1>Walt Disney World dining alerts</h1>
+      <p class="l-hero-sub">Sold out? We'll text you the moment a table opens.</p>
       <p class="lead">Pick the restaurant and your dates. We watch Disney's reservation system around the clock and text you a booking link the second a matching table opens. You book it on Disney's site, on your own account.</p>
       <div id="landing-watch-slot"></div>
       <ul class="l-hero-trust" aria-label="Product trust points">
