@@ -70,3 +70,18 @@
   from = "/alerts/cinderellas-royal-table"
   to = "/alerts/cinderellas-royal-table.html"
   status = 200
+
+[[redirects]]
+  from = "/alerts/california-grill"
+  to = "/alerts/california-grill.html"
+  status = 200
+
+[[redirects]]
+  from = "/alerts/be-our-guest"
+  to = "/alerts/be-our-guest.html"
+  status = 200
+
+[[redirects]]
+  from = "/alerts/topolinos-terrace"
+  to = "/alerts/topolinos-terrace.html"
+  status = 200
