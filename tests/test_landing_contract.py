@@ -56,11 +56,22 @@ class LandingContractTest(unittest.TestCase):
             'property="og:title" content="Walt Disney World dining alerts | Magic Table Finder"',
             INDEX,
         )
+        h1_css = INDEX.split(".l-hero h1 {", 1)[1].split("}", 1)[0]
+        self.assertIn("font-family: var(--font-serif)", h1_css)
+        self.assertIn("color: var(--ink)", h1_css)
+        # Category H1 is a longer phrase; do not reuse the sold-out billboard clamp.
+        self.assertNotIn("3.6rem", h1_css)
+        self.assertNotIn("clamp(2.3rem", h1_css)
+        self.assertNotIn("4.6vw", h1_css)
+        self.assertIn("2.35rem", h1_css)
+        self.assertIn("line-height: 1.2", h1_css)
         sub_css = INDEX.split(".l-hero .l-hero-sub {", 1)[1].split("}", 1)[0]
-        self.assertIn("color: var(--ink)", sub_css)
+        self.assertIn("color: var(--mtf-ink-soft)", sub_css)
         self.assertIn("font-family: var(--font-serif)", sub_css)
         self.assertNotIn("text-transform: uppercase", sub_css)
         self.assertNotIn("color: var(--gold)", sub_css)
+        self.assertNotIn("2.05rem", sub_css)
+        self.assertIn("1.3rem", sub_css)
         self.assertIn("You book it on Disney's site, on your own account.", INDEX)
         self.assertNotIn("We monitor the openings.", INDEX)
         self.assertNotIn("The table is being watched.", INDEX)
