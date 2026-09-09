@@ -4,6 +4,7 @@ Guards canonical jewelry-wand SVGs, favicon/OG assets, tokens, and the
 kill-list (no 5-point Disney star, no CSL red, no invented mark).
 """
 
+import re
 import struct
 import unittest
 from pathlib import Path
@@ -112,7 +113,9 @@ class BrandKitTest(unittest.TestCase):
         self.assertNotIn("#b0894a", lowered)
         self.assertNotIn("fraunces", lowered)
         self.assertNotIn("🏰", INDEX)
-        self.assertNotIn("mickey", lowered)
+        # Character branding stay out of chrome. Restaurant name / slug Chef Mickey’s is allowed.
+        chrome = re.sub(r"chef[- ]mickey['\u2019]?s?", "", lowered)
+        self.assertNotIn("mickey", chrome)
         self.assertNotIn(STAR_WORDMARK, INDEX)
         self.assertNotIn(STAR_HERO, INDEX)
 

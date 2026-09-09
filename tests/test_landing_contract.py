@@ -105,7 +105,10 @@ class LandingContractTest(unittest.TestCase):
         self.assertIn("#app-shell > header", INDEX)
         self.assertIn("overflow: visible", INDEX.split("#app-shell > header", 1)[1][:400])
         self.assertNotIn("🏰", INDEX)
-        self.assertNotIn("Mickey", INDEX)
+        # Character branding stay out of chrome. Restaurant name / slug Chef Mickey’s is allowed.
+        chrome = re.sub(r"Chef Mickey['\u2019]s", "", INDEX, flags=re.I)
+        chrome = re.sub(r"chef-mickeys", "", chrome, flags=re.I)
+        self.assertNotIn("Mickey", chrome)
         self.assertNotIn("Tinker Bell", INDEX)
 
     def test_hero_wand_is_the_only_fireworks(self):
@@ -205,12 +208,16 @@ class LandingContractTest(unittest.TestCase):
         self.assertIn('<title>Walt Disney World dining alerts | Magic Table Finder</title>', INDEX)
         self.assertIn('id="hard-tables"', INDEX)
         self.assertIn("Hard-to-book watches", INDEX)
+        self.assertIn("Nine restaurants.", INDEX)
         self.assertIn('href="/alerts/space-220"', INDEX)
         self.assertIn('href="/alerts/ohana"', INDEX)
         self.assertIn('href="/alerts/cinderellas-royal-table"', INDEX)
         self.assertIn('href="/alerts/california-grill"', INDEX)
         self.assertIn('href="/alerts/be-our-guest"', INDEX)
         self.assertIn('href="/alerts/topolinos-terrace"', INDEX)
+        self.assertIn('href="/alerts/chef-mickeys"', INDEX)
+        self.assertIn('href="/alerts/sci-fi-dine-in"', INDEX)
+        self.assertIn('href="/alerts/yachtsman-steakhouse"', INDEX)
         self.assertIn("Cinderella", INDEX)
         self.assertIn("function applyWatchQuery(", INDEX)
         self.assertIn("params.get('watch')", INDEX)

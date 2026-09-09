@@ -39,6 +39,9 @@ class CrawlHygieneTest(unittest.TestCase):
                 "https://magictablefinder.com/alerts/california-grill",
                 "https://magictablefinder.com/alerts/be-our-guest",
                 "https://magictablefinder.com/alerts/topolinos-terrace",
+                "https://magictablefinder.com/alerts/chef-mickeys",
+                "https://magictablefinder.com/alerts/sci-fi-dine-in",
+                "https://magictablefinder.com/alerts/yachtsman-steakhouse",
             ],
         )
         self.assertNotIn("text-consent", SITEMAP)
@@ -63,6 +66,9 @@ class CrawlHygieneTest(unittest.TestCase):
         self.assertIn('from = "/alerts/california-grill"', NETLIFY)
         self.assertIn('from = "/alerts/be-our-guest"', NETLIFY)
         self.assertIn('from = "/alerts/topolinos-terrace"', NETLIFY)
+        self.assertIn('from = "/alerts/chef-mickeys"', NETLIFY)
+        self.assertIn('from = "/alerts/sci-fi-dine-in"', NETLIFY)
+        self.assertIn('from = "/alerts/yachtsman-steakhouse"', NETLIFY)
         self.assertIn('to = "/privacy.html"', NETLIFY)
         self.assertIn('to = "/sms-consent.html"', NETLIFY)
         self.assertIn('to = "/alerts/space-220.html"', NETLIFY)
@@ -71,6 +77,9 @@ class CrawlHygieneTest(unittest.TestCase):
         self.assertIn('to = "/alerts/california-grill.html"', NETLIFY)
         self.assertIn('to = "/alerts/be-our-guest.html"', NETLIFY)
         self.assertIn('to = "/alerts/topolinos-terrace.html"', NETLIFY)
+        self.assertIn('to = "/alerts/chef-mickeys.html"', NETLIFY)
+        self.assertIn('to = "/alerts/sci-fi-dine-in.html"', NETLIFY)
+        self.assertIn('to = "/alerts/yachtsman-steakhouse.html"', NETLIFY)
         self.assertIn('from = "/text-consent"', NETLIFY)
         self.assertIn('Content-Type = "text/plain; charset=utf-8"', NETLIFY)
         self.assertIn('Content-Type = "application/xml; charset=utf-8"', NETLIFY)
