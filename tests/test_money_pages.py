@@ -65,6 +65,36 @@ PAGES = {
         "catalog_slug": "topolinos-terrace",
         "catalog_name": "Topolino's Terrace",
     },
+    "chef-mickeys": {
+        "file": "alerts/chef-mickeys.html",
+        "pretty": "/alerts/chef-mickeys",
+        "title": "Chef Mickey’s reservation alerts | Magic Table Finder",
+        "h1": "Chef Mickey’s sold out? Get a text when a table opens.",
+        "cta_href": "/?watch=chef-mickeys",
+        "meta": "Watch Chef Mickey’s at Disney’s Contemporary. We text when a matching table newly opens. You book on Disney’s site.",
+        "catalog_slug": "chef-mickeys",
+        "catalog_name": "Chef Mickey's",
+    },
+    "sci-fi-dine-in": {
+        "file": "alerts/sci-fi-dine-in.html",
+        "pretty": "/alerts/sci-fi-dine-in",
+        "title": "Sci-Fi Dine-In reservation alerts | Magic Table Finder",
+        "h1": "Sci-Fi Dine-In booked up? We’ll text matching opens.",
+        "cta_href": "/?watch=sci-fi-dine-in-theater",
+        "meta": "Watch Sci-Fi Dine-In Theater Restaurant at Hollywood Studios. We text when a matching table newly opens. You book on Disney’s site.",
+        "catalog_slug": "sci-fi-dine-in-theater",
+        "catalog_name": "Sci-Fi Dine-In Theater Restaurant",
+    },
+    "yachtsman-steakhouse": {
+        "file": "alerts/yachtsman-steakhouse.html",
+        "pretty": "/alerts/yachtsman-steakhouse",
+        "title": "Yachtsman Steakhouse reservation alerts | Magic Table Finder",
+        "h1": "Yachtsman Steakhouse full? We’ll text when a table opens.",
+        "cta_href": "/?watch=yachtsman-steakhouse",
+        "meta": "Watch Yachtsman Steakhouse at Disney’s Yacht Club. We text when a matching table newly opens. You book on Disney’s site.",
+        "catalog_slug": "yachtsman-steakhouse",
+        "catalog_name": "Yachtsman Steakhouse",
+    },
 }
 
 FORBIDDEN = (
@@ -123,6 +153,10 @@ class MoneyPagesTest(unittest.TestCase):
             self.assertIn('name="twitter:card" content="summary_large_image"', html)
             self.assertIn('name="theme-color" content="#f5f1e9"', html)
             self.assertIn(f'property="og:url" content="{canonical}"', html)
+            self.assertIn(f'property="og:title" content="{spec["title"]}"', html)
+            self.assertIn(f'property="og:description" content="{spec["meta"]}', html)
+            self.assertIn(f'name="twitter:title" content="{spec["title"]}"', html)
+            self.assertIn(f'name="twitter:description" content="{spec["meta"]}', html)
 
     def test_primary_cta_is_existing_single_watch(self):
         for key, spec in PAGES.items():
@@ -149,6 +183,12 @@ class MoneyPagesTest(unittest.TestCase):
         self.assertIn('"name": "Be Our Guest Restaurant"', catalog)
         self.assertIn('"slug": "topolinos-terrace"', catalog)
         self.assertIn("\"name\": \"Topolino's Terrace", catalog)
+        self.assertIn('"slug": "chef-mickeys"', catalog)
+        self.assertIn("\"name\": \"Chef Mickey's\"", catalog)
+        self.assertIn('"slug": "sci-fi-dine-in-theater"', catalog)
+        self.assertIn('"name": "Sci-Fi Dine-In Theater Restaurant"', catalog)
+        self.assertIn('"slug": "yachtsman-steakhouse"', catalog)
+        self.assertIn('"name": "Yachtsman Steakhouse"', catalog)
 
     def test_ink_cta_not_gold_flood(self):
         self.assertIn(".mp-btn-primary {", CSS)
@@ -190,7 +230,10 @@ class MoneyPagesTest(unittest.TestCase):
         california = self.pages["california-grill"]
         be_our_guest = self.pages["be-our-guest"]
         topolino = self.pages["topolinos-terrace"]
-        for html in (california, be_our_guest, topolino):
+        chef = self.pages["chef-mickeys"]
+        sci_fi = self.pages["sci-fi-dine-in"]
+        yachtsman = self.pages["yachtsman-steakhouse"]
+        for html in (california, be_our_guest, topolino, chef, sci_fi, yachtsman):
             existing = sum(
                 1
                 for href in (
@@ -206,21 +249,31 @@ class MoneyPagesTest(unittest.TestCase):
         self.assertIn("<title>Walt Disney World dining alerts | Magic Table Finder</title>", INDEX)
         block = INDEX.split('id="hard-tables"', 1)[1].split('id="proof"', 1)[0]
         self.assertIn("Hard-to-book watches", block)
-        self.assertIn("Six restaurants.", block)
+        self.assertIn("Nine restaurants.", block)
         self.assertIn('href="/alerts/space-220"', block)
         self.assertIn('href="/alerts/ohana"', block)
         self.assertIn('href="/alerts/cinderellas-royal-table"', block)
         self.assertIn('href="/alerts/california-grill"', block)
         self.assertIn('href="/alerts/be-our-guest"', block)
         self.assertIn('href="/alerts/topolinos-terrace"', block)
+        self.assertIn('href="/alerts/chef-mickeys"', block)
+        self.assertIn('href="/alerts/sci-fi-dine-in"', block)
+        self.assertIn('href="/alerts/yachtsman-steakhouse"', block)
 
     def test_cta_watch_slugs_resolve_in_catalog(self):
         import json
 
         catalog = json.loads((ROOT / "restaurants.json").read_text(encoding="utf-8"))
         by_slug = {row["slug"]: row for row in catalog["restaurants"]}
-        wave2 = ("california-grill", "be-our-guest", "topolinos-terrace")
-        for key in wave2:
+        later = (
+            "california-grill",
+            "be-our-guest",
+            "topolinos-terrace",
+            "chef-mickeys",
+            "sci-fi-dine-in",
+            "yachtsman-steakhouse",
+        )
+        for key in later:
             spec = PAGES[key]
             slug = spec["cta_href"].split("watch=", 1)[1]
             self.assertEqual(slug, spec["catalog_slug"])
@@ -231,6 +284,12 @@ class MoneyPagesTest(unittest.TestCase):
         self.assertNotEqual(
             PAGES["be-our-guest"]["catalog_slug"],
             PAGES["be-our-guest"]["pretty"].rsplit("/", 1)[-1],
+        )
+        self.assertEqual(PAGES["sci-fi-dine-in"]["pretty"], "/alerts/sci-fi-dine-in")
+        self.assertEqual(PAGES["sci-fi-dine-in"]["cta_href"], "/?watch=sci-fi-dine-in-theater")
+        self.assertNotEqual(
+            PAGES["sci-fi-dine-in"]["catalog_slug"],
+            PAGES["sci-fi-dine-in"]["pretty"].rsplit("/", 1)[-1],
         )
 
     def test_no_forbidden_copy_or_pixels(self):

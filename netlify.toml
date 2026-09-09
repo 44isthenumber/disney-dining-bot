@@ -85,3 +85,18 @@
   from = "/alerts/topolinos-terrace"
   to = "/alerts/topolinos-terrace.html"
   status = 200
+
+[[redirects]]
+  from = "/alerts/chef-mickeys"
+  to = "/alerts/chef-mickeys.html"
+  status = 200
+
+[[redirects]]
+  from = "/alerts/sci-fi-dine-in"
+  to = "/alerts/sci-fi-dine-in.html"
+  status = 200
+
+[[redirects]]
+  from = "/alerts/yachtsman-steakhouse"
+  to = "/alerts/yachtsman-steakhouse.html"
+  status = 200
