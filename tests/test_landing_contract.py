@@ -105,8 +105,9 @@ class LandingContractTest(unittest.TestCase):
         self.assertIn("#app-shell > header", INDEX)
         self.assertIn("overflow: visible", INDEX.split("#app-shell > header", 1)[1][:400])
         self.assertNotIn("🏰", INDEX)
-        # Character branding stay out of chrome. Restaurant name Chef Mickey’s is allowed.
-        chrome = re.sub(r"Chef Mickey['\u2019]s", "", INDEX)
+        # Character branding stay out of chrome. Restaurant name / slug Chef Mickey’s is allowed.
+        chrome = re.sub(r"Chef Mickey['\u2019]s", "", INDEX, flags=re.I)
+        chrome = re.sub(r"chef-mickeys", "", chrome, flags=re.I)
         self.assertNotIn("Mickey", chrome)
         self.assertNotIn("Tinker Bell", INDEX)
 
