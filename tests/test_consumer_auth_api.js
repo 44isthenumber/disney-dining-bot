@@ -377,7 +377,8 @@ function cookieHeaderFrom(res) {
     },
   });
   const writes = [];
-  require("../netlify/functions/api").setWatchWriterForTests(async (rows) => {
+  const apiMod = require("../netlify/functions/api");
+  apiMod.setWatchWriterForTests(async (rows) => {
     writes.splice(0, writes.length, ...rows);
   });
 
@@ -467,6 +468,104 @@ function cookieHeaderFrom(res) {
   assert.strictEqual(capped.status, 402);
   assert.strictEqual(capped.body.code, "planner_cap");
   delete process.env.PLANNER_WATCH_CAP;
+
+  const writesAfterPlanner = writes.length;
+  process.env.CONSUMER_ACTIVE_WATCH_BUDGET = "1";
+  apiMod.setWatchMemoryForTests([
+    {
+      owner_id: "u_other_budget",
+      facility_id: "90002686",
+      name: "Budget",
+      slug: "budget",
+      party_size: 2,
+      date: "2099-06-01",
+      meal_periods: ["DINNER"],
+    },
+  ]);
+  const budgetPlanner = parse(
+    await handler(
+      ev("POST", "/_api/watches", {
+        headers: { cookie, "x-forwarded-proto": "https", "content-type": "application/json" },
+        body: { ...watchPayload, dates: ["2099-07-01"] },
+      })
+    )
+  );
+  assert.strictEqual(budgetPlanner.status, 503);
+  assert.strictEqual(budgetPlanner.body.code, "watch_budget");
+  assert.ok(String(budgetPlanner.body.detail).includes("capacity"));
+  assert.strictEqual(writes.length, writesAfterPlanner);
+
+  await store.put({ ...rec, phone: "+15551234567", planner_status: "none" });
+  const budgetSingle = parse(
+    await handler(
+      ev("POST", "/_api/watches", {
+        headers: { cookie, "x-forwarded-proto": "https", "content-type": "application/json" },
+        body: watchPayload,
+      })
+    )
+  );
+  assert.strictEqual(budgetSingle.status, 503);
+  assert.strictEqual(budgetSingle.body.code, "watch_budget");
+  assert.ok(!budgetSingle.body.checkout_url);
+  assert.strictEqual(writes.length, writesAfterPlanner);
+
+  const internalAtCap = parse(
+    await handler(
+      ev("POST", "/_api/watches", {
+        headers: { "X-User-Id": "craig", "X-API-Secret": "craig-secret" },
+        body: {
+          facility_id: "90002686",
+          name: "Test",
+          slug: "test",
+          party_size: 2,
+          dates: ["2099-08-01"],
+          meal_periods: ["DINNER"],
+        },
+      })
+    )
+  );
+  assert.notStrictEqual(internalAtCap.body && internalAtCap.body.code, "watch_budget");
+  assert.ok(internalAtCap.status === 201 || internalAtCap.status === 500);
+
+  apiMod.setWatchMemoryForTests([]);
+  delete process.env.CONSUMER_ACTIVE_WATCH_BUDGET;
+  await store.put({ ...rec, phone: "+15551234567", planner_status: "none" });
+
+  apiMod.setWatchLoadErrorForTests(new Error("gist down"));
+  const meStoreDown = parse(
+    await handler(
+      ev("GET", "/_api/auth/me", {
+        headers: { cookie, "x-forwarded-proto": "https" },
+      })
+    )
+  );
+  assert.strictEqual(meStoreDown.status, 200);
+  assert.strictEqual(meStoreDown.body.user.can_create_watch, false);
+  assert.strictEqual(meStoreDown.body.user.billing_mode, "blocked");
+  assert.strictEqual(meStoreDown.body.user.billing_code, "watch_store_unavailable");
+
+  const postStoreDown = parse(
+    await handler(
+      ev("POST", "/_api/watches", {
+        headers: { cookie, "x-forwarded-proto": "https", "content-type": "application/json" },
+        body: watchPayload,
+      })
+    )
+  );
+  assert.strictEqual(postStoreDown.status, 503);
+  assert.strictEqual(postStoreDown.body.code, "watch_store_unavailable");
+  assert.ok(!String(postStoreDown.body.detail || "").includes("capacity"));
+
+  const internalStoreDown = parse(
+    await handler(
+      ev("GET", "/_api/auth/me", {
+        headers: { "X-User-Id": "craig", "X-API-Secret": "craig-secret" },
+      })
+    )
+  );
+  assert.strictEqual(internalStoreDown.status, 200);
+  assert.strictEqual(internalStoreDown.body.user.can_create_watch, true);
+  apiMod.setWatchLoadErrorForTests(null);
 
   const internalCheckout = parse(
     await handler(

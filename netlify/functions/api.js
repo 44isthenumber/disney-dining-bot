@@ -15,7 +15,16 @@ const path = require("path");
 const fs = require("fs");
 const crypto = require("crypto");
 const { findUser } = require("./user_lookup");
-const { canCreateWatch, isInternalUser, publicIdentity } = require("./entitlement");
+const {
+  canCreateWatch,
+  isInternalUser,
+  publicIdentity,
+  countActiveConsumerWatchRows,
+  consumerWatchBudget,
+  WatchBudgetError,
+  WATCH_BUDGET_DETAIL,
+  WATCH_STORE_UNAVAILABLE_DETAIL,
+} = require("./entitlement");
 const { normalizePhone } = require("./phone");
 const userStore = require("./user_store");
 const sessionAuth = require("./session_auth");
@@ -64,6 +73,7 @@ const GIST_TTL = 10000; // 10 s within a single warm Lambda
 
 let _watchWriter = null;
 let _watchMemory = null;
+let _watchLoadError = null;
 function setWatchWriterForTests(fn) {
   if (typeof fn === "function") {
     _watchMemory = [];
@@ -75,6 +85,12 @@ function setWatchWriterForTests(fn) {
     _watchWriter = null;
     _watchMemory = null;
   }
+}
+function setWatchMemoryForTests(rows) {
+  _watchMemory = Array.isArray(rows) ? rows.slice() : [];
+}
+function setWatchLoadErrorForTests(err) {
+  _watchLoadError = err || null;
 }
 
 async function _fetchGist() {
@@ -416,6 +432,7 @@ function normalizeWatch(raw, userFallback = null) {
 }
 
 async function loadWatches() {
+  if (_watchLoadError) throw _watchLoadError;
   if (_watchMemory) {
     return _watchMemory.filter((w) => w.facility_id && w.date).map((w) => normalizeWatch(w));
   }
@@ -491,22 +508,41 @@ function countActiveBillable(watches, ownerId) {
 
 async function identityFor(user) {
   let activeBillableCount;
-  if (user && !isInternalUser(user) && (user.planner_status === "active" || user.planner_status === "trialing")) {
-    try {
-      const watches = await loadWatches();
+  let consumerActiveWatchCount = 0;
+  if (!user || isInternalUser(user)) {
+    return publicIdentity(user, {
+      stripeConfigured: stripeBilling.isConfigured("single_watch"),
+    });
+  }
+  try {
+    const watches = await loadWatches();
+    consumerActiveWatchCount = countActiveConsumerWatchRows(watches);
+    if (user.planner_status === "active" || user.planner_status === "trialing") {
       activeBillableCount = countActiveBillable(watches, user.id);
-    } catch {
-      activeBillableCount = undefined;
     }
+  } catch {
+    return publicIdentity(user, {
+      stripeConfigured: stripeBilling.isConfigured("single_watch"),
+      storeAvailable: false,
+    });
   }
   return publicIdentity(user, {
     activeBillableCount,
+    consumerActiveWatchCount,
     stripeConfigured: stripeBilling.isConfigured("single_watch"),
   });
 }
 
 async function appendWatchPayload(user, payload, billableId) {
   const watches = await loadWatches();
+  if (!isInternalUser(user)) {
+    const incoming = (payload.dates || []).length;
+    const current = countActiveConsumerWatchRows(watches);
+    const budget = consumerWatchBudget();
+    if (current >= budget || current + incoming > budget) {
+      throw new WatchBudgetError();
+    }
+  }
   const byId = new Map(watches.map((w) => [w.watch_id, w]));
   const added = [];
   for (const date of payload.dates || []) {
@@ -934,14 +970,28 @@ async function handlePostWatch(event, user) {
     });
   }
 
-  let activeBillableCount;
+  let existing;
   try {
-    const existing = await loadWatches();
-    activeBillableCount = countActiveBillable(existing, user.id);
+    existing = await loadWatches();
   } catch {
-    activeBillableCount = undefined;
+    if (isInternalUser(user)) {
+      existing = null;
+    } else {
+      return response(503, {
+        code: "watch_store_unavailable",
+        detail: WATCH_STORE_UNAVAILABLE_DETAIL,
+        can_create_watch: false,
+      });
+    }
   }
-  const gate = canCreateWatch(user, { activeBillableCount });
+  const activeBillableCount = existing ? countActiveBillable(existing, user.id) : undefined;
+  const consumerActiveWatchCount = existing ? countActiveConsumerWatchRows(existing) : 0;
+  const incomingWatchCount = normalizedDates.length;
+  const gate = canCreateWatch(user, {
+    activeBillableCount,
+    consumerActiveWatchCount,
+    incomingWatchCount,
+  });
   if (!gate.ok) {
     return response(gate.status || 402, {
       detail: gate.detail,
@@ -1108,6 +1158,13 @@ exports.handler = async function (event) {
     if (method === "GET" && p === "/auth/callback") {
       return redirect("/?signin=error");
     }
+    if (err && err.code === "watch_budget") {
+      return response(503, {
+        code: "watch_budget",
+        detail: err.detail || WATCH_BUDGET_DETAIL,
+        can_create_watch: false,
+      });
+    }
     return response(500, { detail: err.message || "Internal server error" });
   }
 };
@@ -1117,5 +1174,9 @@ exports._test = {
   resolveIdentity,
   apiPath,
   setWatchWriterForTests,
+  setWatchMemoryForTests,
+  setWatchLoadErrorForTests,
 };
 exports.setWatchWriterForTests = setWatchWriterForTests;
+exports.setWatchMemoryForTests = setWatchMemoryForTests;
+exports.setWatchLoadErrorForTests = setWatchLoadErrorForTests;

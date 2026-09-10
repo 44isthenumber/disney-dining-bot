@@ -17,13 +17,15 @@ Do not regress this into a generic availability dashboard. Alerts are for **newl
 
 ## Consumer direction
 
-Public launch is in progress. Tracking spec: [CONSUMER-EPIC.md](CONSUMER-EPIC.md). **Slice 3 (current):** Stripe hybrid — Single Watch Checkout (`mode=payment`) and Planner (`mode=subscription`). Webhooks (plus server Session retrieve) own entitlement. Unpaid consumer watches never go in `watches.json`. Craig and Jessica stay off Stripe. Do not put live `STRIPE_*` values in git or Cloud secrets. Do not put consumer accounts in `WATCH_USERS`. Do not clear `open_slots.json` or `seen_slots.json`.
+Public launch is in progress. Tracking spec: [CONSUMER-EPIC.md](CONSUMER-EPIC.md). **Slice 4 (current):** global consumer watch budget + locked public hero line. Slice 3 (Stripe hybrid) is shipped: Single Watch Checkout (`mode=payment`) and Planner (`mode=subscription`). Webhooks (plus server Session retrieve) own entitlement. Unpaid consumer watches never go in `watches.json`. Craig and Jessica stay off Stripe. Do not put live `STRIPE_*` values in git or Cloud secrets. Do not put consumer accounts in `WATCH_USERS`. Do not clear `open_slots.json` or `seen_slots.json`.
 
 **Billable watch (locked):** one restaurant + party + meal periods + optional time window + one or more dates. Never treat one `watches.json` date row as a paid alert.
 
 **Identity (Slice 2):** Consumers sign in with an email magic link (`POST /_api/auth/magic-link`, `GET /_api/auth/callback`). Session is httpOnly cookie `mtf_session`. Craig and Jessica keep private `WATCH_USERS` username+password (`X-User-Id` + `X-API-Secret`). Consumer records live in Netlify Blobs store `mtf-users`, not Gist. Env (values never in git): `MAGIC_LINK_SECRET`, `RESEND_API_KEY`, `MAGIC_LINK_FROM`.
 
 **Hybrid billing (Slice 3):** Single Watch is a one-time Stripe Checkout (`mode=payment`) for one billable watch, **$4.99**, until the last date passes. Planner is **$14.99/month** for up to **4** active alerts. Same Stripe Customer. Checkout is created only after login. Stripe webhooks own consumer active/inactive. Craig and Jessica (`craig`, `Jessica`) stay unrestricted: no Stripe, no cap, no Checkout. Consumers without Planner get HTTP 402 `checkout_required` + `checkout_url` (not a Gist write). Live Planner under cap writes watches in-app (201). Show $4.99 and $14.99/month in the SPA at landing and pay/upgrade moments.
+
+**Global consumer watch budget (Slice 4):** `CONSUMER_ACTIVE_WATCH_BUDGET` (default **40**) is a hard cap on **active consumer date rows** in `watches.json` — the same rows the VPS poller scans. Craig and Jessica are unrestricted and do not consume the budget. Enforce at `POST /watches` (before Checkout or Gist write) and again at Checkout fulfillment. At/over cap → HTTP **503** `{ code: 'watch_budget' }` (no silent drop). Unpaid watches still never hit Gist. Do not change the 10-minute poll interval.
 
 **Competitive notes (dining selection):**
 
@@ -173,6 +175,8 @@ DISNEY_LOGIN_EMAIL — dedicated Disney bot account email (VPS only)
 DISNEY_LOGIN_PASSWORD — dedicated Disney bot account password (VPS only)
 DISNEY_RECOVERY_LOG_PATH — optional override for the full Login Agent log (default /var/log/disney-dining-bot/last-recovery.log)
 DISNEY_ALERT_ADMIN — optional WATCH_USERS user_id to receive operational alerts; defaults to default_owner_id (craig)
+PLANNER_WATCH_CAP — optional Planner per-account billable-watch cap (default 4). Netlify only.
+CONSUMER_ACTIVE_WATCH_BUDGET — optional global cap on active consumer watches.json date rows the poller scans (default 40). Netlify only. Craig/Jessica unrestricted.
 ```
 
 Each `WATCH_USERS[*].phone` value is a channel-prefixed recipient handled by `notify.py`'s dispatcher:

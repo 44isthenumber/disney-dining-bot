@@ -328,6 +328,100 @@ function fakeStripe() {
   assert.strictEqual(syncOpen.ok, true);
   assert.strictEqual(syncOpen.pending, true);
 
+  process.env.CONSUMER_ACTIVE_WATCH_BUDGET = "1";
+  const budgetUser = await store.upsertByEmail("budget@example.com");
+  await store.put({ ...budgetUser, phone: "+15559999" });
+  await store.putCheckout("cs_over_budget", {
+    user_id: budgetUser.id,
+    sku: "single_watch",
+    billable_id: "bill_over",
+    watch: { facility_id: "x", dates: ["2099-09-01"], party_size: 2, meal_periods: ["DINNER"] },
+  });
+  const writesBeforeOver = writes.length;
+  writes.push({
+    owner_id: "u_existing_consumer",
+    date: "2099-09-02",
+    facility_id: "x",
+  });
+  let overErr = null;
+  try {
+    await billing.applyCheckoutCompleted(
+      {
+        id: "cs_over_budget",
+        payment_status: "paid",
+        customer: "cus_over",
+        metadata: { user_id: budgetUser.id, sku: "single_watch", billable_id: "bill_over" },
+        client_reference_id: budgetUser.id,
+      },
+      helpers
+    );
+  } catch (err) {
+    overErr = err;
+  }
+  assert.ok(overErr);
+  assert.strictEqual(overErr.code, "watch_budget");
+  assert.strictEqual(writes.filter((w) => w.billable_id === "bill_over").length, 0);
+  assert.ok(await store.getCheckout("cs_over_budget"));
+  const overCount = await store.getById(budgetUser.id);
+  assert.notStrictEqual(overCount.single_watch_count, 1);
+
+  const overWh = await billing.handleWebhook(
+    {
+      body: JSON.stringify({
+        id: "evt_over_budget",
+        type: "checkout.session.completed",
+        data: {
+          object: {
+            id: "cs_over_budget",
+            payment_status: "paid",
+            customer: "cus_over",
+            metadata: { user_id: budgetUser.id, sku: "single_watch", billable_id: "bill_over" },
+            client_reference_id: budgetUser.id,
+          },
+        },
+      }),
+      headers: { "stripe-signature": "sig_ok" },
+    },
+    helpers
+  );
+  assert.strictEqual(overWh.statusCode, 500);
+  assert.strictEqual(writes.filter((w) => w.billable_id === "bill_over").length, 0);
+  assert.strictEqual(await store.isNonceUsed("stripe_event:evt_over_budget"), false);
+
+  stripe.checkout.sessions.retrieve = async () => ({
+    id: "cs_over_budget",
+    payment_status: "paid",
+    status: "complete",
+    customer: "cus_over",
+    metadata: { user_id: budgetUser.id, sku: "single_watch", billable_id: "bill_over" },
+    client_reference_id: budgetUser.id,
+  });
+  const syncOver = await billing.syncSession(budgetUser, "cs_over_budget", helpers);
+  assert.strictEqual(syncOver.ok, false);
+  assert.strictEqual(syncOver.status, 503);
+  assert.strictEqual(syncOver.code, "watch_budget");
+
+  writes.length = writesBeforeOver;
+  process.env.CONSUMER_ACTIVE_WATCH_BUDGET = "40";
+  await store.putCheckout("cs_under_budget", {
+    user_id: budgetUser.id,
+    sku: "single_watch",
+    billable_id: "bill_under",
+    watch: { facility_id: "x", dates: ["2099-09-03"], party_size: 2, meal_periods: ["DINNER"] },
+  });
+  await billing.applyCheckoutCompleted(
+    {
+      id: "cs_under_budget",
+      payment_status: "paid",
+      customer: "cus_under",
+      metadata: { user_id: budgetUser.id, sku: "single_watch", billable_id: "bill_under" },
+      client_reference_id: budgetUser.id,
+    },
+    helpers
+  );
+  assert.ok(writes.some((w) => w.billable_id === "bill_under"));
+  delete process.env.CONSUMER_ACTIVE_WATCH_BUDGET;
+
   console.log("test_stripe_billing ok");
 })().catch((err) => {
   console.error(err);

@@ -2,7 +2,13 @@
 
 const crypto = require("crypto");
 const userStore = require("./user_store");
-const { isInternalUser } = require("./entitlement");
+const {
+  isInternalUser,
+  countActiveConsumerWatchRows,
+  consumerWatchBudget,
+  WatchBudgetError,
+  WATCH_BUDGET_DETAIL,
+} = require("./entitlement");
 
 let _stripeForTests = null;
 
@@ -195,6 +201,12 @@ async function applySingleWatchSession(session, helpers) {
   if (!pending || !pending.watch) {
     throw new Error("pending checkout missing");
   }
+  const incoming = (pending.watch.dates || []).length;
+  const current = countActiveConsumerWatchRows(watches);
+  const budget = consumerWatchBudget();
+  if (current >= budget || current + incoming > budget) {
+    throw new WatchBudgetError();
+  }
   await appendWatchPayload(user, pending.watch, billableId);
   await finishAccount({ increment: true });
   return { applied: "single_watch" };
@@ -350,7 +362,19 @@ async function syncSession(user, sessionId, helpers) {
     if (!isPaidCheckout(session)) {
       return { ok: true, pending: true };
     }
-    await applyCheckoutCompleted(session, helpers);
+    try {
+      await applyCheckoutCompleted(session, helpers);
+    } catch (err) {
+      if (err && err.code === "watch_budget") {
+        return {
+          ok: false,
+          status: 503,
+          code: "watch_budget",
+          detail: err.detail || WATCH_BUDGET_DETAIL,
+        };
+      }
+      throw err;
+    }
   }
   if (user.stripe_customer_id && stripe.subscriptions && stripe.subscriptions.list) {
     const listed = await stripe.subscriptions.list({ customer: user.stripe_customer_id, status: "all", limit: 1 });

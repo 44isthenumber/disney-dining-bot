@@ -110,6 +110,8 @@ FORBIDDEN = (
     "every 10 minutes",
     "#ef0107",
     "fraunces",
+    "the moment",
+    "the second",
 )
 
 

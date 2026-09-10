@@ -44,10 +44,17 @@ class LandingContractTest(unittest.TestCase):
         self.assertIn("<h1>Walt Disney World Dining Alerts</h1>", hero_copy)
         self.assertEqual(hero_copy.count("<h1>"), 1)
         self.assertIn(
-            '<p class="l-hero-sub">Sold out? We\'ll text you the moment a table opens.</p>',
+            '<p class="l-hero-sub">Sold out? We\'ll text you when a matching table newly opens.</p>',
             hero_copy,
         )
+        self.assertNotIn("<h1>Sold out? We'll text you when a matching table newly opens.</h1>", INDEX)
         self.assertNotIn("<h1>Sold out? We'll text you the moment a table opens.</h1>", INDEX)
+        self.assertNotIn("the moment", INDEX.lower())
+        self.assertNotIn("the second", INDEX.lower())
+        self.assertIn(
+            'content="Sold out? We\'ll text you when a matching table newly opens. Pick the restaurant and your dates; we watch and text you a booking link."',
+            INDEX,
+        )
         self.assertNotIn('class="l-eyebrow">Walt Disney World dining alerts</span>', hero_copy)
         self.assertNotIn('<span class="l-eyebrow">Walt Disney World dining alerts</span>', INDEX)
         title = re.search(r"<title>(.*?)</title>", INDEX).group(1)
@@ -201,6 +208,8 @@ class LandingContractTest(unittest.TestCase):
         self.assertIn('id="upgrade-prompt"', INDEX)
         self.assertIn("Pay $4.99 for this watch", INDEX)
         self.assertIn("Pay $4.99 and watch", INDEX)
+        self.assertIn("We're at capacity for new watches right now. Existing watches keep alerting. Try again later.", INDEX)
+        self.assertIn("watch_budget:", INDEX)
         self.assertNotIn("Pay once for this watch", INDEX)
         self.assertIn("function postWatch(body)", INDEX)
         self.assertEqual(INDEX.count("async function postWatch(body)"), 1)

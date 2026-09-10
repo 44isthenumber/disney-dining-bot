@@ -12,7 +12,7 @@
     if (hasSecret || hasUi) document.documentElement.classList.add('has-session');
   }
 </script>
-<meta name="description" content="Sold out? We'll text you the moment a Walt Disney World table opens. Pick the restaurant and your dates; we watch around the clock and text you a booking link." />
+<meta name="description" content="Sold out? We'll text you when a matching table newly opens. Pick the restaurant and your dates; we watch and text you a booking link." />
 <meta name="theme-color" content="#f5f1e9" />
 <link rel="icon" href="/brand/favicon.svg" type="image/svg+xml" />
 <link rel="icon" href="/favicon-16.png" type="image/png" sizes="16x16" />
@@ -26,13 +26,13 @@
 <meta property="og:site_name" content="Magic Table Finder" />
 <meta property="og:url" content="https://magictablefinder.com/" />
 <meta property="og:title" content="Walt Disney World Dining Alerts | Magic Table Finder" />
-<meta property="og:description" content="Sold out? We'll text you the moment a Walt Disney World table opens. Pick the restaurant and your dates; we watch around the clock and text you a booking link." />
+<meta property="og:description" content="Sold out? We'll text you when a matching table newly opens. Pick the restaurant and your dates; we watch and text you a booking link." />
 <meta property="og:image" content="https://magictablefinder.com/og-1200x630.png" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Walt Disney World Dining Alerts | Magic Table Finder" />
-<meta name="twitter:description" content="Sold out? We'll text you the moment a Walt Disney World table opens. Pick the restaurant and your dates; we watch around the clock and text you a booking link." />
+<meta name="twitter:description" content="Sold out? We'll text you when a matching table newly opens. Pick the restaurant and your dates; we watch and text you a booking link." />
 <meta name="twitter:image" content="https://magictablefinder.com/og-1200x630.png" />
 <link rel="canonical" href="https://magictablefinder.com/" />
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"Magic Table Finder","url":"https://magictablefinder.com/"}</script>
@@ -995,8 +995,8 @@
     <div class="l-hero-grid">
     <div class="l-hero-copy">
       <h1>Walt Disney World Dining Alerts</h1>
-      <p class="l-hero-sub">Sold out? We'll text you the moment a table opens.</p>
-      <p class="lead">Pick the restaurant and your dates. We watch Disney's reservation system around the clock and text you a booking link the second a matching table opens. You book it on Disney's site, on your own account.</p>
+      <p class="l-hero-sub">Sold out? We'll text you when a matching table newly opens.</p>
+      <p class="lead">Pick the restaurant and your dates. We watch Disney's reservation system and text you a booking link when a matching table newly opens. You book it on Disney's site, on your own account.</p>
       <div id="landing-watch-slot"></div>
       <ul class="l-hero-trust" aria-label="Product trust points">
         <li>New openings only</li>
@@ -2190,7 +2190,9 @@ function applyEntitlementUI() {
     past_due: 'Update billing to add watches. Existing watches keep alerting.',
     canceling: "Your Planner stays active until the period ends. You can't add watches.",
     planner_cap: "You're at this month's watch limit.",
-    billing_unavailable: 'Paid watches are not available yet. You can browse restaurants now.'
+    billing_unavailable: 'Paid watches are not available yet. You can browse restaurants now.',
+    watch_budget: "We're at capacity for new watches right now. Existing watches keep alerting. Try again later.",
+    watch_store_unavailable: "We couldn't load watches just now. Try again in a minute."
   };
   if (banner) {
     if (mode === 'single_watch') {
