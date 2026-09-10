@@ -30,7 +30,7 @@ SMS when a **new matching** Walt Disney World reservation opening appears. Not a
 
 ## Current slice
 
-**Slice 3 is the only slice to build now.** Stories US-3.1 through US-3.7. Slices 1–2 are shipped on `main` (identity + dining selection). Slice 4 is backlog. Do not open public marketing, change the poller, or merge to `main` unless Craig said deploy.
+**Slice 4 product gates (this PR):** US-4.1 global consumer watch budget + US-4.2 locked public hero line. Slices 1–3 are shipped (dining selection, identity, Stripe hybrid). Do not open ads/forum, change the poller interval, or merge to `main` unless Craig said deploy.
 
 ---
 
@@ -564,9 +564,56 @@ Do not change: `disney_bot.py`, `watch_store.py`, `notify.py`, `netlify.toml`, G
 
 ---
 
-# Slice 4 — Open signup (backlog)
+# Slice 4 — Product gates (build now)
 
-Public signup only after Slices 2–3. Global active-watch budget so a launch spike cannot stall the 10-minute poller. Still one headed Disney session on the VPS.
+Public signup stays gated by Stripe (Slice 3). This slice adds a **global poller-safe consumer watch budget** and locks the public hero line. Still one headed Disney session on the VPS. Ads, forum, and a marketing launch remain later work.
+
+## Assumptions
+
+- Count **active `watches.json` date rows** the poller would scan (`watch_store.load_watches()` / API `loadWatches()` + `isActiveWatch`), not distinct `billable_id`. A 10-date Single Watch consumes 10 units.
+- Craig/Jessica (`craig`, `Jessica`, case-insensitive) and other `WATCH_USERS` ids do not consume the budget and are never blocked by it.
+- Missing `owner_id` normalizes to `DEFAULT_OWNER_ID` / `craig` and does not count.
+- Pending Checkout blobs do not count (the poller cannot see them).
+- Default cap is **40**, env `CONSUMER_ACTIVE_WATCH_BUDGET`. Only a strict positive integer is honored (`20` → 20). Empty / `0` / negative / malformed (`20x`, `1.5`) → 40.
+- Concurrent writes can still race; write-time re-check in `appendWatchPayload` and `applySingleWatchSession` is the mitigation. No Gist lock in this slice.
+- If a guest pays and the budget fills before fulfillment: no Gist write, webhook 500 (Stripe retries), `/billing/sync` 503 `watch_budget`. No automated refund in this PR.
+- Gist/store load failure is **not** capacity: consumers get `watch_store_unavailable`, not `watch_budget`. Internals skip that gate.
+
+### User story US-4.1 — Global consumer watch budget
+
+As the operator, a signup spike cannot add unbounded consumer rows to the store the 10-minute poller scans.
+
+**AC**
+
+1. `consumerWatchBudget()` is 40 by default; `CONSUMER_ACTIVE_WATCH_BUDGET=20` yields 20.
+2. `countActiveConsumerWatchRows` counts only active non-internal date rows (craig/Jessica/WATCH_USERS, expired dates, and missing-owner rows excluded).
+3. Under cap: planner POST **201** and writer called; single_watch POST still **402** `checkout_required` (unpaid still no Gist).
+4. When `current + incoming > budget`: consumer planner POST **503** `watch_budget` and writer not called; single_watch POST **503** `watch_budget`, no Checkout session, no Gist.
+5. Internal craig POST is never `watch_budget` when consumer rows are at cap.
+6. `POST /watches` load failure: consumers **503** `watch_store_unavailable` (not capacity copy); internals still skip that budget/store-unavailable gate.
+7. Fulfillment under cap writes once. Fulfillment over cap throws `WatchBudgetError`; webhook **500**; writer not called; pending blob remains; event id not claimed. `/billing/sync` returns **503** `{ code: 'watch_budget' }`. Already-written `billable_id` still succeeds.
+8. `GET /auth/me` at cap: `can_create_watch` false, `billing_mode` `blocked`, `billing_code` `watch_budget`. Store load failure: `watch_store_unavailable` for consumers; internals unchanged.
+9. Frontend banner for `watch_budget`: `We're at capacity for new watches right now. Existing watches keep alerting. Try again later.` Do not mention 40 or poll minutes.
+10. Do not block `POST /billing/checkout` planner subscription. Do not change `disney_bot.py`, `watch_store.py`, poll interval, or scrape logic.
+
+**Files:** `netlify/functions/entitlement.js`, `netlify/functions/api.js` (`setWatchMemoryForTests`, `setWatchLoadErrorForTests`), `netlify/functions/stripe_billing.js`, `public/index.html`, `PRODUCT.md`, `CONSUMER-EPIC.md`, `tests/test_entitlement.js`, `tests/test_consumer_auth_api.js`, `tests/test_stripe_billing.js`.
+
+### User story US-4.2 — Locked public hero line
+
+As a guest, the landing promises a text when a matching table **newly opens**, not instant speed.
+
+**Locked line (exact):** `Sold out? We'll text you when a matching table newly opens.`
+
+**AC**
+
+1. `.l-hero-sub` is that sentence. H1 stays `Walt Disney World Dining Alerts`.
+2. meta / og / twitter descriptions start with the locked line and do not say “the moment”.
+3. Hero lead: `Pick the restaurant and your dates. We watch Disney's reservation system and text you a booking link when a matching table newly opens. You book it on Disney's site, on your own account.`
+4. `public/index.html` contains neither `the moment` nor `the second` (case-insensitive).
+5. Money pages: those phrases are in `FORBIDDEN` in `tests/test_money_pages.py`. Do not rewrite money-page H1s unless they already contain the phrases.
+6. Keep $4.99 Single Watch, $14.99 Planner, “not affiliated”, “We do not guarantee a table will open.” Do not advertise poll interval in minutes.
+
+**Files:** `public/index.html`, `tests/test_landing_contract.py`, `tests/test_money_pages.py`.
 
 ---
 

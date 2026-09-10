@@ -2,12 +2,17 @@
 const assert = require("assert");
 const {
   isInternalUser,
+  isInternalOwnerId,
   canCreateWatch,
   publicIdentity,
   plannerCap,
+  consumerWatchBudget,
+  countActiveConsumerWatchRows,
   PAST_DUE_DETAIL,
   CANCELING_DETAIL,
   PLANNER_CAP_DETAIL,
+  WATCH_BUDGET_DETAIL,
+  DEFAULT_CONSUMER_WATCH_BUDGET,
 } = require("../netlify/functions/entitlement");
 
 const internal = { id: "craig", name: "Craig", kind: "internal", password: "x" };
@@ -88,5 +93,63 @@ assert.strictEqual(
   publicIdentity({ ...consumer, single_watch_count: 2, planner_status: "active" }, { activeBillableCount: 0 }).upgrade_prompt,
   false
 );
+
+assert.strictEqual(consumerWatchBudget(), DEFAULT_CONSUMER_WATCH_BUDGET);
+assert.strictEqual(DEFAULT_CONSUMER_WATCH_BUDGET, 40);
+process.env.CONSUMER_ACTIVE_WATCH_BUDGET = "20";
+assert.strictEqual(consumerWatchBudget(), 20);
+process.env.CONSUMER_ACTIVE_WATCH_BUDGET = "0";
+assert.strictEqual(consumerWatchBudget(), 40);
+process.env.CONSUMER_ACTIVE_WATCH_BUDGET = "20x";
+assert.strictEqual(consumerWatchBudget(), 40);
+process.env.CONSUMER_ACTIVE_WATCH_BUDGET = "1.5";
+assert.strictEqual(consumerWatchBudget(), 40);
+process.env.CONSUMER_ACTIVE_WATCH_BUDGET = "-5";
+assert.strictEqual(consumerWatchBudget(), 40);
+delete process.env.CONSUMER_ACTIVE_WATCH_BUDGET;
+
+assert.strictEqual(isInternalOwnerId("craig"), true);
+assert.strictEqual(isInternalOwnerId("CRAIG"), true);
+assert.strictEqual(isInternalOwnerId("Jessica"), true);
+assert.strictEqual(isInternalOwnerId(""), true);
+assert.strictEqual(isInternalOwnerId("u_abc"), false);
+
+const today = "2026-09-10";
+const counted = countActiveConsumerWatchRows(
+  [
+    { owner_id: "u_1", date: "2026-09-11" },
+    { owner_id: "u_1", date: "2026-09-12" },
+    { owner_id: "craig", date: "2026-09-20" },
+    { owner_id: "Jessica", date: "2026-09-20" },
+    { owner_id: "u_2", date: "2026-09-01" },
+    { date: "2026-09-20" },
+  ],
+  today
+);
+assert.strictEqual(counted, 2);
+
+process.env.CONSUMER_ACTIVE_WATCH_BUDGET = "40";
+assert.strictEqual(canCreateWatch(consumer, { consumerActiveWatchCount: 39, incomingWatchCount: 1 }).ok, true);
+assert.strictEqual(canCreateWatch(consumer, { consumerActiveWatchCount: 39, incomingWatchCount: 1 }).code, "single_watch");
+const over = canCreateWatch(consumer, { consumerActiveWatchCount: 40, incomingWatchCount: 1 });
+assert.strictEqual(over.ok, false);
+assert.strictEqual(over.code, "watch_budget");
+assert.strictEqual(over.status, 503);
+assert.strictEqual(over.detail, WATCH_BUDGET_DETAIL);
+assert.strictEqual(canCreateWatch(consumer, { consumerActiveWatchCount: 40 }).code, "watch_budget");
+assert.strictEqual(canCreateWatch(internal, { consumerActiveWatchCount: 999, incomingWatchCount: 50 }).ok, true);
+assert.strictEqual(
+  canCreateWatch({ ...consumer, planner_status: "active" }, { activeBillableCount: 1, consumerActiveWatchCount: 40, incomingWatchCount: 1 }).code,
+  "watch_budget"
+);
+const atCapId = publicIdentity(consumer, { stripeConfigured: true, consumerActiveWatchCount: 40 });
+assert.strictEqual(atCapId.can_create_watch, false);
+assert.strictEqual(atCapId.billing_mode, "blocked");
+assert.strictEqual(atCapId.billing_code, "watch_budget");
+const storeDown = publicIdentity(consumer, { stripeConfigured: true, storeAvailable: false });
+assert.strictEqual(storeDown.can_create_watch, false);
+assert.strictEqual(storeDown.billing_code, "watch_store_unavailable");
+assert.strictEqual(publicIdentity(internal, { storeAvailable: false }).can_create_watch, true);
+delete process.env.CONSUMER_ACTIVE_WATCH_BUDGET;
 
 console.log("test_entitlement ok");

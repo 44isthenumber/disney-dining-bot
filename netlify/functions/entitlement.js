@@ -8,6 +8,21 @@ const PAST_DUE_DETAIL =
 const CANCELING_DETAIL =
   "Your Planner stays active until the period ends. You can't add watches.";
 const PLANNER_CAP_DETAIL = "You're at this month's watch limit.";
+const WATCH_BUDGET_DETAIL =
+  "We're at capacity for new watches right now. Existing watches keep alerting. Try again later.";
+const WATCH_STORE_UNAVAILABLE_DETAIL =
+  "We couldn't start this watch just now. Try again in a minute.";
+const DEFAULT_CONSUMER_WATCH_BUDGET = 40;
+
+class WatchBudgetError extends Error {
+  constructor(message) {
+    super(message || WATCH_BUDGET_DETAIL);
+    this.name = "WatchBudgetError";
+    this.code = "watch_budget";
+    this.status = 503;
+    this.detail = message || WATCH_BUDGET_DETAIL;
+  }
+}
 
 function watchUserIds() {
   const raw = process.env.WATCH_USERS || process.env.DISNEY_USERS || "";
@@ -29,6 +44,50 @@ function isInternalUser(user) {
 function plannerCap() {
   const n = parseInt(process.env.PLANNER_WATCH_CAP || "4", 10);
   return Number.isFinite(n) && n > 0 ? n : 4;
+}
+
+function consumerWatchBudget() {
+  const raw = String(process.env.CONSUMER_ACTIVE_WATCH_BUDGET || "").trim();
+  if (!/^\d+$/.test(raw)) return DEFAULT_CONSUMER_WATCH_BUDGET;
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : DEFAULT_CONSUMER_WATCH_BUDGET;
+}
+
+function defaultOwnerId() {
+  return String(process.env.DEFAULT_OWNER_ID || "craig").trim() || "craig";
+}
+
+function todayIsoInParkTime() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function isActiveWatchRow(watch, today = todayIsoInParkTime()) {
+  return typeof watch.date === "string" && watch.date >= today;
+}
+
+function isInternalOwnerId(ownerId) {
+  const resolved = String(ownerId || "").trim() || defaultOwnerId();
+  const lower = resolved.toLowerCase();
+  if (lower === "craig" || lower === "jessica") return true;
+  return watchUserIds().has(resolved);
+}
+
+function countActiveConsumerWatchRows(watches, today = todayIsoInParkTime()) {
+  let n = 0;
+  for (const w of watches || []) {
+    if (!isActiveWatchRow(w, today)) continue;
+    const owner = String(w.owner_id || "").trim() || defaultOwnerId();
+    if (isInternalOwnerId(owner)) continue;
+    n += 1;
+  }
+  return n;
 }
 
 function livePlanner(user) {
@@ -83,9 +142,30 @@ function canCreateWatch(user, opts = {}) {
         detail: PLANNER_CAP_DETAIL,
       };
     }
-    return { ok: true, code: "planner" };
+    return finishConsumerCreate(user, "planner", opts);
   }
-  return { ok: true, code: "single_watch" };
+  return finishConsumerCreate(user, "single_watch", opts);
+}
+
+function finishConsumerCreate(user, code, opts) {
+  const current =
+    opts.consumerActiveWatchCount == null ? 0 : Number(opts.consumerActiveWatchCount);
+  const incoming = opts.incomingWatchCount == null ? 0 : Number(opts.incomingWatchCount);
+  const budget = consumerWatchBudget();
+  if (
+    !Number.isFinite(current) ||
+    !Number.isFinite(incoming) ||
+    current >= budget ||
+    current + incoming > budget
+  ) {
+    return {
+      ok: false,
+      code: "watch_budget",
+      status: 503,
+      detail: WATCH_BUDGET_DETAIL,
+    };
+  }
+  return { ok: true, code };
 }
 
 function publicIdentity(user, opts = {}) {
@@ -104,6 +184,11 @@ function publicIdentity(user, opts = {}) {
     can = false;
     billing_mode = "blocked";
     code = "billing_unavailable";
+  }
+  if (!isInternalUser(user) && opts.storeAvailable === false) {
+    can = false;
+    billing_mode = "blocked";
+    code = "watch_store_unavailable";
   }
 
   const plannerLive = livePlanner(user);
@@ -132,9 +217,16 @@ module.exports = {
   PAST_DUE_DETAIL,
   CANCELING_DETAIL,
   PLANNER_CAP_DETAIL,
+  WATCH_BUDGET_DETAIL,
+  WATCH_STORE_UNAVAILABLE_DETAIL,
+  DEFAULT_CONSUMER_WATCH_BUDGET,
+  WatchBudgetError,
   isInternalUser,
+  isInternalOwnerId,
   canCreateWatch,
   publicIdentity,
   plannerCap,
+  consumerWatchBudget,
+  countActiveConsumerWatchRows,
   livePlanner,
 };
