@@ -574,7 +574,7 @@ Public signup stays gated by Stripe (Slice 3). This slice adds a **global poller
 - Craig/Jessica (`craig`, `Jessica`, case-insensitive) and other `WATCH_USERS` ids do not consume the budget and are never blocked by it.
 - Missing `owner_id` normalizes to `DEFAULT_OWNER_ID` / `craig` and does not count.
 - Pending Checkout blobs do not count (the poller cannot see them).
-- Default cap is **40**, env `CONSUMER_ACTIVE_WATCH_BUDGET`. Invalid / empty / `0` / negative → 40 (same pattern as `PLANNER_WATCH_CAP`).
+- Default cap is **40**, env `CONSUMER_ACTIVE_WATCH_BUDGET`. Only a strict positive integer is honored (`20` → 20). Empty / `0` / negative / malformed (`20x`, `1.5`) → 40.
 - Concurrent writes can still race; write-time re-check in `appendWatchPayload` and `applySingleWatchSession` is the mitigation. No Gist lock in this slice.
 - If a guest pays and the budget fills before fulfillment: no Gist write, webhook 500 (Stripe retries), `/billing/sync` 503 `watch_budget`. No automated refund in this PR.
 - Gist/store load failure is **not** capacity: consumers get `watch_store_unavailable`, not `watch_budget`. Internals skip that gate.

@@ -47,8 +47,10 @@ function plannerCap() {
 }
 
 function consumerWatchBudget() {
-  const n = parseInt(process.env.CONSUMER_ACTIVE_WATCH_BUDGET || String(DEFAULT_CONSUMER_WATCH_BUDGET), 10);
-  return Number.isFinite(n) && n > 0 ? n : DEFAULT_CONSUMER_WATCH_BUDGET;
+  const raw = String(process.env.CONSUMER_ACTIVE_WATCH_BUDGET || "").trim();
+  if (!/^\d+$/.test(raw)) return DEFAULT_CONSUMER_WATCH_BUDGET;
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : DEFAULT_CONSUMER_WATCH_BUDGET;
 }
 
 function defaultOwnerId() {

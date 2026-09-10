@@ -524,8 +524,10 @@ function cookieHeaderFrom(res) {
       })
     )
   );
-  assert.notStrictEqual(internalAtCap.body && internalAtCap.body.code, "watch_budget");
-  assert.ok(internalAtCap.status === 201 || internalAtCap.status === 500);
+  assert.strictEqual(internalAtCap.status, 201);
+  assert.ok(Array.isArray(internalAtCap.body.added));
+  assert.ok(internalAtCap.body.added.length >= 1);
+  assert.notStrictEqual(internalAtCap.body.code, "watch_budget");
 
   apiMod.setWatchMemoryForTests([]);
   delete process.env.CONSUMER_ACTIVE_WATCH_BUDGET;

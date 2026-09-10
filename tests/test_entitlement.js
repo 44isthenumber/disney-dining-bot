@@ -100,6 +100,12 @@ process.env.CONSUMER_ACTIVE_WATCH_BUDGET = "20";
 assert.strictEqual(consumerWatchBudget(), 20);
 process.env.CONSUMER_ACTIVE_WATCH_BUDGET = "0";
 assert.strictEqual(consumerWatchBudget(), 40);
+process.env.CONSUMER_ACTIVE_WATCH_BUDGET = "20x";
+assert.strictEqual(consumerWatchBudget(), 40);
+process.env.CONSUMER_ACTIVE_WATCH_BUDGET = "1.5";
+assert.strictEqual(consumerWatchBudget(), 40);
+process.env.CONSUMER_ACTIVE_WATCH_BUDGET = "-5";
+assert.strictEqual(consumerWatchBudget(), 40);
 delete process.env.CONSUMER_ACTIVE_WATCH_BUDGET;
 
 assert.strictEqual(isInternalOwnerId("craig"), true);
