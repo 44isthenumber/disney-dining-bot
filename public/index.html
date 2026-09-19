@@ -401,9 +401,24 @@
   #date-picker-grid .day.selected { background: var(--blue); color: #fff; font-weight: 700; cursor: pointer; }
   #date-picker-grid .day.selected:hover { background: var(--blue-dark); transform: scale(1.08); }
   #date-picker-help { margin-top: 8px; font-size: 11px; color: var(--muted); }
+  .date-picker-scroll { display: block; }
   .date-picker-actions {
     display: flex; gap: 8px; align-items: center; margin-top: 10px;
     position: sticky; bottom: 0; background: #fafcff; padding-top: 8px;
+  }
+  .date-picker-backdrop {
+    display: none; position: fixed; inset: 0; z-index: 9999;
+    margin: 0; padding: 0; border: 0; background: rgba(0,0,0,.38);
+    cursor: default;
+  }
+  body.date-picker-modal-open .date-picker-backdrop { display: block; }
+  @media (min-width: 861px) {
+    .date-picker-backdrop,
+    body.date-picker-modal-open .date-picker-backdrop { display: none !important; }
+  }
+  .time-window-label {
+    margin: 10px 0 6px; font-size: 12px; font-weight: 600; color: var(--muted);
+    display: none;
   }
   #date-picker-done {
     flex: 1; border: 0; border-radius: 4px; background: var(--ink); color: var(--paper);
@@ -560,22 +575,45 @@
     #time-fields { grid-template-columns: 1fr; }
     #phone-intl-fields { grid-template-columns: 1fr; }
     .date-input-row { flex-direction: column; }
+    body.date-picker-modal-open .date-picker-backdrop { display: block; }
     #date-picker-panel {
       position: fixed; left: 10px; right: 10px; top: auto;
-      bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 10000;
-      margin: 0; padding: 12px; max-height: min(74dvh, 560px);
-      overflow-y: auto; overscroll-behavior: contain;
+      bottom: max(10px, env(safe-area-inset-bottom)); z-index: 10000;
+      margin: 0; padding: 0; max-height: min(74dvh, 560px);
+      display: none; flex-direction: column; overflow: hidden;
+      overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
       border-radius: 16px; box-shadow: 0 18px 60px rgba(0,0,0,.28);
     }
+    #date-picker-panel.open { display: flex; }
+    .date-picker-scroll {
+      flex: 1 1 auto; min-height: 0; overflow-y: auto;
+      padding: 12px 12px 4px; -webkit-overflow-scrolling: touch;
+    }
     .mini-month-nav {
-      position: sticky; top: -12px; z-index: 1;
-      background: #fafcff; padding: 2px 0 8px;
+      position: sticky; top: 0; z-index: 1;
+      background: #fafcff; padding: 2px 0 8px; margin-bottom: 0;
     }
     #date-picker-grid { gap: 3px; }
     #date-picker-grid .dow { font-size: 10px; padding: 4px 0; }
     #date-picker-grid .day { height: clamp(34px, 9vw, 40px); font-size: 13px; }
     #date-picker-help { font-size: 12px; line-height: 1.35; }
-    .date-picker-actions { padding-bottom: env(safe-area-inset-bottom); }
+    .date-picker-actions {
+      flex: 0 0 auto; position: relative; bottom: auto;
+      margin-top: 0; padding: 12px;
+      padding-bottom: max(12px, env(safe-area-inset-bottom));
+      border-top: 1px solid var(--border);
+      background: #fafcff;
+      box-shadow: 0 -6px 16px rgba(0,0,0,.06);
+    }
+    #date-picker-done { min-height: 44px; font-size: 16px; }
+    #date-picker-clear { min-height: 44px; }
+    .time-window-label { display: block; }
+    #time-toggle { display: none; }
+    #time-fields,
+    #time-fields[hidden] { display: grid !important; }
+    #time-fields input[type=time] {
+      width: 100%; min-height: 44px; font-size: 16px;
+    }
     .sms-consent { font-size: 12px; }
     .create-actions { flex-direction: column; align-items: stretch; }
     #create-btn { width: 100%; padding: 13px; font-size: 15px; }
@@ -1417,14 +1455,17 @@
           <div class="date-input-row">
             <textarea id="dates" placeholder="2026-06-01&#10;2026-06-02"></textarea>
           </div>
+          <button type="button" id="date-picker-backdrop" class="date-picker-backdrop" aria-hidden="true" tabindex="-1" aria-label="Close date picker"></button>
           <div id="date-picker-panel">
-            <div class="mini-month-nav">
-              <button type="button" id="date-prev-month">‹</button>
-              <span id="date-picker-month"></span>
-              <button type="button" id="date-next-month">›</button>
+            <div class="date-picker-scroll">
+              <div class="mini-month-nav">
+                <button type="button" id="date-prev-month">‹</button>
+                <span id="date-picker-month"></span>
+                <button type="button" id="date-next-month">›</button>
+              </div>
+              <div id="date-picker-grid"></div>
+              <div id="date-picker-help">Tap dates to add or remove them. Selected dates are highlighted.</div>
             </div>
-            <div id="date-picker-grid"></div>
-            <div id="date-picker-help">Tap dates to add or remove them. Selected dates are highlighted.</div>
             <div class="date-picker-actions">
               <button type="button" id="date-picker-clear">Clear</button>
               <button type="button" id="date-picker-done">Done</button>
@@ -1438,6 +1479,7 @@
             <button type="button" class="meal-chip" data-meal="DINNER" aria-pressed="false">Dinner</button>
           </div>
           <div class="create-field time-fields-wrap">
+            <p class="time-window-label" id="time-window-label">Optional time window</p>
             <button type="button" class="details-toggle" id="time-toggle" aria-expanded="false" aria-controls="time-fields">Only certain times?</button>
             <div id="time-fields" hidden>
               <label class="create-field">Earliest Time
@@ -3176,6 +3218,44 @@ function initCreateDatePicker() {
   renderCreateDatePicker();
 }
 
+function isMobileCreateLayout() {
+  return window.matchMedia('(max-width: 860px)').matches;
+}
+
+function syncTimeFieldsForViewport() {
+  var fields = document.getElementById('time-fields');
+  var toggle = document.getElementById('time-toggle');
+  if (!fields || !toggle) return;
+  if (isMobileCreateLayout()) {
+    fields.hidden = false;
+    toggle.setAttribute('aria-expanded', 'true');
+  } else if (toggle.getAttribute('aria-expanded') !== 'true') {
+    fields.hidden = true;
+  }
+}
+
+function closeCreateDatePicker() {
+  var panel = document.getElementById('date-picker-panel');
+  var backdrop = document.getElementById('date-picker-backdrop');
+  if (panel) panel.classList.remove('open');
+  document.body.classList.remove('date-picker-modal-open');
+  var toggle = document.getElementById('toggle-date-picker');
+  if (toggle) toggle.setAttribute('aria-expanded', 'false');
+  if (backdrop) backdrop.setAttribute('aria-hidden', 'true');
+}
+
+function openCreateDatePicker() {
+  var panel = document.getElementById('date-picker-panel');
+  var backdrop = document.getElementById('date-picker-backdrop');
+  syncDatePickerFromText();
+  if (panel) panel.classList.add('open');
+  var toggle = document.getElementById('toggle-date-picker');
+  if (toggle) toggle.setAttribute('aria-expanded', 'true');
+  document.body.classList.add('date-picker-modal-open');
+  if (backdrop) backdrop.setAttribute('aria-hidden', 'false');
+  renderCreateDatePicker();
+}
+
 function syncDatePickerFromText() {
   createDatePicker.selected = new Set(validTypedDates(document.getElementById('dates').value));
   renderSelectedDateChips();
@@ -3264,15 +3344,18 @@ function renderCreateDatePicker() {
 
 document.getElementById('toggle-date-picker').addEventListener('click', function() {
   var panel = document.getElementById('date-picker-panel');
-  syncDatePickerFromText();
-  panel.classList.toggle('open');
   var isOpen = panel.classList.contains('open');
-  this.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-  document.body.classList.toggle('date-picker-modal-open', isOpen);
-  renderCreateDatePicker();
-  if (isOpen && !window.matchMedia('(max-width: 860px)').matches) {
-    setTimeout(function() { panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 50);
+  if (isOpen) closeCreateDatePicker();
+  else {
+    openCreateDatePicker();
+    if (!isMobileCreateLayout()) {
+      setTimeout(function() { panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 50);
+    }
   }
+});
+document.getElementById('date-picker-backdrop').addEventListener('click', function() {
+  closeCreateDatePicker();
+  pulseWhoStep();
 });
 document.getElementById('toggle-manual-dates').addEventListener('click', function() {
   var field = document.querySelector('.date-field');
@@ -3282,10 +3365,7 @@ document.getElementById('toggle-manual-dates').addEventListener('click', functio
 document.getElementById('date-prev-month').addEventListener('click', function() { shiftCreateDateMonth(-1); });
 document.getElementById('date-next-month').addEventListener('click', function() { shiftCreateDateMonth(1); });
 document.getElementById('date-picker-done').addEventListener('click', function() {
-  var panel = document.getElementById('date-picker-panel');
-  panel.classList.remove('open');
-  document.body.classList.remove('date-picker-modal-open');
-  document.getElementById('toggle-date-picker').setAttribute('aria-expanded', 'false');
+  closeCreateDatePicker();
   pulseWhoStep();
 });
 document.getElementById('date-picker-clear').addEventListener('click', function() {
@@ -3359,15 +3439,12 @@ function resetWatchForm() {
   createDatePicker.selected = new Set();
   renderSelectedDateChips();
   renderCreateDatePicker();
-  document.getElementById('date-picker-panel').classList.remove('open');
-  document.body.classList.remove('date-picker-modal-open');
-  document.getElementById('toggle-date-picker').setAttribute('aria-expanded', 'false');
+  closeCreateDatePicker();
   document.querySelector('.date-field').classList.remove('manual-open');
   document.getElementById('toggle-manual-dates').textContent = 'Enter dates manually';
-  var timeFields = document.getElementById('time-fields');
   var timeToggle = document.getElementById('time-toggle');
-  if (timeFields) timeFields.hidden = true;
   if (timeToggle) timeToggle.setAttribute('aria-expanded', 'false');
+  syncTimeFieldsForViewport();
   var intl = document.getElementById('phone-intl-fields');
   var intlToggle = document.getElementById('phone-intl-toggle');
   if (intl) intl.hidden = true;
@@ -3531,6 +3608,8 @@ document.getElementById('watch-form').addEventListener('submit', async function(
 });
 
 initCreateDatePicker();
+syncTimeFieldsForViewport();
+window.matchMedia('(max-width: 860px)').addEventListener('change', syncTimeFieldsForViewport);
 bindSmsConsentMemory();
 
 async function resumeWatchDraft(opts) {
