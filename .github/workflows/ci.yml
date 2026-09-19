@@ -1,0 +1,59 @@
+name: CI
+
+# PR gate: pull requests get a real check run before merge.
+# Today only deploy.yml (push to main) and poll.yml (manual) exist,
+# so PRs were mergeable with zero checks. This workflow closes that hole.
+# No deploy here, no secrets, no live Disney calls.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Python tests (no secrets, no network)
+        run: python3 -m unittest discover -s tests -p 'test_*.py'
+
+      # Node function tests use only stdlib + relative requires,
+      # so they run with plain `node` and no `npm install`.
+      - name: Node function tests
+        run: |
+          for f in tests/test_*.js; do
+            echo "--- $f"
+            node "$f"
+          done
+
+      # Inline <script> blocks (bare tags only; skips ld+json) must parse.
+      - name: Frontend inline script syntax check
+        run: |
+          python3 - <<'EOF'
+          import re, subprocess, sys, tempfile
+          html = open('public/index.html').read()
+          blocks = re.findall(r'<script>(.*?)</script>', html, re.S)
+          assert blocks, 'no inline <script> blocks found in public/index.html'
+          for i, src in enumerate(blocks):
+              with tempfile.NamedTemporaryFile('w', suffix='.js', delete=False) as tmp:
+                  tmp.write(src)
+                  path = tmp.name
+              r = subprocess.run(['node', '--check', path], capture_output=True, text=True)
+              if r.returncode != 0:
+                  print(f'inline script block {i} failed node --check:\n{r.stderr}')
+                  sys.exit(1)
+              print(f'inline script block {i}: syntax OK ({len(src)} chars)')
+          EOF
