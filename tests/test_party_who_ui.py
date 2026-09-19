@@ -52,6 +52,11 @@ class PartyWhoUiContractTest(unittest.TestCase):
         self.assertIn('id="party-minus"', FORM)
         self.assertIn('id="party-plus"', FORM)
         self.assertIn('id="party-value"', FORM)
+        value_tag = FORM[FORM.find('id="party-value"') - 40 : FORM.find('id="party-value"') + 400]
+        self.assertIn('<input', value_tag)
+        self.assertIn('inputmode="numeric"', value_tag)
+        self.assertIn('aria-label="Party size"', value_tag)
+        self.assertNotIn('aria-hidden="true"', value_tag)
         self.assertIn('aria-label="Decrease party size"', FORM)
         self.assertIn('aria-label="Increase party size"', FORM)
         self.assertIn('aria-live="polite"', FORM)
@@ -69,6 +74,10 @@ class PartyWhoUiContractTest(unittest.TestCase):
         self.assertIn("function setPartySize(", INDEX)
         self.assertIn("function bindPartyChips()", INDEX)
         self.assertIn("function effectivePartyMax()", INDEX)
+        self.assertIn("function commitPartyInput()", INDEX)
+        self.assertIn("function stepPartyFromInput(", INDEX)
+        self.assertIn("val.select()", INDEX)
+        self.assertIn("val.value = String(n)", INDEX)
         self.assertIn("minus.disabled = n <= 1", INDEX)
         self.assertIn("plus.disabled = n >= max", INDEX)
 
