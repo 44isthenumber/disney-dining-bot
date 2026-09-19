@@ -609,11 +609,14 @@
     #phone-intl-fields { grid-template-columns: 1fr; }
     .date-input-row { flex-direction: column; }
     body.date-picker-modal-open .date-picker-backdrop { display: block; }
+    /* Guest create-watch lives inside #login-overlay (z 99999), while the
+       mobile sheet mounts to document.body — keep sheet above landing. */
+    body.date-picker-modal-open .date-picker-backdrop { z-index: 100100; }
     #date-picker-overlay { position: static; }
     #date-picker-panel {
       position: fixed; left: 10px; right: 10px; top: auto;
       bottom: calc(76px + max(10px, env(safe-area-inset-bottom)));
-      z-index: 10001; margin: 0; padding: 0;
+      z-index: 100101; margin: 0; padding: 0;
       max-height: min(58dvh, 480px); height: min(58dvh, 480px);
       display: none; flex-direction: column; overflow: hidden;
       overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
@@ -636,7 +639,7 @@
       display: flex !important;
       position: fixed; left: 10px; right: 10px;
       bottom: max(10px, env(safe-area-inset-bottom));
-      z-index: 10002; margin: 0; padding: 10px 12px;
+      z-index: 100102; margin: 0; padding: 10px 12px;
       padding-bottom: max(10px, env(safe-area-inset-bottom));
       gap: 10px; align-items: stretch;
       border: 1px solid var(--border); border-radius: 0 0 16px 16px;
