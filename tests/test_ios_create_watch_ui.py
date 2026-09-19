@@ -10,34 +10,31 @@ MOBILE_CSS = INDEX.split("@media (max-width: 860px)", 1)[1].split("@media", 1)[0
 
 
 class IosCreateWatchUiContractTest(unittest.TestCase):
-    def test_date_picker_fixed_footer_not_sticky_in_scroll(self):
+    def test_date_picker_overlay_and_fixed_footer(self):
+        self.assertIn('id="date-picker-overlay"', INDEX)
         self.assertIn('class="date-picker-scroll"', INDEX)
-        self.assertIn("function closeCreateDatePicker()", INDEX)
-        self.assertIn("function openCreateDatePicker()", INDEX)
-        self.assertIn('id="date-picker-backdrop"', INDEX)
-        self.assertIn("#date-picker-panel.open { display: flex; }", MOBILE_CSS)
-        self.assertIn(".date-picker-scroll", MOBILE_CSS)
-        self.assertIn("flex: 0 0 auto", MOBILE_CSS)
-        self.assertIn("position: relative; bottom: auto", MOBILE_CSS)
-        self.assertNotIn("padding-bottom: env(safe-area-inset-bottom)", MOBILE_CSS)
+        self.assertIn("function mountDatePickerOverlay()", INDEX)
+        self.assertIn("function lockDatePickerScroll()", INDEX)
+        self.assertIn("function commitDatePickerSelection()", INDEX)
+        self.assertIn("function dismissDatePickerPreserveSelection()", INDEX)
+        self.assertIn("#date-picker-panel.open .date-picker-actions", MOBILE_CSS)
+        self.assertIn("position: fixed", MOBILE_CSS.split("#date-picker-panel.open .date-picker-actions", 1)[1][:400])
+        self.assertIn("html.date-picker-modal-open", MOBILE_CSS)
 
-    def test_done_closes_via_shared_helper(self):
+    def test_dismiss_preserves_selection(self):
+        backdrop = INDEX.split("date-picker-backdrop').addEventListener('click'", 1)[1][:350]
+        self.assertIn("dismissDatePickerPreserveSelection()", backdrop)
         done = INDEX.split("date-picker-done').addEventListener('click'", 1)[1][:400]
-        self.assertIn("closeCreateDatePicker()", done)
-        self.assertNotIn("classList.remove('open')", done)
+        self.assertIn("dismissDatePickerPreserveSelection()", done)
 
-    def test_mobile_time_window_visible_without_disclosure(self):
-        self.assertIn('id="time-window-label"', INDEX)
-        self.assertIn("Optional time window", INDEX)
-        self.assertIn("function syncTimeFieldsForViewport()", INDEX)
-        self.assertIn("#time-toggle { display: none; }", MOBILE_CSS)
-        self.assertIn("#time-fields[hidden] { display: grid !important; }", MOBILE_CSS)
-        self.assertIn("min-height: 44px", MOBILE_CSS)
+    def test_signed_in_when_shows_meal_and_time_on_mobile(self):
+        self.assertIn('id="when-meal-label"', INDEX)
+        self.assertIn("html.has-session #meal-chips", MOBILE_CSS)
+        self.assertIn("html.has-session .time-fields-wrap", MOBILE_CSS)
+        self.assertIn("if (document.documentElement.classList.contains('has-session')) collapsed = false", INDEX)
 
-    def test_desktop_keeps_time_disclosure(self):
-        self.assertIn('id="time-toggle"', INDEX)
-        self.assertIn("Only certain times?", INDEX)
-        self.assertNotIn("#time-toggle { display: none; }", INDEX.split("@media (max-width: 860px)", 1)[0])
+    def test_guest_collapsed_still_hides_meal_not_signed_in(self):
+        self.assertIn("html:not(.has-session) #create-watch.is-collapsed #meal-chips", INDEX)
 
 
 if __name__ == "__main__":

@@ -33,6 +33,7 @@ class PartyWhoUiContractTest(unittest.TestCase):
             INDEX,
             re.S,
         )
+        self.assertIn("html:not(.has-session) #create-watch.is-collapsed #meal-chips", INDEX)
         self.assertIsNotNone(hide)
         block = hide.group(0)
         self.assertNotIn("who-step", block)
