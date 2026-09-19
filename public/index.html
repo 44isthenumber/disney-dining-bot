@@ -321,12 +321,22 @@
   .party-step-btn:disabled { opacity: .35; cursor: default; }
   .party-step-btn:focus-visible { outline: 2px solid #aa8b54; outline-offset: 2px; }
   .party-value {
-    flex: 1 1 auto; max-width: 220px;
+    flex: 1 1 auto; max-width: 220px; width: 100%;
     border: 1px solid #e3d9c0; border-radius: 10px; background: #fffdf6;
     font-size: 44px; font-weight: 600; color: var(--ink); line-height: 1.2;
     display: flex; align-items: center; justify-content: center;
     min-height: 64px; font-variant-numeric: tabular-nums;
   }
+  input.party-value {
+    display: block; text-align: center; font-family: inherit; padding: 0;
+    -moz-appearance: textfield; appearance: textfield;
+  }
+  input.party-value::-webkit-outer-spin-button,
+  input.party-value::-webkit-inner-spin-button {
+    -webkit-appearance: none; margin: 0;
+  }
+  input.party-value:focus { outline: none; border-color: #aa8b54; box-shadow: 0 0 0 3px rgba(170,139,84,.25); }
+  input.party-value:focus-visible { outline: 2px solid #aa8b54; outline-offset: 2px; }
   .party-note {
     margin: 0; font-size: 13px; color: var(--muted); text-align: center;
   }
@@ -1467,7 +1477,7 @@
             <p id="party-caption" class="party-caption" aria-live="polite">Party of 2</p>
             <div id="party-stepper" class="party-stepper" role="group" aria-label="Party size">
               <button type="button" class="party-step-btn" id="party-minus" aria-label="Decrease party size">&minus;</button>
-              <div class="party-value" id="party-value" aria-hidden="true">2</div>
+              <input class="party-value" id="party-value" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="2" value="2" aria-label="Party size" aria-describedby="party-note">
               <button type="button" class="party-step-btn" id="party-plus" aria-label="Increase party size">+</button>
             </div>
             <p class="party-note" id="party-note">&#10022; Matches <span class="party-note-hi">Disney</span> up to 20.</p>
@@ -1707,7 +1717,7 @@ function syncPartyChips() {
   var caption = document.getElementById('party-caption');
   if (caption) caption.textContent = 'Party of ' + n;
   var val = document.getElementById('party-value');
-  if (val) val.textContent = String(n);
+  if (val && document.activeElement !== val) val.value = String(n);
   var minus = document.getElementById('party-minus');
   var plus = document.getElementById('party-plus');
   if (minus) minus.disabled = n <= 1;
@@ -1726,8 +1736,38 @@ function bindPartyChips() {
   var minus = document.getElementById('party-minus');
   var plus = document.getElementById('party-plus');
   if ((minus && minus.dataset.bound) || (plus && plus.dataset.bound)) return;
-  if (minus) { minus.dataset.bound = '1'; minus.addEventListener('click', function() { setPartySize(getPartySize() - 1); }); }
-  if (plus) { plus.dataset.bound = '1'; plus.addEventListener('click', function() { setPartySize(getPartySize() + 1); }); }
+  if (minus) { minus.dataset.bound = '1'; minus.addEventListener('click', function() { stepPartyFromInput(-1); }); }
+  if (plus) { plus.dataset.bound = '1'; plus.addEventListener('click', function() { stepPartyFromInput(1); }); }
+  var val = document.getElementById('party-value');
+  if (val && !val.dataset.bound) {
+    val.dataset.bound = '1';
+    val.addEventListener('focus', function() { try { val.select(); } catch (e) {} });
+    val.addEventListener('change', function() { commitPartyInput(); });
+    val.addEventListener('blur', function() { commitPartyInput(); });
+    val.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); commitPartyInput(); try { val.blur(); } catch (err) {} }
+      else if (e.key === 'Escape') { syncPartyChips(); try { val.blur(); } catch (err) {} }
+    });
+  }
+}
+function stepPartyFromInput(delta) {
+  var val = document.getElementById('party-value');
+  if (val && document.activeElement === val) { try { val.blur(); } catch (e) {} }
+  commitPartyInput();
+  setPartySize(getPartySize() + delta);
+}
+function commitPartyInput() {
+  var val = document.getElementById('party-value');
+  var max = effectivePartyMax();
+  var raw = val ? String(val.value).trim() : '';
+  var n = parseInt(raw, 10);
+  if (!(n >= 1)) {
+    if (!/^\d+$/.test(raw)) n = getPartySize();
+    else n = 1;
+  }
+  if (n > max) n = max;
+  setPartySize(n);
+  if (val) val.value = String(getPartySize());
 }
 function pulseWhoStep() {
   var box = document.querySelector('#who-step .who-box') || document.getElementById('who-step');
