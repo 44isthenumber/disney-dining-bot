@@ -33,14 +33,15 @@ class PartyWhoUiContractTest(unittest.TestCase):
             INDEX,
             re.S,
         )
-        self.assertIn("html:not(.has-session) #create-watch.is-collapsed #meal-chips", INDEX)
+        self.assertNotIn("html:not(.has-session) #create-watch.is-collapsed #meal-chips", INDEX)
         self.assertIsNotNone(hide)
         block = hide.group(0)
         self.assertNotIn("who-step", block)
         self.assertNotIn("party-stepper", block)
         self.assertNotIn("party-caption", block)
         self.assertNotIn(".party-row", block)
-        self.assertIn("#meal-chips", block)
+        self.assertNotIn("#meal-chips", block)
+        self.assertNotIn(".time-fields-wrap", block)
         self.assertIn(".create-step-contact", block)
 
     def test_default_party_two_and_stepper_one_to_twenty(self):
