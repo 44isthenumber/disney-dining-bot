@@ -33,8 +33,14 @@ class IosCreateWatchUiContractTest(unittest.TestCase):
         self.assertIn("html.has-session .time-fields-wrap", MOBILE_CSS)
         self.assertIn("if (document.documentElement.classList.contains('has-session')) collapsed = false", INDEX)
 
-    def test_guest_collapsed_still_hides_meal_not_signed_in(self):
-        self.assertIn("html:not(.has-session) #create-watch.is-collapsed #meal-chips", INDEX)
+    def test_guest_collapsed_shows_meal_and_time(self):
+        self.assertIn('id="meal-chips"', INDEX)
+        self.assertIn('class="create-field time-fields-wrap"', INDEX)
+        collapsed_rule = INDEX.split("#create-watch.is-collapsed > h2", 1)[1].split("{ display: none", 1)[0]
+        self.assertNotIn("#meal-chips", collapsed_rule)
+        self.assertNotIn(".time-fields-wrap", collapsed_rule)
+        self.assertIn("html:not(.has-session) #meal-chips", MOBILE_CSS)
+        self.assertIn("html:not(.has-session) .time-fields-wrap", MOBILE_CSS)
 
 
 if __name__ == "__main__":

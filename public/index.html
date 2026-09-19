@@ -655,11 +655,15 @@
       font-size: 12px; font-weight: 600; color: var(--muted);
     }
     html.has-session #meal-chips,
-    html.has-session .time-fields-wrap {
+    html.has-session .time-fields-wrap,
+    html:not(.has-session) #meal-chips,
+    html:not(.has-session) .time-fields-wrap {
       display: flex !important;
     }
-    html.has-session .time-fields-wrap { flex-direction: column; }
+    html.has-session .time-fields-wrap,
+    html:not(.has-session) .time-fields-wrap { flex-direction: column; }
     html.has-session .when-meal-label,
+    html:not(.has-session) .when-meal-label,
     .time-window-label { display: block; }
     #time-toggle { display: none; }
     #time-fields,
@@ -971,11 +975,9 @@
   .popular-chip:hover { border-color: var(--gold); transform: translateY(-1px); }
   .create-fine { font-size: 12px; color: var(--muted); margin-top: 10px; line-height: 1.5; }
   .create-fine[hidden] { display: none !important; }
-  /* Collapsed guest starter: WHERE + WHEN + WHO + CTA. Meal, time, phone, email,
-     and consent appear after Start my watch with restaurant, dates, and party. */
+  /* Collapsed guest starter: WHERE + WHEN (restaurant, dates, meal, time) + WHO + CTA.
+     Phone, email, and consent appear after Start my watch with restaurant, dates, and party. */
   #create-watch.is-collapsed > h2, #create-watch.is-collapsed > .hint,
-  html:not(.has-session) #create-watch.is-collapsed #meal-chips,
-  html:not(.has-session) #create-watch.is-collapsed .time-fields-wrap,
   #create-watch.is-collapsed .create-step-contact,
   #create-watch.is-collapsed #billing-next-banner { display: none !important; }
   #create-watch.is-collapsed .create-step { display: block; margin-bottom: 12px; }
@@ -1774,7 +1776,7 @@ function payWatchLabel() {
   return (mtfSessionUser && mtfSessionUser.billing_mode === 'single_watch') ? 'Pay $4.99 and watch' : 'Create Watch';
 }
 
-// Guest starter: landing is WHERE + WHEN + WHO + CTA. Meal, time, phone, email,
+// Guest starter: landing is WHERE + WHEN (restaurant, dates, meal, time) + WHO + CTA. Phone, email,
 // and consent expand after Start my watch with restaurant, dates, and party.
 var guestStarterExpanded = false;
 var PARTY_MAX = 20;
