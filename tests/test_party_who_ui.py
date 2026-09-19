@@ -1,6 +1,6 @@
 """Always-on WHO (party size) UI contract for public/index.html.
 
-Guards Frame-locked order, chips 1-8, living caption, Done pulse,
+Guards Frame-locked order, stepper 1-20, living caption, Done pulse,
 collapsed visibility, and the guest submit expand path.
 """
 
@@ -25,7 +25,7 @@ class PartyWhoUiContractTest(unittest.TestCase):
         self.assertGreater(cta, who)
         where_body = FORM[FORM.find('id="restaurant-combo"') : FORM.find('id="toggle-date-picker"')]
         self.assertNotIn('id="party-size"', where_body)
-        self.assertNotIn('id="party-chips"', where_body)
+        self.assertNotIn('id="party-stepper"', where_body)
 
     def test_who_always_visible_when_collapsed(self):
         hide = re.search(
@@ -36,23 +36,31 @@ class PartyWhoUiContractTest(unittest.TestCase):
         self.assertIsNotNone(hide)
         block = hide.group(0)
         self.assertNotIn("who-step", block)
-        self.assertNotIn("party-chips", block)
+        self.assertNotIn("party-stepper", block)
         self.assertNotIn("party-caption", block)
         self.assertNotIn(".party-row", block)
         self.assertIn("#meal-chips", block)
         self.assertIn(".create-step-contact", block)
 
-    def test_default_party_two_and_chips_one_to_eight(self):
+    def test_default_party_two_and_stepper_one_to_twenty(self):
         self.assertIn('id="party-size"', FORM)
         self.assertIn('value="2"', FORM[FORM.find('id="party-size"') : FORM.find('id="party-size"') + 180])
+        self.assertIn('max="20"', FORM[FORM.find('id="party-size"') : FORM.find('id="party-size"') + 180])
         self.assertIn('id="party-caption"', FORM)
         self.assertIn("Party of 2", FORM)
-        for n in range(1, 9):
-            self.assertIn('data-party="%d"' % n, FORM)
-        self.assertNotIn('data-party="9"', FORM)
-        self.assertIn("PARTY_CHIP_MAX = 8", INDEX)
-        self.assertIn('.party-chip[aria-checked="true"]', INDEX)
-        self.assertIn("background: #000; color: #fff", INDEX)
+        self.assertIn('id="party-stepper"', FORM)
+        self.assertIn('id="party-minus"', FORM)
+        self.assertIn('id="party-plus"', FORM)
+        self.assertIn('id="party-value"', FORM)
+        self.assertIn('aria-label="Decrease party size"', FORM)
+        self.assertIn('aria-label="Increase party size"', FORM)
+        self.assertIn('aria-live="polite"', FORM)
+        self.assertIn("up to 20", FORM)
+        self.assertNotIn('data-party=', INDEX)
+        self.assertNotIn('id="party-chips"', INDEX)
+        self.assertNotIn("PARTY_CHIP_MAX", INDEX)
+        self.assertIn("PARTY_MAX = 20", INDEX)
+        self.assertIn(".party-step-btn:disabled", INDEX)
         self.assertIn("#create-btn {\n    padding: 11px 24px; background: var(--ink);", INDEX)
 
     def test_living_caption_updates_with_selection(self):
@@ -60,6 +68,9 @@ class PartyWhoUiContractTest(unittest.TestCase):
         self.assertIn("function syncPartyChips()", INDEX)
         self.assertIn("function setPartySize(", INDEX)
         self.assertIn("function bindPartyChips()", INDEX)
+        self.assertIn("function effectivePartyMax()", INDEX)
+        self.assertIn("minus.disabled = n <= 1", INDEX)
+        self.assertIn("plus.disabled = n >= max", INDEX)
 
     def test_done_scrolls_and_pulses_who(self):
         self.assertIn("function pulseWhoStep()", INDEX)
@@ -96,10 +107,10 @@ class PartyWhoUiContractTest(unittest.TestCase):
     def test_read_watch_form_validates_party(self):
         self.assertIn("if (!(partySize >= 1)) return { body: null, error: 'Enter your party size.' };", INDEX)
 
-    def test_restaurant_max_disables_chips(self):
+    def test_restaurant_max_caps_stepper(self):
         apply = INDEX.split("function applyBookingTypeUI()", 1)[1].split("\n}\n", 1)[0]
-        self.assertIn("btn.disabled = v > maxParty", apply)
-        self.assertIn("Math.min(maxPartyFor(r), PARTY_CHIP_MAX)", apply)
+        self.assertNotIn("btn.disabled", apply)
+        self.assertIn("Math.min(maxPartyFor(r), PARTY_MAX)", apply)
         self.assertIn("syncPartyChips()", apply)
 
     def test_party_persists_and_resets(self):

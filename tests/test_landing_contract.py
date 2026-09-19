@@ -357,12 +357,15 @@ class LandingContractTest(unittest.TestCase):
         self.assertIn("function guestStarterCollapsed()", INDEX)
         self.assertIn("function syncGuestStarter()", INDEX)
         self.assertIn('id="who-step"', INDEX)
-        self.assertIn('id="party-chips"', INDEX)
+        self.assertIn('id="party-stepper"', INDEX)
+        self.assertIn('id="party-minus"', INDEX)
+        self.assertIn('id="party-plus"', INDEX)
         self.assertIn('id="party-caption"', INDEX)
+        self.assertNotIn('id="party-chips"', INDEX)
         self.assertNotIn("hasRestaurant && hasDates", INDEX)
         collapsed_css = INDEX.split("#create-watch.is-collapsed > h2", 1)[1].split("{", 1)[0]
         self.assertNotIn("who-step", collapsed_css)
-        self.assertNotIn("party-chips", collapsed_css)
+        self.assertNotIn("party-stepper", collapsed_css)
         self.assertNotIn("party-caption", collapsed_css)
         self.assertNotIn(".party-row", collapsed_css)
         self.assertRegex(
