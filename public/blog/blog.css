@@ -1,0 +1,57 @@
+/* Article rhythm on top of money-pages.css (that sheet zeros margins). */
+
+.blog-article {
+  width: min(760px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 40px 0 16px;
+}
+
+.blog-kicker {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+.blog-kicker a {
+  color: var(--mtf-gold-deep);
+  text-decoration: none;
+}
+
+.blog-dek,
+.blog-meta {
+  color: var(--mtf-mist);
+  margin-bottom: 28px;
+}
+
+.blog-meta { font-size: 14px; }
+
+.blog-article p,
+.blog-article li {
+  color: var(--mtf-ink-soft);
+  font-size: 17px;
+  text-wrap: pretty;
+}
+
+.blog-article p { margin: 0 0 16px; }
+
+.blog-article h2 {
+  font-size: 28px;
+  line-height: 1.25;
+  margin: 32px 0 12px;
+}
+
+.blog-article ul,
+.blog-article ol {
+  margin: 0 0 16px;
+  padding-left: 1.25em;
+}
+
+.blog-article li { margin: 0 0 10px; }
+
+.blog-list { margin-top: 8px; }
+
+@media (max-width: 640px) {
+  .blog-article { width: min(760px, calc(100% - 28px)); }
+}

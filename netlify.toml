@@ -100,3 +100,14 @@
   from = "/alerts/yachtsman-steakhouse"
   to = "/alerts/yachtsman-steakhouse.html"
   status = 200
+
+# Pretty blog URLs. Real HTML files — not a homepage splat.
+[[redirects]]
+  from = "/blog"
+  to = "/blog/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/blog/disney-dining-party-size-traps"
+  to = "/blog/disney-dining-party-size-traps.html"
+  status = 200

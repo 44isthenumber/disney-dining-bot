@@ -14,7 +14,7 @@ Live site: magictablefinder.com.
 | Layer | Tool | Notes |
 |---|---|---|
 | Owner | **Cursor** | Classify, integrate, verify, Cloud/iOS |
-| Builder | **Grok 4.6 in Cursor** | Default coding model |
+| Builder | **Grok 4.7 in Cursor** | Default coding model |
 | QC | **Other Cursor LLMs** | `/deliver` — spec verify / QA / validator must differ from the builder |
 | Social / agents | **Grok Bot** | Out-of-repo only. Not this repo's owner. |
 | Communication | **Buzz** | Mentions and phone. Fizz frames, not captain. Never Slack. |
