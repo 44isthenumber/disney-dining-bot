@@ -31,6 +31,11 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://magictablefinder.com/blog/disney-dining-week-out-recovery</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://magictablefinder.com/alerts/space-220</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>

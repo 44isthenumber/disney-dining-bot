@@ -111,3 +111,8 @@
   from = "/blog/disney-dining-party-size-traps"
   to = "/blog/disney-dining-party-size-traps.html"
   status = 200
+
+[[redirects]]
+  from = "/blog/disney-dining-week-out-recovery"
+  to = "/blog/disney-dining-week-out-recovery.html"
+  status = 200
