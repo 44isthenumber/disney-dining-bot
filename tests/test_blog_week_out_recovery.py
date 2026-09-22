@@ -33,7 +33,7 @@ class BlogWeekOutRecoveryTest(unittest.TestCase):
         self.assertIn("https://magictablefinder.com/og-1200x630.png", POST)
         self.assertIn('datetime="2026-09-22"', POST)
 
-    def test_index_lists_both_posts_newest_first(self):
+    def test_index_lists_posts_with_this_one_before_party_size(self):
         self.assertIn('rel="canonical" href="https://magictablefinder.com/blog"', INDEX)
         self.assertIn('href="/blog/disney-dining-week-out-recovery"', INDEX)
         self.assertIn('href="/blog/disney-dining-party-size-traps"', INDEX)
@@ -43,8 +43,6 @@ class BlogWeekOutRecoveryTest(unittest.TestCase):
             INDEX.index("/blog/disney-dining-week-out-recovery"),
             INDEX.index("/blog/disney-dining-party-size-traps"),
         )
-        self.assertNotIn("wrong-date", INDEX)
-        self.assertNotIn("cancel", INDEX.lower())
         self.assertEqual(INDEX.count("<h1>"), 1)
 
     def test_citation_links_match_receipts_a1_a2_a3(self):

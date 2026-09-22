@@ -32,12 +32,10 @@ class BlogPartySizeTrapsTest(unittest.TestCase):
         self.assertIn('content="#f5f1e9"', POST)
         self.assertIn("https://magictablefinder.com/og-1200x630.png", POST)
 
-    def test_index_lists_only_this_post(self):
+    def test_index_still_lists_this_post(self):
         self.assertIn('rel="canonical" href="https://magictablefinder.com/blog"', INDEX)
         self.assertIn('href="/blog/disney-dining-party-size-traps"', INDEX)
         self.assertIn(TITLE, INDEX)
-        self.assertNotIn("wrong-date", INDEX)
-        self.assertNotIn("cancel", INDEX.lower())
         self.assertEqual(INDEX.count("<h1>"), 1)
 
     def test_plan_disney_links_match_receipts(self):
