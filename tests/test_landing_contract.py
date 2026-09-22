@@ -249,6 +249,12 @@ class LandingContractTest(unittest.TestCase):
         self.assertIn('href="/terms.html"', INDEX)
         self.assertIn('href="/sms-consent.html"', INDEX)
 
+    def test_homepage_footer_links_to_blog(self):
+        footer = INDEX.split('<footer class="landing-footer">', 1)[1].split("</footer>", 1)[0]
+        self.assertIn('<li><a href="/blog">Blog</a></li>', footer)
+        header = INDEX.split('<header class="landing-header">', 1)[1].split("</header>", 1)[0]
+        self.assertNotIn('href="/blog"', header)
+
     def test_hard_to_book_watches_and_watch_query(self):
         self.assertIn('<title>Walt Disney World Dining Alerts | Magic Table Finder</title>', INDEX)
         self.assertIn('id="hard-tables"', INDEX)
