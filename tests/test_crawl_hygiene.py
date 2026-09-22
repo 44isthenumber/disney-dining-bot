@@ -35,6 +35,7 @@ class CrawlHygieneTest(unittest.TestCase):
                 "https://magictablefinder.com/sms-consent",
                 "https://magictablefinder.com/blog",
                 "https://magictablefinder.com/blog/disney-dining-party-size-traps",
+                "https://magictablefinder.com/blog/disney-dining-week-out-recovery",
                 "https://magictablefinder.com/alerts/space-220",
                 "https://magictablefinder.com/alerts/ohana",
                 "https://magictablefinder.com/alerts/cinderellas-royal-table",
@@ -73,6 +74,7 @@ class CrawlHygieneTest(unittest.TestCase):
         self.assertIn('from = "/alerts/yachtsman-steakhouse"', NETLIFY)
         self.assertIn('from = "/blog"', NETLIFY)
         self.assertIn('from = "/blog/disney-dining-party-size-traps"', NETLIFY)
+        self.assertIn('from = "/blog/disney-dining-week-out-recovery"', NETLIFY)
         self.assertIn('to = "/privacy.html"', NETLIFY)
         self.assertIn('to = "/sms-consent.html"', NETLIFY)
         self.assertIn('to = "/alerts/space-220.html"', NETLIFY)
@@ -86,6 +88,7 @@ class CrawlHygieneTest(unittest.TestCase):
         self.assertIn('to = "/alerts/yachtsman-steakhouse.html"', NETLIFY)
         self.assertIn('to = "/blog/index.html"', NETLIFY)
         self.assertIn('to = "/blog/disney-dining-party-size-traps.html"', NETLIFY)
+        self.assertIn('to = "/blog/disney-dining-week-out-recovery.html"', NETLIFY)
         self.assertIn('from = "/text-consent"', NETLIFY)
         self.assertIn('Content-Type = "text/plain; charset=utf-8"', NETLIFY)
         self.assertIn('Content-Type = "application/xml; charset=utf-8"', NETLIFY)
