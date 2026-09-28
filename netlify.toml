@@ -121,3 +121,8 @@
   from = "/blog/cinderellas-royal-table-wrong-date-party-of-5"
   to = "/blog/cinderellas-royal-table-wrong-date-party-of-5.html"
   status = 200
+
+[[redirects]]
+  from = "/blog/disney-dining-modify-party-size"
+  to = "/blog/disney-dining-modify-party-size.html"
+  status = 200
