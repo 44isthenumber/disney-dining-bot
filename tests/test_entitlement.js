@@ -152,4 +152,33 @@ assert.strictEqual(storeDown.billing_code, "watch_store_unavailable");
 assert.strictEqual(publicIdentity(internal, { storeAvailable: false }).can_create_watch, true);
 delete process.env.CONSUMER_ACTIVE_WATCH_BUDGET;
 
+const creatorPlanner = { ...consumer, planner_status: "active", planner_watch_cap: 10 };
+assert.strictEqual(canCreateWatch(creatorPlanner, { activeBillableCount: 9 }).ok, true);
+assert.strictEqual(canCreateWatch(creatorPlanner, { activeBillableCount: 9 }).code, "planner");
+assert.strictEqual(canCreateWatch(creatorPlanner, { activeBillableCount: 10 }).code, "planner_cap");
+assert.strictEqual(
+  canCreateWatch({ ...consumer, planner_status: "active", planner_watch_cap: "10" }, { activeBillableCount: 9 }).code,
+  "planner"
+);
+assert.strictEqual(
+  canCreateWatch({ ...consumer, planner_status: "active", planner_watch_cap: "nope" }, { activeBillableCount: 4 }).code,
+  "planner_cap"
+);
+assert.strictEqual(canCreateWatch({ ...planner }, { activeBillableCount: 3 }).code, "planner");
+assert.strictEqual(canCreateWatch({ ...planner }, { activeBillableCount: plannerCap() }).code, "planner_cap");
+assert.strictEqual(
+  canCreateWatch({ ...consumer, planner_status: "past_due", planner_watch_cap: 10 }).code,
+  "past_due"
+);
+process.env.CONSUMER_ACTIVE_WATCH_BUDGET = "40";
+assert.strictEqual(
+  canCreateWatch(creatorPlanner, {
+    activeBillableCount: 1,
+    consumerActiveWatchCount: 40,
+    incomingWatchCount: 1,
+  }).code,
+  "watch_budget"
+);
+delete process.env.CONSUMER_ACTIVE_WATCH_BUDGET;
+
 console.log("test_entitlement ok");

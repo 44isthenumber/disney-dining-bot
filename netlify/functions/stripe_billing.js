@@ -84,10 +84,34 @@ function userIdFromSession(session) {
 
 const PROMO_CODE_RE = /^[A-Za-z0-9-]{3,40}$/;
 
+const CREATOR_COMPS = {
+  eeccalisa: { planner_coupon: "creator-eeccalisa-planner", watch_cap: 10 },
+};
+
 function acceptedPromoCode(raw) {
   const code = String(raw == null ? "" : raw).trim();
   if (!PROMO_CODE_RE.test(code)) return null;
   return code;
+}
+
+function creatorCompFor(raw) {
+  const code = acceptedPromoCode(raw);
+  if (!code) return null;
+  return CREATOR_COMPS[code.toLowerCase()] || null;
+}
+
+function watchCapFromMetadata(metadata) {
+  if (!metadata || metadata.watch_cap == null || metadata.watch_cap === "") return null;
+  const raw = metadata.watch_cap;
+  if (typeof raw === "number") {
+    if (Number.isFinite(raw) && Number.isInteger(raw) && raw > 0) return raw;
+    return null;
+  }
+  const text = String(raw);
+  if (!/^\d+$/.test(text)) return null;
+  const n = Number(text);
+  if (!Number.isInteger(n) || n <= 0) return null;
+  return n;
 }
 
 function discountRejectedByStripe(err) {
@@ -126,23 +150,19 @@ async function createCheckoutSession({ user, sku, billableId, promoCode }) {
     sku === "planner"
       ? String(process.env.STRIPE_PRICE_PLANNER || "").trim()
       : String(process.env.STRIPE_PRICE_SINGLE_WATCH || "").trim();
-  const origin = siteOrigin();
+  const urls = checkoutUrls();
   const args = {
     mode: sku === "planner" ? "subscription" : "payment",
     client_reference_id: user.id,
     line_items: [{ price, quantity: 1 }],
-    success_url: `${origin}/?paid=ok&session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${origin}/?paid=cancel`,
+    success_url: urls.success_url,
+    cancel_url: urls.cancel_url,
     metadata: { user_id: user.id, sku },
   };
   if (sku === "single_watch" && billableId) {
     args.metadata.billable_id = billableId;
   }
-  if (user.stripe_customer_id) {
-    args.customer = user.stripe_customer_id;
-  } else if (user.email) {
-    args.customer_email = user.email;
-  }
+  attachCustomer(args, user);
   const promo = await lookupPromotionCode(stripe, promoCode);
   if (promo) {
     args.discounts = [{ promotion_code: promo.id }];
@@ -162,6 +182,91 @@ async function createCheckoutSession({ user, sku, billableId, promoCode }) {
     };
     delete retry.discounts;
     session = await stripe.checkout.sessions.create(retry);
+  }
+  return { ok: true, session };
+}
+
+function checkoutUrls() {
+  const origin = siteOrigin();
+  return {
+    success_url: `${origin}/?paid=ok&session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${origin}/?paid=cancel`,
+  };
+}
+
+function attachCustomer(args, user) {
+  if (user.stripe_customer_id) {
+    args.customer = user.stripe_customer_id;
+  } else if (user.email) {
+    args.customer_email = user.email;
+  }
+}
+
+async function createCreatorCompCheckout({ user, promoCode, billableId }) {
+  if (!user || isInternalUser(user) || userStore.isReservedId(user.id)) {
+    return { ok: false, status: 403, code: "internal_no_stripe", detail: "Internal accounts do not use Stripe." };
+  }
+  if (!isConfigured("planner")) return { ok: false, fallback: true };
+  const stripe = getStripe();
+  if (!stripe) return { ok: false, fallback: true };
+
+  const accepted = acceptedPromoCode(promoCode);
+  const comp = creatorCompFor(promoCode);
+  if (!accepted || !comp) return { ok: false, fallback: true };
+
+  if (!stripe.coupons || typeof stripe.coupons.retrieve !== "function") {
+    return { ok: false, fallback: true };
+  }
+  let coupon;
+  try {
+    coupon = await stripe.coupons.retrieve(comp.planner_coupon);
+  } catch {
+    return { ok: false, fallback: true };
+  }
+  if (!coupon || typeof coupon !== "object" || coupon.valid === false) {
+    return { ok: false, fallback: true };
+  }
+  if (coupon.max_redemptions != null && coupon.times_redeemed >= coupon.max_redemptions) {
+    return { ok: false, fallback: true };
+  }
+
+  const price = String(process.env.STRIPE_PRICE_PLANNER || "").trim();
+  const urls = checkoutUrls();
+  const promo = accepted.toLowerCase();
+  const metadata = {
+    user_id: String(user.id),
+    sku: "planner",
+    promo_code: promo,
+    creator_comp: "true",
+    watch_cap: String(comp.watch_cap),
+  };
+  if (billableId) metadata.billable_id = String(billableId);
+  const args = {
+    mode: "subscription",
+    client_reference_id: user.id,
+    line_items: [{ price, quantity: 1 }],
+    success_url: urls.success_url,
+    cancel_url: urls.cancel_url,
+    payment_method_collection: "if_required",
+    discounts: [{ coupon: comp.planner_coupon }],
+    metadata,
+    subscription_data: {
+      metadata: {
+        user_id: String(user.id),
+        promo_code: promo,
+        creator_comp: "true",
+        watch_cap: String(comp.watch_cap),
+      },
+    },
+  };
+  attachCustomer(args, user);
+
+  let session;
+  try {
+    session = await stripe.checkout.sessions.create(args);
+  } catch (err) {
+    if (discountRejectedByStripe(err)) return { ok: false, fallback: true };
+    throw err;
   }
   return { ok: true, session };
 }
@@ -270,21 +375,25 @@ function periodEnd(sub) {
   return String(end);
 }
 
-async function applyPlannerFields(user, sub, customerId) {
+async function applyPlannerFields(user, sub, customerId, metadata) {
+  const fresh = (user && user.id && (await userStore.getById(user.id))) || user;
   const status = (sub && sub.status) || "active";
   let plannerStatus = "none";
   if (status === "active" || status === "trialing") plannerStatus = status;
   else if (status === "past_due") plannerStatus = "past_due";
   else if (status === "canceled" || status === "unpaid" || status === "incomplete_expired") plannerStatus = "canceled";
   else plannerStatus = status || "active";
-  await userStore.put({
-    ...user,
-    stripe_customer_id: customerId || user.stripe_customer_id,
+  const next = {
+    ...fresh,
+    stripe_customer_id: customerId || (fresh && fresh.stripe_customer_id),
     planner_status: plannerStatus,
-    planner_subscription_id: (sub && sub.id) || user.planner_subscription_id,
+    planner_subscription_id: (sub && sub.id) || (fresh && fresh.planner_subscription_id),
     planner_current_period_end: periodEnd(sub),
     cancel_at_period_end: Boolean(sub && sub.cancel_at_period_end),
-  });
+  };
+  const cap = watchCapFromMetadata(metadata);
+  if (cap != null) next.planner_watch_cap = cap;
+  await userStore.put(next);
 }
 
 async function applyCheckoutCompleted(session, helpers) {
@@ -303,7 +412,32 @@ async function applyCheckoutCompleted(session, helpers) {
     sub = await stripe.subscriptions.retrieve(sub);
   }
   if (sku === "planner" || session.mode === "subscription") {
-    await applyPlannerFields(user, sub && typeof sub === "object" ? sub : { id: sub, status: "active" }, customerId);
+    const subObj = sub && typeof sub === "object" ? sub : { id: sub, status: "active" };
+    const metadata = { ...(subObj.metadata || {}), ...((session && session.metadata) || {}) };
+    await applyPlannerFields(user, subObj, customerId, metadata);
+    const pending = await userStore.getCheckout(session.id);
+    const sessionBillable = session.metadata && session.metadata.billable_id;
+    if (sessionBillable || (pending && pending.watch)) {
+      const { loadWatches, appendWatchPayload } = helpers;
+      const watches = await loadWatches();
+      const ownerId = (pending && pending.user_id) || userIdFromSession(session);
+      const billableId = sessionBillable || (pending && pending.billable_id);
+      if (gistHasBillable(watches, ownerId, billableId)) {
+        if (session.id) await userStore.deleteCheckout(session.id);
+      } else if (pending && pending.watch) {
+        const incoming = (pending.watch.dates || []).length;
+        const current = countActiveConsumerWatchRows(watches);
+        const budget = consumerWatchBudget();
+        if (current >= budget || current + incoming > budget) {
+          throw new WatchBudgetError();
+        }
+        const freshUser = (user && user.id && (await userStore.getById(user.id))) || user;
+        await appendWatchPayload(freshUser, pending.watch, billableId);
+        if (session.id) await userStore.deleteCheckout(session.id);
+      } else {
+        throw new Error("pending checkout missing");
+      }
+    }
   } else if (customerId) {
     await userStore.put({ ...user, stripe_customer_id: customerId });
   }
@@ -319,7 +453,7 @@ async function applySubscriptionLike(obj, extras = {}) {
   }
   const customerId = customerIdFrom(obj) || obj.customer;
   const sub = obj.object === "subscription" ? obj : obj;
-  await applyPlannerFields(user, { ...sub, ...extras }, customerId);
+  await applyPlannerFields(user, { ...sub, ...extras }, customerId, obj.metadata);
   return { applied: "subscription" };
 }
 
@@ -430,11 +564,11 @@ async function syncSession(user, sessionId, helpers) {
   if (user.stripe_customer_id && stripe.subscriptions && stripe.subscriptions.list) {
     const listed = await stripe.subscriptions.list({ customer: user.stripe_customer_id, status: "all", limit: 1 });
     const sub = listed && listed.data && listed.data[0];
-    if (sub) await applyPlannerFields(user, sub, user.stripe_customer_id);
+    if (sub) await applyPlannerFields(user, sub, user.stripe_customer_id, sub.metadata);
   } else if (user.planner_subscription_id && stripe.subscriptions && stripe.subscriptions.retrieve) {
     const fresh = await userStore.getById(user.id);
     const sub = await stripe.subscriptions.retrieve(user.planner_subscription_id);
-    await applyPlannerFields(fresh || user, sub, (fresh || user).stripe_customer_id);
+    await applyPlannerFields(fresh || user, sub, (fresh || user).stripe_customer_id, sub.metadata);
   }
   return { ok: true };
 }
@@ -443,11 +577,14 @@ module.exports = {
   setStripeForTests,
   isConfigured,
   newBillableId,
+  creatorCompFor,
   createCheckoutSession,
+  createCreatorCompCheckout,
   createPortalSession,
   handleWebhook,
   syncSession,
   applyCheckoutCompleted,
+  applyPlannerFields,
   applyStripeEvent,
   rawBody,
   isActiveWatch,

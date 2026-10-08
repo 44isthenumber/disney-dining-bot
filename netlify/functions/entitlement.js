@@ -46,6 +46,20 @@ function plannerCap() {
   return Number.isFinite(n) && n > 0 ? n : 4;
 }
 
+function effectivePlannerCap(user) {
+  const raw = user && user.planner_watch_cap;
+  if (raw == null || raw === "") return plannerCap();
+  if (typeof raw === "number") {
+    if (Number.isFinite(raw) && Number.isInteger(raw) && raw > 0) return raw;
+    return plannerCap();
+  }
+  const text = String(raw);
+  if (!/^\d+$/.test(text)) return plannerCap();
+  const n = Number(text);
+  if (!Number.isInteger(n) || n <= 0) return plannerCap();
+  return n;
+}
+
 function consumerWatchBudget() {
   const raw = String(process.env.CONSUMER_ACTIVE_WATCH_BUDGET || "").trim();
   if (!/^\d+$/.test(raw)) return DEFAULT_CONSUMER_WATCH_BUDGET;
@@ -134,7 +148,7 @@ function canCreateWatch(user, opts = {}) {
     };
   }
   if (livePlanner(user)) {
-    if (opts.activeBillableCount == null || opts.activeBillableCount >= plannerCap()) {
+    if (opts.activeBillableCount == null || opts.activeBillableCount >= effectivePlannerCap(user)) {
       return {
         ok: false,
         code: "planner_cap",
@@ -226,6 +240,7 @@ module.exports = {
   canCreateWatch,
   publicIdentity,
   plannerCap,
+  effectivePlannerCap,
   consumerWatchBudget,
   countActiveConsumerWatchRows,
   livePlanner,

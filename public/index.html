@@ -1754,7 +1754,11 @@ function renderPromoNote() {
     return;
   }
   el.hidden = false;
-  el.textContent = 'Creator code ' + code.toUpperCase() + ' applied at checkout';
+  if (String(code).toLowerCase() === 'eeccalisa') {
+    el.textContent = 'Creator access: free Planner for 3 months, up to 10 alerts. No card needed.';
+  } else {
+    el.textContent = 'Creator code ' + code.toUpperCase() + ' applied at checkout';
+  }
 }
 capturePromoFromUrl();
 if (!document.documentElement.classList.contains('has-session')) {

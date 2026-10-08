@@ -481,6 +481,188 @@ function cookieHeaderFrom(res) {
   assert.strictEqual(plannerArgs.metadata.promo_code, "eeccalisa");
   assert.ok(!Object.prototype.hasOwnProperty.call(plannerArgs, "allow_promotion_codes"));
 
+  const fallbackFake = {
+    coupons: {
+      retrieve: async () => ({ id: "creator-eeccalisa-planner", valid: false }),
+    },
+    promotionCodes: {
+      list: async (query) => {
+        if (query && query.code === "eeccalisa") {
+          return { data: [{ id: "promo_1UO5Ek5BXyxSSEMUtvf0uxkF", code: "eeccalisa" }] };
+        }
+        return { data: [] };
+      },
+    },
+    checkout: {
+      sessions: {
+        create: async (args) => {
+          checkoutCreates.push(args);
+          return {
+            id: "cs_live_test",
+            url: "https://checkout.stripe.com/c/pay/cs_live_test",
+            metadata: args.metadata,
+            client_reference_id: args.client_reference_id,
+            mode: args.mode,
+          };
+        },
+      },
+    },
+    billingPortal: {
+      sessions: { create: async () => ({ url: "https://billing.stripe.com/p/test" }) },
+    },
+    webhooks: {
+      constructEvent: (body, sig) => {
+        if (sig !== "ok") throw new Error("bad");
+        return JSON.parse(body);
+      },
+    },
+  };
+  billing.setStripeForTests(fallbackFake);
+  const rejectedCouponWatch = parse(
+    await handler(
+      ev("POST", "/_api/watches", {
+        headers: { cookie, "x-forwarded-proto": "https", "content-type": "application/json" },
+        body: { ...watchPayload, promo_code: "eeccalisa" },
+      })
+    )
+  );
+  assert.strictEqual(rejectedCouponWatch.status, 402);
+  assert.strictEqual(rejectedCouponWatch.body.code, "checkout_required");
+  const rejectedArgs = checkoutCreates[checkoutCreates.length - 1];
+  assert.strictEqual(rejectedArgs.mode, "payment");
+  assert.strictEqual(rejectedArgs.metadata.sku, "single_watch");
+  assert.deepStrictEqual(rejectedArgs.discounts, [{ promotion_code: "promo_1UO5Ek5BXyxSSEMUtvf0uxkF" }]);
+
+  const validCouponFake = {
+    coupons: {
+      retrieve: async () => ({
+        id: "creator-eeccalisa-planner",
+        valid: true,
+        max_redemptions: 1,
+        times_redeemed: 0,
+      }),
+    },
+    promotionCodes: {
+      list: async (query) => {
+        if (query && query.code === "eeccalisa") {
+          return { data: [{ id: "promo_1UO5Ek5BXyxSSEMUtvf0uxkF", code: "eeccalisa" }] };
+        }
+        return { data: [] };
+      },
+    },
+    checkout: {
+      sessions: {
+        create: async (args) => {
+          checkoutCreates.push(args);
+          return {
+            id: "cs_creator_valid",
+            url: "https://checkout.stripe.com/c/pay/cs_creator_valid",
+            metadata: args.metadata,
+            client_reference_id: args.client_reference_id,
+            mode: args.mode,
+          };
+        },
+      },
+    },
+    billingPortal: {
+      sessions: { create: async () => ({ url: "https://billing.stripe.com/p/test" }) },
+    },
+    webhooks: {
+      constructEvent: (body, sig) => {
+        if (sig !== "ok") throw new Error("bad");
+        return JSON.parse(body);
+      },
+    },
+  };
+  billing.setStripeForTests(validCouponFake);
+  const writesBeforeCreator = writes.length;
+  const creatorWatch = parse(
+    await handler(
+      ev("POST", "/_api/watches", {
+        headers: { cookie, "x-forwarded-proto": "https", "content-type": "application/json" },
+        body: { ...watchPayload, promo_code: "EECCALISA", watch_cap: 99 },
+      })
+    )
+  );
+  assert.strictEqual(creatorWatch.status, 402);
+  assert.strictEqual(creatorWatch.body.code, "checkout_required");
+  const creatorWatchArgs = checkoutCreates[checkoutCreates.length - 1];
+  assert.strictEqual(creatorWatchArgs.mode, "subscription");
+  assert.deepStrictEqual(creatorWatchArgs.discounts, [{ coupon: "creator-eeccalisa-planner" }]);
+  assert.strictEqual(creatorWatchArgs.payment_method_collection, "if_required");
+  assert.ok(!Object.prototype.hasOwnProperty.call(creatorWatchArgs, "allow_promotion_codes"));
+  assert.strictEqual(creatorWatchArgs.metadata.watch_cap, "10");
+  assert.strictEqual(creatorWatchArgs.metadata.promo_code, "eeccalisa");
+  assert.strictEqual(creatorWatchArgs.metadata.creator_comp, "true");
+  const pendingCreator = await store.getCheckout("cs_creator_valid");
+  assert.ok(pendingCreator && pendingCreator.watch);
+  assert.strictEqual(pendingCreator.sku, "planner");
+  assert.ok(!Object.prototype.hasOwnProperty.call(pendingCreator.watch, "promo_code"));
+  assert.strictEqual(writes.length, writesBeforeCreator);
+
+  const creatorBilling = parse(
+    await handler(
+      ev("POST", "/_api/billing/checkout", {
+        headers: { cookie, "x-forwarded-proto": "https", "content-type": "application/json" },
+        body: { sku: "planner", promo_code: "eeccalisa" },
+      })
+    )
+  );
+  assert.strictEqual(creatorBilling.status, 200);
+  assert.ok(String(creatorBilling.body.checkout_url).startsWith("https://"));
+  const creatorBillingArgs = checkoutCreates[checkoutCreates.length - 1];
+  assert.strictEqual(creatorBillingArgs.mode, "subscription");
+  assert.deepStrictEqual(creatorBillingArgs.discounts, [{ coupon: "creator-eeccalisa-planner" }]);
+  assert.ok(!Object.prototype.hasOwnProperty.call(creatorBillingArgs, "allow_promotion_codes"));
+  assert.strictEqual(creatorBillingArgs.metadata.sku, "planner");
+
+  const unknownBilling = parse(
+    await handler(
+      ev("POST", "/_api/billing/checkout", {
+        headers: { cookie, "x-forwarded-proto": "https", "content-type": "application/json" },
+        body: { sku: "planner", promo_code: "not-a-real-code" },
+      })
+    )
+  );
+  assert.strictEqual(unknownBilling.status, 200);
+  const unknownBillingArgs = checkoutCreates[checkoutCreates.length - 1];
+  assert.strictEqual(unknownBillingArgs.allow_promotion_codes, true);
+  assert.ok(!Object.prototype.hasOwnProperty.call(unknownBillingArgs, "discounts"));
+
+  billing.setStripeForTests({
+    promotionCodes: {
+      list: async (query) => {
+        if (query && query.code === "eeccalisa") {
+          return { data: [{ id: "promo_1UO5Ek5BXyxSSEMUtvf0uxkF", code: "eeccalisa" }] };
+        }
+        return { data: [] };
+      },
+    },
+    checkout: {
+      sessions: {
+        create: async (args) => {
+          checkoutCreates.push(args);
+          return {
+            id: "cs_live_test",
+            url: "https://checkout.stripe.com/c/pay/cs_live_test",
+            metadata: args.metadata,
+            client_reference_id: args.client_reference_id,
+            mode: args.mode,
+          };
+        },
+      },
+    },
+    billingPortal: {
+      sessions: { create: async () => ({ url: "https://billing.stripe.com/p/test" }) },
+    },
+    webhooks: {
+      constructEvent: (body, sig) => {
+        if (sig !== "ok") throw new Error("bad");
+        return JSON.parse(body);
+      },
+    },
+  });
+
   const noSms = parse(
     await handler(
       ev("POST", "/_api/watches", {
