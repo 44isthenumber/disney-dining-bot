@@ -354,16 +354,28 @@ function cookieHeaderFrom(res) {
   process.env.STRIPE_PRICE_SINGLE_WATCH = "price_single";
   process.env.STRIPE_PRICE_PLANNER = "price_planner";
   process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
+  const checkoutCreates = [];
   billing.setStripeForTests({
+    promotionCodes: {
+      list: async (query) => {
+        if (query && query.code === "eeccalisa") {
+          return { data: [{ id: "promo_1UO5Ek5BXyxSSEMUtvf0uxkF", code: "eeccalisa" }] };
+        }
+        return { data: [] };
+      },
+    },
     checkout: {
       sessions: {
-        create: async (args) => ({
-          id: "cs_live_test",
-          url: "https://checkout.stripe.com/c/pay/cs_live_test",
-          metadata: args.metadata,
-          client_reference_id: args.client_reference_id,
-          mode: args.mode,
-        }),
+        create: async (args) => {
+          checkoutCreates.push(args);
+          return {
+            id: "cs_live_test",
+            url: "https://checkout.stripe.com/c/pay/cs_live_test",
+            metadata: args.metadata,
+            client_reference_id: args.client_reference_id,
+            mode: args.mode,
+          };
+        },
       },
     },
     billingPortal: {
@@ -430,6 +442,44 @@ function cookieHeaderFrom(res) {
   assert.strictEqual(checkout.body.code, "checkout_required");
   assert.ok(String(checkout.body.checkout_url).startsWith("https://"));
   assert.strictEqual(writes.length, 0);
+  assert.ok(checkoutCreates.length >= 1);
+  assert.strictEqual(checkoutCreates[checkoutCreates.length - 1].allow_promotion_codes, true);
+  assert.ok(!checkoutCreates[checkoutCreates.length - 1].discounts);
+
+  const promoCheckout = parse(
+    await handler(
+      ev("POST", "/_api/watches", {
+        headers: { cookie, "x-forwarded-proto": "https", "content-type": "application/json" },
+        body: { ...watchPayload, promo_code: "EECCALISA" },
+      })
+    )
+  );
+  assert.strictEqual(promoCheckout.status, 402);
+  assert.strictEqual(promoCheckout.body.code, "checkout_required");
+  const promoArgs = checkoutCreates[checkoutCreates.length - 1];
+  assert.deepStrictEqual(promoArgs.discounts, [{ promotion_code: "promo_1UO5Ek5BXyxSSEMUtvf0uxkF" }]);
+  assert.ok(!Object.prototype.hasOwnProperty.call(promoArgs, "allow_promotion_codes"));
+  assert.strictEqual(promoArgs.metadata.promo_code, "eeccalisa");
+  const pendingPromo = await store.getCheckout("cs_live_test");
+  assert.ok(pendingPromo && pendingPromo.watch);
+  assert.ok(!Object.prototype.hasOwnProperty.call(pendingPromo.watch, "promo_code"));
+  assert.strictEqual(writes.length, 0);
+
+  const plannerPromo = parse(
+    await handler(
+      ev("POST", "/_api/billing/checkout", {
+        headers: { cookie, "x-forwarded-proto": "https", "content-type": "application/json" },
+        body: { sku: "planner", promo_code: "eeccalisa" },
+      })
+    )
+  );
+  assert.strictEqual(plannerPromo.status, 200);
+  assert.ok(String(plannerPromo.body.checkout_url).startsWith("https://"));
+  const plannerArgs = checkoutCreates[checkoutCreates.length - 1];
+  assert.strictEqual(plannerArgs.mode, "subscription");
+  assert.deepStrictEqual(plannerArgs.discounts, [{ promotion_code: "promo_1UO5Ek5BXyxSSEMUtvf0uxkF" }]);
+  assert.strictEqual(plannerArgs.metadata.promo_code, "eeccalisa");
+  assert.ok(!Object.prototype.hasOwnProperty.call(plannerArgs, "allow_promotion_codes"));
 
   const noSms = parse(
     await handler(

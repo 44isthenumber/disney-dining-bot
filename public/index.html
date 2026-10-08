@@ -975,6 +975,8 @@
   .popular-chip:hover { border-color: var(--gold); transform: translateY(-1px); }
   .create-fine { font-size: 12px; color: var(--muted); margin-top: 10px; line-height: 1.5; }
   .create-fine[hidden] { display: none !important; }
+  .promo-note { font-size: 12px; color: var(--muted); margin: 0 0 8px; line-height: 1.4; }
+  .promo-note[hidden] { display: none !important; }
   /* Collapsed guest starter: WHERE + WHEN (restaurant, dates, meal, time) + WHO + CTA.
      Phone, email, and consent appear after Start my watch with restaurant, dates, and party. */
   #create-watch.is-collapsed > h2, #create-watch.is-collapsed > .hint,
@@ -1585,6 +1587,7 @@
         </div>
       </div>
       <p id="billing-next-banner">Pay $4.99 for this watch. You'll go to Stripe to pay, then we'll start watching. Paying is not text consent — check the box first.</p>
+      <p id="promo-note" class="promo-note" hidden></p>
       <div class="create-actions">
         <button type="submit" id="create-btn" disabled>Create Watch</button>
         <div id="create-msg" role="status"></div>
@@ -1706,10 +1709,6 @@ function placeCreateWatch(anonymous) {
   else if (home) home.appendChild(card);
   syncGuestStarter();
 }
-if (!document.documentElement.classList.contains('has-session')) {
-  placeCreateWatch(true);
-  applyEntitlementUI();
-}
 // localStorage can throw (Safari private mode quota, storage blocked). Never let that break the page.
 function storageGet(key) {
   try { return localStorage.getItem(key); } catch (e) { return null; }
@@ -1720,6 +1719,49 @@ function storageSet(key, value) {
 function storageRemove(key) {
   try { localStorage.removeItem(key); } catch (e) { /* nothing to clear */ }
 }
+var PROMO_CODE_RE = /^[A-Za-z0-9-]{3,40}$/;
+var PROMO_STORAGE_KEY = 'mtfPromoCode';
+function sessionStorageGet(key) {
+  try { return sessionStorage.getItem(key); } catch (e) { return null; }
+}
+function sessionStorageSet(key, value) {
+  try { sessionStorage.setItem(key, value); return true; } catch (e) { return false; }
+}
+function acceptedPromoCode(raw) {
+  var code = String(raw == null ? '' : raw).trim();
+  return PROMO_CODE_RE.test(code) ? code : '';
+}
+function readStoredPromo() {
+  return acceptedPromoCode(storageGet(PROMO_STORAGE_KEY)) || acceptedPromoCode(sessionStorageGet(PROMO_STORAGE_KEY));
+}
+function persistPromo(code) {
+  storageSet(PROMO_STORAGE_KEY, code);
+  sessionStorageSet(PROMO_STORAGE_KEY, code);
+}
+function capturePromoFromUrl() {
+  var params;
+  try { params = new URLSearchParams(window.location.search); } catch (e) { return; }
+  var fromUrl = acceptedPromoCode(params.get('promo'));
+  if (fromUrl) persistPromo(fromUrl);
+}
+function renderPromoNote() {
+  var el = document.getElementById('promo-note');
+  if (!el) return;
+  var code = readStoredPromo();
+  if (!code) {
+    el.hidden = true;
+    el.textContent = '';
+    return;
+  }
+  el.hidden = false;
+  el.textContent = 'Creator code ' + code.toUpperCase() + ' applied at checkout';
+}
+capturePromoFromUrl();
+if (!document.documentElement.classList.contains('has-session')) {
+  placeCreateWatch(true);
+  applyEntitlementUI();
+}
+renderPromoNote();
 function readWatchDraft() {
   try {
     var raw = storageGet('mtfWatchDraft');
@@ -2137,6 +2179,8 @@ async function postWatch(body) {
   var payload = Object.assign({}, body);
   var phone = getPhonePayload();
   if (phone) payload.phone = phone;
+  var promoCode = readStoredPromo();
+  if (promoCode) payload.promo_code = promoCode;
   const res = await fetch('/_api/watches', {
     method: 'POST',
     credentials: 'include',
@@ -2276,6 +2320,7 @@ async function attemptMagicLink() {
 }
 
 function applyEntitlementUI() {
+  renderPromoNote();
   var banner = document.getElementById('billing-next-banner');
   var createBtn = document.getElementById('create-btn');
   var guestEmail = document.getElementById('guest-email-field');
@@ -3842,7 +3887,10 @@ async function onLogin(opts) {
 
 async function startPlannerCheckout() {
   try {
-    const data = await apiFetch('/billing/checkout', { method: 'POST', body: JSON.stringify({ sku: 'planner' }) });
+    var checkoutBody = { sku: 'planner' };
+    var promoCode = readStoredPromo();
+    if (promoCode) checkoutBody.promo_code = promoCode;
+    const data = await apiFetch('/billing/checkout', { method: 'POST', body: JSON.stringify(checkoutBody) });
     if (data && data.checkout_url) window.location.assign(data.checkout_url);
   } catch (e) {
     var msg = document.getElementById('create-msg');
