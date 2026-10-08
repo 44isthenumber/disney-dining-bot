@@ -64,6 +64,8 @@ function fakeStripe() {
   assert.strictEqual(first.ok, true);
   const args = stripe.created[0];
   assert.strictEqual(args.mode, "payment");
+  assert.strictEqual(args.allow_promotion_codes, true);
+  assert.ok(!Object.prototype.hasOwnProperty.call(args, "discounts"));
   assert.strictEqual(args.client_reference_id, user.id);
   assert.strictEqual(args.metadata.user_id, user.id);
   assert.strictEqual(args.metadata.sku, "single_watch");
@@ -79,6 +81,8 @@ function fakeStripe() {
   await billing.createCheckoutSession({ user: withCustomer, sku: "planner" });
   const subArgs = stripe.created[0];
   assert.strictEqual(subArgs.mode, "subscription");
+  assert.strictEqual(subArgs.allow_promotion_codes, true);
+  assert.ok(!Object.prototype.hasOwnProperty.call(subArgs, "discounts"));
   assert.strictEqual(subArgs.customer, "cus_1");
   assert.ok(!Object.prototype.hasOwnProperty.call(subArgs, "customer_email"));
 
@@ -168,6 +172,48 @@ function fakeStripe() {
   );
   assert.strictEqual(writes.length, 2);
 
+  const freeUser = await store.upsertByEmail("free100@example.com");
+  await store.put({ ...freeUser, phone: "+15557777" });
+  const freeFresh = await store.getById(freeUser.id);
+  await store.putCheckout("cs_free_100", {
+    user_id: freeFresh.id,
+    sku: "single_watch",
+    billable_id: "bill_free_100",
+    watch: {
+      facility_id: "90002686",
+      name: "Free",
+      slug: "free",
+      party_size: 2,
+      dates: ["2099-02-01", "2099-02-02"],
+      meal_periods: ["DINNER"],
+    },
+  });
+  const freeApplied = await billing.applyCheckoutCompleted(
+    {
+      id: "cs_free_100",
+      status: "complete",
+      payment_status: "no_payment_required",
+      customer: "cus_free",
+      metadata: { user_id: freeFresh.id, sku: "single_watch", billable_id: "bill_free_100" },
+      client_reference_id: freeFresh.id,
+    },
+    helpers
+  );
+  assert.strictEqual(freeApplied.applied, "single_watch");
+  assert.ok(
+    writes.some((w) => w.billable_id === "bill_free_100" && w.owner_id === freeFresh.id)
+  );
+  assert.ok(
+    writes
+      .filter((w) => w.billable_id === "bill_free_100")
+      .every((w) => w.recipient_phone === "+15557777")
+  );
+  assert.strictEqual(writes.filter((w) => w.billable_id === "bill_free_100").length, 2);
+  const freeAfter = await store.getById(freeFresh.id);
+  assert.strictEqual(freeAfter.single_watch_count, 1);
+  assert.strictEqual(freeAfter.stripe_customer_id, "cus_free");
+  assert.strictEqual(await store.getCheckout("cs_free_100"), null);
+
   const mixedReserved = await billing.applyCheckoutCompleted(
     {
       id: "cs_mix",
@@ -191,7 +237,7 @@ function fakeStripe() {
     helpers
   );
   assert.strictEqual(unpaid.skipped, "unpaid");
-  assert.strictEqual(writes.length, 2);
+  assert.strictEqual(writes.length, 4);
 
   const asyncUser = await store.upsertByEmail("async@example.com");
   await store.put({ ...asyncUser, phone: "+15558888" });

@@ -97,6 +97,7 @@ async function createCheckoutSession({ user, sku, billableId }) {
   const origin = siteOrigin();
   const args = {
     mode: sku === "planner" ? "subscription" : "payment",
+    allow_promotion_codes: true,
     client_reference_id: user.id,
     line_items: [{ price, quantity: 1 }],
     success_url: `${origin}/?paid=ok&session_id={CHECKOUT_SESSION_ID}`,
