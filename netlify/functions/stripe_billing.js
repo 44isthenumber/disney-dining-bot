@@ -249,6 +249,11 @@ async function createCreatorCompCheckout({ user, promoCode, billableId }) {
     cancel_url: urls.cancel_url,
     payment_method_collection: "if_required",
     discounts: [{ coupon: comp.planner_coupon }],
+    custom_text: {
+      submit: {
+        message: `Creator access: up to ${comp.watch_cap} alerts, free for 3 months. No card needed.`,
+      },
+    },
     metadata,
     subscription_data: {
       metadata: {
