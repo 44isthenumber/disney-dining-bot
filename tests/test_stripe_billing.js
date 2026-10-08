@@ -101,6 +101,7 @@ function fakeStripe() {
   assert.ok(!Object.prototype.hasOwnProperty.call(subArgs, "discounts"));
   assert.strictEqual(subArgs.customer, "cus_1");
   assert.ok(!Object.prototype.hasOwnProperty.call(subArgs, "customer_email"));
+  assert.ok(!Object.prototype.hasOwnProperty.call(subArgs, "custom_text"));
 
   const internal = await billing.createCheckoutSession({
     user: { id: "craig", kind: "internal" },
@@ -654,6 +655,15 @@ function fakeStripe() {
   assert.strictEqual(creatorArgs.subscription_data.metadata.creator_comp, "true");
   assert.strictEqual(creatorArgs.subscription_data.metadata.watch_cap, "10");
   assert.ok(!Object.prototype.hasOwnProperty.call(creatorArgs.subscription_data.metadata, "billable_id"));
+  assert.ok(creatorArgs.custom_text);
+  assert.ok(creatorArgs.custom_text.submit);
+  assert.strictEqual(typeof creatorArgs.custom_text.submit.message, "string");
+  assert.ok(creatorArgs.custom_text.submit.message.includes("10 alerts"));
+  assert.strictEqual(
+    creatorArgs.custom_text.submit.message,
+    "Creator access: up to 10 alerts, free for 3 months. No card needed."
+  );
+  assert.ok(creatorArgs.custom_text.submit.message.length < 1200);
   assert.strictEqual(typeof billing.createCreatorCompCheckout, "function");
   assert.strictEqual(billing.createCreatorCompCheckout.length, 1);
 
