@@ -82,7 +82,39 @@ function userIdFromSession(session) {
   );
 }
 
-async function createCheckoutSession({ user, sku, billableId }) {
+const PROMO_CODE_RE = /^[A-Za-z0-9-]{3,40}$/;
+
+function acceptedPromoCode(raw) {
+  const code = String(raw == null ? "" : raw).trim();
+  if (!PROMO_CODE_RE.test(code)) return null;
+  return code;
+}
+
+function discountRejectedByStripe(err) {
+  const raw = err && err.raw && err.raw.message;
+  const msg = String((err && err.message) || raw || "").toLowerCase();
+  return msg.includes("promotion code") || msg.includes("coupon") || msg.includes("does not apply");
+}
+
+async function lookupPromotionCode(stripe, promoCode) {
+  const code = acceptedPromoCode(promoCode);
+  if (!code) return null;
+  try {
+    const listed = await stripe.promotionCodes.list({
+      code: code.toLowerCase(),
+      active: true,
+      limit: 1,
+    });
+    const found = listed && Array.isArray(listed.data) ? listed.data[0] : null;
+    if (!found || !found.id) return null;
+    const recorded = String(found.code || code).trim() || code;
+    return { id: found.id, code: recorded };
+  } catch {
+    return null;
+  }
+}
+
+async function createCheckoutSession({ user, sku, billableId, promoCode }) {
   if (!user || isInternalUser(user) || userStore.isReservedId(user.id)) {
     return { ok: false, status: 403, code: "internal_no_stripe", detail: "Internal accounts do not use Stripe." };
   }
@@ -97,7 +129,6 @@ async function createCheckoutSession({ user, sku, billableId }) {
   const origin = siteOrigin();
   const args = {
     mode: sku === "planner" ? "subscription" : "payment",
-    allow_promotion_codes: true,
     client_reference_id: user.id,
     line_items: [{ price, quantity: 1 }],
     success_url: `${origin}/?paid=ok&session_id={CHECKOUT_SESSION_ID}`,
@@ -112,7 +143,26 @@ async function createCheckoutSession({ user, sku, billableId }) {
   } else if (user.email) {
     args.customer_email = user.email;
   }
-  const session = await stripe.checkout.sessions.create(args);
+  const promo = await lookupPromotionCode(stripe, promoCode);
+  if (promo) {
+    args.discounts = [{ promotion_code: promo.id }];
+    args.metadata.promo_code = promo.code;
+  } else {
+    args.allow_promotion_codes = true;
+  }
+  let session;
+  try {
+    session = await stripe.checkout.sessions.create(args);
+  } catch (err) {
+    if (!args.discounts || !discountRejectedByStripe(err)) throw err;
+    const retry = {
+      ...args,
+      allow_promotion_codes: true,
+      metadata: { ...args.metadata },
+    };
+    delete retry.discounts;
+    session = await stripe.checkout.sessions.create(retry);
+  }
   return { ok: true, session };
 }
 

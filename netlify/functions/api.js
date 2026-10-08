@@ -1024,6 +1024,7 @@ async function handlePostWatch(event, user) {
       user,
       sku: "single_watch",
       billableId,
+      promoCode: body.promo_code,
     });
     if (!created.ok) {
       return response(created.status || 503, {
@@ -1071,7 +1072,11 @@ async function handleBillingCheckout(event, user) {
       detail: "Update billing to add watches. Existing watches keep alerting.",
     });
   }
-  const created = await stripeBilling.createCheckoutSession({ user, sku: "planner" });
+  const created = await stripeBilling.createCheckoutSession({
+    user,
+    sku: "planner",
+    promoCode: body.promo_code,
+  });
   if (!created.ok) {
     return response(created.status || 503, { code: created.code, detail: created.detail });
   }

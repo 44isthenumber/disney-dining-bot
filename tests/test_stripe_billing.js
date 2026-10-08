@@ -15,9 +15,25 @@ const billing = require("../netlify/functions/stripe_billing");
 function fakeStripe() {
   const created = [];
   const portal = [];
+  const promoLists = [];
+  const promos = { byCode: {}, throwOn: false };
   return {
     created,
     portal,
+    promoLists,
+    promos,
+    promotionCodes: {
+      list: async (query) => {
+        promoLists.push(query);
+        if (promos.throwOn) {
+          promos.throwOn = false;
+          throw new Error("lookup failed");
+        }
+        const code = String((query && query.code) || "");
+        const found = promos.byCode[code];
+        return { data: found ? [found] : [] };
+      },
+    },
     checkout: {
       sessions: {
         create: async (args) => {
@@ -92,6 +108,142 @@ function fakeStripe() {
   });
   assert.strictEqual(internal.status, 403);
   assert.strictEqual(internal.code, "internal_no_stripe");
+
+  stripe.promos.byCode.eeccalisa = { id: "promo_1UO5Ek5BXyxSSEMUtvf0uxkF", code: "eeccalisa" };
+  stripe.created.length = 0;
+  stripe.promoLists.length = 0;
+  const withPromo = await billing.createCheckoutSession({
+    user,
+    sku: "single_watch",
+    billableId: "bill_promo",
+    promoCode: "eeccalisa",
+  });
+  assert.strictEqual(withPromo.ok, true);
+  const promoArgs = stripe.created[0];
+  assert.deepStrictEqual(promoArgs.discounts, [{ promotion_code: "promo_1UO5Ek5BXyxSSEMUtvf0uxkF" }]);
+  assert.ok(!Object.prototype.hasOwnProperty.call(promoArgs, "allow_promotion_codes"));
+  assert.strictEqual(promoArgs.metadata.promo_code, "eeccalisa");
+  assert.strictEqual(promoArgs.metadata.billable_id, "bill_promo");
+  assert.strictEqual(stripe.promoLists.length, 1);
+  assert.deepStrictEqual(stripe.promoLists[0], { code: "eeccalisa", active: true, limit: 1 });
+
+  stripe.created.length = 0;
+  stripe.promoLists.length = 0;
+  const upperPromo = await billing.createCheckoutSession({
+    user,
+    sku: "single_watch",
+    promoCode: " EECCALISA ",
+  });
+  assert.strictEqual(upperPromo.ok, true);
+  assert.deepStrictEqual(stripe.promoLists[0], { code: "eeccalisa", active: true, limit: 1 });
+  assert.deepStrictEqual(stripe.created[0].discounts, [{ promotion_code: "promo_1UO5Ek5BXyxSSEMUtvf0uxkF" }]);
+  assert.ok(!Object.prototype.hasOwnProperty.call(stripe.created[0], "allow_promotion_codes"));
+  assert.strictEqual(stripe.created[0].metadata.promo_code, "eeccalisa");
+
+  stripe.created.length = 0;
+  stripe.promoLists.length = 0;
+  const unknownPromo = await billing.createCheckoutSession({
+    user,
+    sku: "single_watch",
+    promoCode: "not-a-real-code",
+  });
+  assert.strictEqual(unknownPromo.ok, true);
+  assert.strictEqual(stripe.promoLists.length, 1);
+  assert.strictEqual(stripe.created[0].allow_promotion_codes, true);
+  assert.ok(!Object.prototype.hasOwnProperty.call(stripe.created[0], "discounts"));
+  assert.ok(!Object.prototype.hasOwnProperty.call(stripe.created[0].metadata, "promo_code"));
+
+  stripe.created.length = 0;
+  stripe.promoLists.length = 0;
+  const invalidPromo = await billing.createCheckoutSession({
+    user,
+    sku: "single_watch",
+    promoCode: "bad code!",
+  });
+  assert.strictEqual(invalidPromo.ok, true);
+  assert.strictEqual(stripe.promoLists.length, 0);
+  assert.strictEqual(stripe.created[0].allow_promotion_codes, true);
+  assert.ok(!Object.prototype.hasOwnProperty.call(stripe.created[0], "discounts"));
+  assert.ok(!Object.prototype.hasOwnProperty.call(stripe.created[0].metadata, "promo_code"));
+
+  stripe.created.length = 0;
+  const shortPromo = await billing.createCheckoutSession({
+    user,
+    sku: "planner",
+    promoCode: "ab",
+  });
+  assert.strictEqual(shortPromo.ok, true);
+  assert.strictEqual(stripe.promoLists.length, 0);
+  assert.strictEqual(stripe.created[0].allow_promotion_codes, true);
+  assert.ok(!Object.prototype.hasOwnProperty.call(stripe.created[0], "discounts"));
+
+  stripe.promos.throwOn = true;
+  stripe.created.length = 0;
+  const lookupThrew = await billing.createCheckoutSession({
+    user,
+    sku: "single_watch",
+    promoCode: "eeccalisa",
+  });
+  assert.strictEqual(lookupThrew.ok, true);
+  assert.strictEqual(stripe.created[0].allow_promotion_codes, true);
+  assert.ok(!Object.prototype.hasOwnProperty.call(stripe.created[0], "discounts"));
+  assert.ok(!Object.prototype.hasOwnProperty.call(stripe.created[0].metadata, "promo_code"));
+
+  const originalCreate = stripe.checkout.sessions.create;
+  let createAttempts = 0;
+  stripe.checkout.sessions.create = async (sessionArgs) => {
+    createAttempts += 1;
+    stripe.created.push(sessionArgs);
+    if (createAttempts === 1) throw new Error("This coupon does not apply");
+    return {
+      id: "cs_retry",
+      url: "https://checkout.stripe.com/c/pay/cs_retry",
+      customer: sessionArgs.customer || null,
+      metadata: sessionArgs.metadata,
+      client_reference_id: sessionArgs.client_reference_id,
+      mode: sessionArgs.mode,
+    };
+  };
+  stripe.created.length = 0;
+  const retried = await billing.createCheckoutSession({
+    user: withCustomer,
+    sku: "planner",
+    promoCode: "eeccalisa",
+  });
+  assert.strictEqual(retried.ok, true);
+  assert.strictEqual(retried.session.id, "cs_retry");
+  assert.strictEqual(createAttempts, 2);
+  assert.deepStrictEqual(stripe.created[0].discounts, [{ promotion_code: "promo_1UO5Ek5BXyxSSEMUtvf0uxkF" }]);
+  assert.ok(!Object.prototype.hasOwnProperty.call(stripe.created[0], "allow_promotion_codes"));
+  assert.strictEqual(stripe.created[0].metadata.promo_code, "eeccalisa");
+  assert.strictEqual(stripe.created[1].allow_promotion_codes, true);
+  assert.ok(!Object.prototype.hasOwnProperty.call(stripe.created[1], "discounts"));
+  assert.strictEqual(stripe.created[1].metadata.promo_code, "eeccalisa");
+  stripe.checkout.sessions.create = originalCreate;
+
+  createAttempts = 0;
+  stripe.checkout.sessions.create = async (sessionArgs) => {
+    createAttempts += 1;
+    stripe.created.push(sessionArgs);
+    throw new Error("socket hang up");
+  };
+  stripe.created.length = 0;
+  let networkErr = null;
+  try {
+    await billing.createCheckoutSession({
+      user,
+      sku: "single_watch",
+      promoCode: "eeccalisa",
+    });
+  } catch (err) {
+    networkErr = err;
+  }
+  assert.ok(networkErr);
+  assert.strictEqual(networkErr.message, "socket hang up");
+  assert.strictEqual(createAttempts, 1);
+  assert.deepStrictEqual(stripe.created[0].discounts, [{ promotion_code: "promo_1UO5Ek5BXyxSSEMUtvf0uxkF" }]);
+  assert.ok(!Object.prototype.hasOwnProperty.call(stripe.created[0], "allow_promotion_codes"));
+  stripe.checkout.sessions.create = originalCreate;
 
   const writes = [];
   const helpers = {
