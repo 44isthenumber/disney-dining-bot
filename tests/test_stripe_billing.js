@@ -620,6 +620,287 @@ function fakeStripe() {
   assert.ok(writes.some((w) => w.billable_id === "bill_under"));
   delete process.env.CONSUMER_ACTIVE_WATCH_BUDGET;
 
+  const validCoupon = {
+    id: "creator-eeccalisa-planner",
+    valid: true,
+    max_redemptions: 1,
+    times_redeemed: 0,
+  };
+  stripe.coupons = {
+    retrieve: async () => validCoupon,
+  };
+  stripe.created.length = 0;
+  const creatorUser = await store.upsertByEmail("creator@example.com");
+  const creatorOk = await billing.createCreatorCompCheckout({
+    user: creatorUser,
+    promoCode: "EECCALISA",
+    billableId: "bill_creator",
+  });
+  assert.strictEqual(creatorOk.ok, true);
+  const creatorArgs = stripe.created[0];
+  assert.strictEqual(creatorArgs.mode, "subscription");
+  assert.deepStrictEqual(creatorArgs.line_items, [{ price: "price_planner", quantity: 1 }]);
+  assert.deepStrictEqual(creatorArgs.discounts, [{ coupon: "creator-eeccalisa-planner" }]);
+  assert.strictEqual(creatorArgs.payment_method_collection, "if_required");
+  assert.ok(!Object.prototype.hasOwnProperty.call(creatorArgs, "allow_promotion_codes"));
+  assert.strictEqual(creatorArgs.metadata.user_id, creatorUser.id);
+  assert.strictEqual(creatorArgs.metadata.sku, "planner");
+  assert.strictEqual(creatorArgs.metadata.promo_code, "eeccalisa");
+  assert.strictEqual(creatorArgs.metadata.creator_comp, "true");
+  assert.strictEqual(creatorArgs.metadata.watch_cap, "10");
+  assert.strictEqual(creatorArgs.metadata.billable_id, "bill_creator");
+  assert.strictEqual(creatorArgs.subscription_data.metadata.user_id, creatorUser.id);
+  assert.strictEqual(creatorArgs.subscription_data.metadata.promo_code, "eeccalisa");
+  assert.strictEqual(creatorArgs.subscription_data.metadata.creator_comp, "true");
+  assert.strictEqual(creatorArgs.subscription_data.metadata.watch_cap, "10");
+  assert.ok(!Object.prototype.hasOwnProperty.call(creatorArgs.subscription_data.metadata, "billable_id"));
+  assert.strictEqual(typeof billing.createCreatorCompCheckout, "function");
+  assert.strictEqual(billing.createCreatorCompCheckout.length, 1);
+
+  const reservedCreator = await billing.createCreatorCompCheckout({
+    user: { id: "craig", kind: "internal" },
+    promoCode: "eeccalisa",
+  });
+  assert.strictEqual(reservedCreator.ok, false);
+  assert.strictEqual(reservedCreator.status, 403);
+  assert.strictEqual(reservedCreator.code, "internal_no_stripe");
+  assert.ok(!reservedCreator.fallback);
+
+  stripe.coupons = {
+    retrieve: async () => ({ id: "creator-eeccalisa-planner", valid: false }),
+  };
+  stripe.created.length = 0;
+  const invalidCoupon = await billing.createCreatorCompCheckout({
+    user: creatorUser,
+    promoCode: "eeccalisa",
+  });
+  assert.strictEqual(invalidCoupon.ok, false);
+  assert.strictEqual(invalidCoupon.fallback, true);
+  assert.strictEqual(stripe.created.length, 0);
+
+  stripe.coupons = {
+    retrieve: async () => ({
+      id: "creator-eeccalisa-planner",
+      valid: true,
+      max_redemptions: 1,
+      times_redeemed: 1,
+    }),
+  };
+  const exhausted = await billing.createCreatorCompCheckout({
+    user: creatorUser,
+    promoCode: "eeccalisa",
+  });
+  assert.strictEqual(exhausted.ok, false);
+  assert.strictEqual(exhausted.fallback, true);
+  assert.strictEqual(stripe.created.length, 0);
+
+  stripe.coupons = {
+    retrieve: async () => {
+      throw new Error("retrieve failed");
+    },
+  };
+  const retrieveThrew = await billing.createCreatorCompCheckout({
+    user: creatorUser,
+    promoCode: "eeccalisa",
+  });
+  assert.strictEqual(retrieveThrew.ok, false);
+  assert.strictEqual(retrieveThrew.fallback, true);
+  assert.strictEqual(stripe.created.length, 0);
+
+  delete stripe.coupons;
+  const missingRetrieve = await billing.createCreatorCompCheckout({
+    user: creatorUser,
+    promoCode: "eeccalisa",
+  });
+  assert.strictEqual(missingRetrieve.ok, false);
+  assert.strictEqual(missingRetrieve.fallback, true);
+  assert.strictEqual(stripe.created.length, 0);
+
+  stripe.coupons = { retrieve: async () => validCoupon };
+  const originalCreatorCreate = stripe.checkout.sessions.create;
+  stripe.checkout.sessions.create = async (sessionArgs) => {
+    stripe.created.push(sessionArgs);
+    throw new Error("This coupon does not apply");
+  };
+  stripe.created.length = 0;
+  const couponRejected = await billing.createCreatorCompCheckout({
+    user: creatorUser,
+    promoCode: "eeccalisa",
+  });
+  assert.strictEqual(couponRejected.ok, false);
+  assert.strictEqual(couponRejected.fallback, true);
+
+  stripe.checkout.sessions.create = async (sessionArgs) => {
+    stripe.created.push(sessionArgs);
+    throw new Error("socket hang up");
+  };
+  let creatorNetwork = null;
+  try {
+    await billing.createCreatorCompCheckout({
+      user: creatorUser,
+      promoCode: "eeccalisa",
+    });
+  } catch (err) {
+    creatorNetwork = err;
+  }
+  assert.ok(creatorNetwork);
+  assert.strictEqual(creatorNetwork.message, "socket hang up");
+  stripe.checkout.sessions.create = originalCreatorCreate;
+
+  await store.put({ ...creatorUser, phone: "+15550101010" });
+  const creatorFresh = await store.getById(creatorUser.id);
+  await store.putCheckout("cs_creator_comp", {
+    user_id: creatorFresh.id,
+    sku: "planner",
+    billable_id: "bill_creator_watch",
+    watch: {
+      facility_id: "90002686",
+      name: "Creator",
+      slug: "creator",
+      party_size: 2,
+      dates: ["2099-10-01"],
+      meal_periods: ["DINNER"],
+    },
+  });
+  const writesBeforeCreator = writes.length;
+  const countBeforeCreator = Number(creatorFresh.single_watch_count || 0);
+  const creatorSession = {
+    id: "cs_creator_comp",
+    mode: "subscription",
+    payment_status: "no_payment_required",
+    status: "complete",
+    customer: "cus_creator",
+    metadata: {
+      user_id: creatorFresh.id,
+      sku: "planner",
+      watch_cap: "10",
+      creator_comp: "true",
+      billable_id: "bill_creator_watch",
+    },
+    client_reference_id: creatorFresh.id,
+    subscription: { id: "sub_creator", status: "active", current_period_end: 2000000000 },
+  };
+  await billing.applyCheckoutCompleted(creatorSession, helpers);
+  const creatorRows = writes.filter((w) => w.billable_id === "bill_creator_watch");
+  assert.strictEqual(creatorRows.length, 1);
+  assert.strictEqual(creatorRows[0].recipient_phone, "+15550101010");
+  const creatorAfter = await store.getById(creatorFresh.id);
+  assert.strictEqual(creatorAfter.planner_status, "active");
+  assert.strictEqual(creatorAfter.planner_watch_cap, 10);
+  assert.strictEqual(creatorAfter.single_watch_count, countBeforeCreator);
+  assert.strictEqual(await store.getCheckout("cs_creator_comp"), null);
+
+  await billing.applyCheckoutCompleted(creatorSession, helpers);
+  assert.strictEqual(writes.filter((w) => w.billable_id === "bill_creator_watch").length, 1);
+  const creatorRepeat = await store.getById(creatorFresh.id);
+  assert.strictEqual(creatorRepeat.single_watch_count, countBeforeCreator);
+  assert.strictEqual(writes.length, writesBeforeCreator + 1);
+
+  const paidCreator = await store.upsertByEmail("creator-paid@example.com");
+  await store.put({ ...paidCreator, phone: "+15550202020" });
+  await store.putCheckout("cs_creator_paid", {
+    user_id: paidCreator.id,
+    sku: "planner",
+    billable_id: "bill_creator_paid",
+    watch: { facility_id: "90002686", dates: ["2099-10-02"], party_size: 2, meal_periods: ["DINNER"] },
+  });
+  await billing.applyCheckoutCompleted(
+    {
+      id: "cs_creator_paid",
+      mode: "subscription",
+      payment_status: "paid",
+      status: "complete",
+      customer: "cus_creator_paid",
+      metadata: {
+        user_id: paidCreator.id,
+        sku: "planner",
+        watch_cap: "10",
+        creator_comp: "true",
+        billable_id: "bill_creator_paid",
+      },
+      client_reference_id: paidCreator.id,
+      subscription: { id: "sub_paid", status: "active" },
+    },
+    helpers
+  );
+  assert.ok(writes.some((w) => w.billable_id === "bill_creator_paid"));
+  const paidAfter = await store.getById(paidCreator.id);
+  assert.strictEqual(paidAfter.planner_watch_cap, 10);
+  assert.strictEqual(paidAfter.planner_status, "active");
+
+  const garbageUser = await store.upsertByEmail("garbage-cap@example.com");
+  await billing.applyCheckoutCompleted(
+    {
+      id: "cs_garbage_cap",
+      mode: "subscription",
+      payment_status: "paid",
+      metadata: { user_id: garbageUser.id, sku: "planner", watch_cap: "10abc" },
+      client_reference_id: garbageUser.id,
+      customer: "cus_garbage",
+      subscription: { id: "sub_garbage", status: "active" },
+    },
+    helpers
+  );
+  const garbageAfter = await store.getById(garbageUser.id);
+  assert.ok(garbageAfter.planner_watch_cap == null || garbageAfter.planner_watch_cap === undefined);
+
+  await store.put({ ...garbageAfter, planner_watch_cap: 10, planner_status: "active" });
+  await billing.applyCheckoutCompleted(
+    {
+      id: "cs_keep_cap",
+      mode: "subscription",
+      payment_status: "paid",
+      metadata: { user_id: garbageUser.id, sku: "planner" },
+      client_reference_id: garbageUser.id,
+      customer: "cus_garbage",
+      subscription: { id: "sub_keep", status: "active" },
+    },
+    helpers
+  );
+  const keptCap = await store.getById(garbageUser.id);
+  assert.strictEqual(keptCap.planner_watch_cap, 10);
+
+  const stale = {
+    id: garbageUser.id,
+    email: garbageUser.email,
+    planner_status: "active",
+    stripe_customer_id: "cus_garbage",
+  };
+  await billing.applyPlannerFields(stale, { id: "sub_stale", status: "active" }, "cus_garbage");
+  const afterStale = await store.getById(garbageUser.id);
+  assert.strictEqual(afterStale.planner_watch_cap, 10);
+
+  stripe.subscriptions = {
+    list: async () => ({
+      data: [{ id: "sub_sync", status: "active", metadata: {} }],
+    }),
+  };
+  await billing.syncSession(stale, null, helpers);
+  const afterSync = await store.getById(garbageUser.id);
+  assert.strictEqual(afterSync.planner_watch_cap, 10);
+
+  const capFailUser = await store.upsertByEmail("cap-fail@example.com");
+  await store.put({
+    ...capFailUser,
+    planner_status: "active",
+    planner_subscription_id: "sub_cap_fail",
+    planner_watch_cap: 10,
+    stripe_customer_id: "cus_cap_fail",
+  });
+  const capFailBody = JSON.stringify({
+    id: "evt_cap_fail",
+    type: "invoice.payment_failed",
+    data: { object: { customer: "cus_cap_fail" } },
+  });
+  const capFailWh = await billing.handleWebhook(
+    { body: capFailBody, headers: { "stripe-signature": "sig_ok" } },
+    helpers
+  );
+  assert.strictEqual(capFailWh.statusCode, 200);
+  const capFailed = await store.getById(capFailUser.id);
+  assert.strictEqual(capFailed.planner_status, "past_due");
+  assert.strictEqual(capFailed.planner_watch_cap, 10);
+
   console.log("test_stripe_billing ok");
 })().catch((err) => {
   console.error(err);

@@ -24,6 +24,7 @@ const {
   WatchBudgetError,
   WATCH_BUDGET_DETAIL,
   WATCH_STORE_UNAVAILABLE_DETAIL,
+  livePlanner,
 } = require("./entitlement");
 const { normalizePhone } = require("./phone");
 const userStore = require("./user_store");
@@ -1013,28 +1014,50 @@ async function handlePostWatch(event, user) {
   };
 
   if (gate.code === "single_watch") {
-    if (!stripeBilling.isConfigured("single_watch")) {
-      return response(503, {
-        code: "billing_unavailable",
-        detail: "Paid watches are not available yet.",
-      });
-    }
     const billableId = stripeBilling.newBillableId();
-    const created = await stripeBilling.createCheckoutSession({
-      user,
-      sku: "single_watch",
-      billableId,
-      promoCode: body.promo_code,
-    });
-    if (!created.ok) {
-      return response(created.status || 503, {
-        code: created.code,
-        detail: created.detail,
+    let created = null;
+    if (
+      stripeBilling.creatorCompFor(body.promo_code) &&
+      !livePlanner(user) &&
+      stripeBilling.isConfigured("planner")
+    ) {
+      created = await stripeBilling.createCreatorCompCheckout({
+        user,
+        promoCode: body.promo_code,
+        billableId,
       });
+      if (!created.ok && !created.fallback) {
+        return response(created.status || 503, {
+          code: created.code,
+          detail: created.detail,
+        });
+      }
+      if (!created.ok) created = null;
     }
+    if (!created || !created.ok) {
+      if (!stripeBilling.isConfigured("single_watch")) {
+        return response(503, {
+          code: "billing_unavailable",
+          detail: "Paid watches are not available yet.",
+        });
+      }
+      created = await stripeBilling.createCheckoutSession({
+        user,
+        sku: "single_watch",
+        billableId,
+        promoCode: body.promo_code,
+      });
+      if (!created.ok) {
+        return response(created.status || 503, {
+          code: created.code,
+          detail: created.detail,
+        });
+      }
+    }
+    const sku = created.session && created.session.mode === "subscription" ? "planner" : "single_watch";
     await userStore.putCheckout(created.session.id, {
       user_id: user.id,
-      sku: "single_watch",
+      sku,
       billable_id: billableId,
       sms_consent: true,
       watch: payload,
@@ -1071,6 +1094,18 @@ async function handleBillingCheckout(event, user) {
       code: "past_due",
       detail: "Update billing to add watches. Existing watches keep alerting.",
     });
+  }
+  if (stripeBilling.creatorCompFor(body.promo_code) && !livePlanner(user)) {
+    const creator = await stripeBilling.createCreatorCompCheckout({
+      user,
+      promoCode: body.promo_code,
+    });
+    if (creator.ok) {
+      return response(200, { checkout_url: creator.session.url });
+    }
+    if (!creator.fallback) {
+      return response(creator.status || 503, { code: creator.code, detail: creator.detail });
+    }
   }
   const created = await stripeBilling.createCheckoutSession({
     user,

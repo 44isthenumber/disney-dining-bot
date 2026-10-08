@@ -208,6 +208,10 @@ class LandingContractTest(unittest.TestCase):
         self.assertIn('id="upgrade-prompt"', INDEX)
         self.assertIn("Pay $4.99 for this watch", INDEX)
         self.assertIn("Pay $4.99 and watch", INDEX)
+        self.assertIn(
+            "Creator access: free Planner for 3 months, up to 10 alerts. No card needed.",
+            INDEX,
+        )
         self.assertIn("We're at capacity for new watches right now. Existing watches keep alerting. Try again later.", INDEX)
         self.assertIn("watch_budget:", INDEX)
         self.assertNotIn("Pay once for this watch", INDEX)
