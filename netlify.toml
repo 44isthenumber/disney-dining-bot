@@ -126,3 +126,8 @@
   from = "/blog/disney-dining-modify-party-size"
   to = "/blog/disney-dining-modify-party-size.html"
   status = 200
+
+[[redirects]]
+  from = "/blog/disney-dining-off-site-60-day-head-start"
+  to = "/blog/disney-dining-off-site-60-day-head-start.html"
+  status = 200
