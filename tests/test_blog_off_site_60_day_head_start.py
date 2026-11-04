@@ -49,11 +49,13 @@ class BlogOffSite60DayHeadStartTest(unittest.TestCase):
         self.assertIn('<p class="blog-kicker"><a href="/blog">Blog</a></p>', POST)
         self.assertIn('<article class="blog-article">', POST)
 
-    def test_index_lists_this_post_first(self):
+    def test_index_lists_this_post_after_christmas_week(self):
+        christmas = "/blog/disney-christmas-week-dining-shut-out"
         self.assertIn('rel="canonical" href="https://magictablefinder.com/blog"', INDEX)
         self.assertIn(f'href="/blog/{SLUG}"', INDEX)
         self.assertIn(TITLE, INDEX)
         self.assertIn("October 28, 2026", INDEX)
+        self.assertLess(INDEX.index(christmas), INDEX.index(f"/blog/{SLUG}"))
         self.assertLess(INDEX.index(f"/blog/{SLUG}"), INDEX.index(MODIFY_HREF))
         self.assertLess(INDEX.index(MODIFY_HREF), INDEX.index(WEEK_HREF))
         self.assertEqual(INDEX.count("<h1>"), 1)
