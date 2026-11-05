@@ -1,0 +1,12 @@
+# Magic Table Finder — Cloudflare Pages + Functions
+# Create the KV namespace in Cloudflare, paste its id below, then run import script before cutover.
+
+name = "magictablefinder"
+compatibility_date = "2025-03-01"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = "public"
+
+[[kv_namespaces]]
+binding = "MTF_USERS"
+id = "REPLACE_WITH_PRODUCTION_KV_NAMESPACE_ID"
+preview_id = "REPLACE_WITH_PREVIEW_KV_NAMESPACE_ID"
