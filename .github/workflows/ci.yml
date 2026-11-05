@@ -30,6 +30,11 @@ jobs:
       - name: Python tests (no secrets, no network)
         run: python3 -m unittest discover -s tests -p 'test_*.py'
 
+      - name: Prepare function test fixtures
+        run: |
+          cp public/restaurants.json functions/lib/restaurants.json
+          cp public/restaurants.json netlify/functions/restaurants.json
+
       # Node function tests use only stdlib + relative requires,
       # so they run with plain `node` and no `npm install`.
       - name: Node function tests

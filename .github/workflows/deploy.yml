@@ -1,8 +1,9 @@
 name: Deploy to Netlify
 
+# Disabled for push after Cloudflare cutover — use workflow_dispatch only so main
+# does not double-deploy to Netlify once deploy-cloudflare.yml is active.
+
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
