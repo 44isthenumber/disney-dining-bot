@@ -20,7 +20,33 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+import auth  # noqa: E402
+import monitor  # noqa: E402
+
 TOKEN_COOKIE_NAME = "TPR-WDW-LBJS.WEB-PROD.token"
+# The worker accepts a token with at least this much life without calling the refresh endpoint.
+SESSION_OK_MIN_SECS = auth.REFRESH_AHEAD_SECS
+
+
+def _log_crashes(page) -> None:
+    """Log where the renderer died; a crashed tab otherwise only surfaces as later "Page crashed" errors."""
+    def _on_crash(*_args) -> None:
+        try:
+            print(f"[seed] Renderer crashed while on {page.url!r}.")
+        except Exception:
+            pass
+
+    try:
+        page.on("crash", _on_crash)
+    except Exception:
+        pass
+
+
+def _fresh_page(page):
+    """Open a new tab in the same context. Playwright never revives a crashed tab."""
+    new_page = page.context.new_page()
+    _log_crashes(new_page)
+    return new_page
 
 
 def _goto_with_retries(
@@ -30,7 +56,7 @@ def _goto_with_retries(
     attempts: int = 4,
     wait_until: str = "domcontentloaded",
     timeout: int = 90_000,
-) -> None:
+):
     """Disney's Akamai edge intermittently aborts HTTP/2 to /login.
 
     Retry strategy:
@@ -38,6 +64,9 @@ def _goto_with_retries(
       - Subsequent attempts: progressively looser (`load` then `commit`) so we
         return as soon as the navigation request commits, even if Akamai later
         kills the stream. Without this, ERR_HTTP2_PROTOCOL_ERROR is fatal.
+
+    Returns the page that loaded the URL. A crashed or closed tab is replaced
+    with a fresh one, so callers must keep using the returned page.
     """
     fallback_waits = [wait_until, "load", "commit", "commit"]
     last_exc: Optional[BaseException] = None
@@ -45,7 +74,7 @@ def _goto_with_retries(
         wu = fallback_waits[min(attempt - 1, len(fallback_waits) - 1)]
         try:
             page.goto(url, wait_until=wu, timeout=timeout)
-            return
+            return page
         except Exception as exc:
             last_exc = exc
             if attempt >= attempts:
@@ -55,7 +84,20 @@ def _goto_with_retries(
                 f"[seed] Navigation attempt {attempt}/{attempts} (wait_until={wu}) "
                 f"failed ({exc!r}); waiting {delay_ms}ms…"
             )
-            page.wait_for_timeout(delay_ms)
+            tab_dead = "crash" in str(exc).lower()
+            if not tab_dead:
+                try:
+                    tab_dead = page.is_closed()
+                except Exception:
+                    tab_dead = True
+            if tab_dead:
+                # Retrying on the same Page object would fail every remaining attempt.
+                page = _fresh_page(page)
+                print("[seed] Tab crashed or closed; continuing in a fresh tab.")
+            try:
+                page.wait_for_timeout(delay_ms)
+            except Exception:
+                pass
     if last_exc:
         raise last_exc
 
@@ -201,6 +243,10 @@ def main() -> None:
             args=["--no-sandbox"],
         )
         page = context.pages[0] if context.pages else context.new_page()
+        _log_crashes(page)
+        force_login = os.environ.get("DISNEY_SEED_FORCE_LOGIN", "").strip().lower() in (
+            "1", "true", "yes", "on",
+        )
 
         # Approach the login flow via a restaurant page first. The worker's
         # check_slots_via_playwright reliably loads /dine-res/restaurant/{slug}
@@ -212,12 +258,19 @@ def main() -> None:
         )
         login_navigated = False
         try:
-            _goto_with_retries(
+            page = _goto_with_retries(
                 page,
                 warmup_url,
                 wait_until="domcontentloaded",
                 timeout=90000,
             )
+            page.wait_for_timeout(3000)
+            seconds_left = monitor.disney_session_seconds_left(context)
+            if not force_login and seconds_left >= SESSION_OK_MIN_SECS:
+                print(f"SUCCESS: Disney session already valid for about {seconds_left // 60} more minute(s); "
+                      "skipping login. Browser profile is ready for the worker.")
+                context.close()
+                sys.exit(0)
             _dismiss_common_overlays(page)
             if _click_first_any_frame(page, [
                 "a[href*='login' i]",
@@ -232,7 +285,7 @@ def main() -> None:
             print(f"[seed] Warmup navigation failed ({exc!r}); will try /login direct.")
 
         if not login_navigated:
-            _goto_with_retries(
+            page = _goto_with_retries(
                 page,
                 "https://disneyworld.disney.go.com/login",
                 wait_until="commit",
@@ -268,7 +321,7 @@ def main() -> None:
                 print("[seed] Headless mode and auto-login failed. Cannot proceed.")
 
         # === Step 3: Final validation ===
-        _goto_with_retries(
+        page = _goto_with_retries(
             page,
             "https://disneyworld.disney.go.com/dine-res/restaurant/space-220-lounge/",
             wait_until="domcontentloaded",
