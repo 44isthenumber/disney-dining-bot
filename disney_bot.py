@@ -16,6 +16,7 @@ import schedule
 import yaml
 from dotenv import load_dotenv
 
+import monitor
 import storage
 import watch_store
 from monitor import DisneyAuthRequired, Slot, check_slots_for_restaurant
@@ -397,6 +398,7 @@ def poll(config: Optional[dict] = None) -> None:
     errors = []
     failed_open_prefixes = []
     did_send_session_manual_alert = False
+    monitor.start_poll_budget()
     for restaurant in grouped:
         name = restaurant.get("name", "?")
         try:
@@ -436,7 +438,10 @@ def poll(config: Optional[dict] = None) -> None:
         if can_attempt:
             print("[bot] Disney auth error detected — activating Login Agent...")
             login_agent_triggered = True
+            recovery_started = time.monotonic()
             recovered = attempt_disney_session_recovery()
+            # The seeder has its own 6-minute cap; it does not eat the check budget.
+            monitor.extend_poll_budget(time.monotonic() - recovery_started)
             if recovered:
                 print("[bot] Login Agent succeeded — retrying failed restaurants...")
                 errors = []
