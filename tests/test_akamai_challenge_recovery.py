@@ -394,12 +394,12 @@ class _MonitorTestBase(unittest.TestCase):
         for key in ENV_KEYS:
             os.environ.pop(key, None)
         monitor._poll_deadline = None
-        monitor._akamai_attempt_used = False
+        monitor._akamai_attempted_pages.clear()
 
     def tearDown(self):
         self._env.stop()
         monitor._poll_deadline = None
-        monitor._akamai_attempt_used = False
+        monitor._akamai_attempted_pages.clear()
 
 
 class AkamaiChallengeRecoveryTest(_MonitorTestBase):
@@ -623,7 +623,7 @@ class AkamaiChallengeRecoveryTest(_MonitorTestBase):
     def test_attempt_not_started_when_428_does_not_name_akamai_paths(self):
         for body in ('{"sec-cp-challenge": "true", "chlg_duration": 15}', "not json", "",
                      '{"verify_url": "https://elsewhere.example/-UKSQh/a/b"}', '{"verify_url": "/"}', '{"verify_url": 7}'):
-            monitor._akamai_attempt_used = False
+            monitor._akamai_attempted_pages.clear()
 
             def factory():
                 ctx = FakeContext()
@@ -694,22 +694,59 @@ class AkamaiChallengeRecoveryTest(_MonitorTestBase):
         self.assertEqual(_waits(ctx), [8000, 2000] + [1000] * 5)
         self.assertIn("verify call returned HTTP 403 after 5s (1 proof rounds answered); not re-fetching", stdout)
 
-    def test_only_one_attempt_per_poll(self):
+    def test_only_one_attempt_per_restaurant_per_poll(self):
         def factory():
             ctx = FakeContext()
             ctx._evaluate_always = _challenge_428(15)
             return ctx
 
         self._run_check_expect_error(factory, env=ATTEMPT_ON)
-        exc, stdout, cm = self._run_check_expect_error(factory, env=ATTEMPT_ON, restaurant=_restaurant(name="Space 220"))
+        # The same restaurant page again (another watch): no second attempt after a failed one.
+        exc, stdout, cm = self._run_check_expect_error(
+            factory, env=ATTEMPT_ON, restaurant=_restaurant(name="Ohana dinner", party_size=4))
         self.assertEqual(_waits(cm.contexts[0]), [8000])
         self.assertEqual(len(cm.contexts[0].gotos), 1)
-        self.assertIn("this poll's one attempt is already used", stdout)
+        self.assertEqual(cm.contexts[0].pages[0].route_calls, [])
+        self.assertIn("this restaurant's one attempt for this poll is already used", stdout)
 
         with mock.patch.dict(os.environ, ATTEMPT_ON):
             monitor.start_poll_budget()
         exc, stdout, cm = self._run_check_expect_error(factory, env=ATTEMPT_ON)
         self.assertEqual(len(_waits(cm.contexts[0])), 47, "a new poll gets a new attempt")
+
+    def test_each_restaurant_gets_its_own_attempt_in_one_poll(self):
+        day = _tomorrow()
+
+        def cleared():
+            ctx = FakeContext(evaluate_results=[_challenge_428(15), _challenge_428(15), _ok_200(day)])
+            ctx.verify_after_waits = 12
+            return ctx
+
+        def challenged():
+            ctx = FakeContext()
+            ctx._evaluate_always = _challenge_428(15)
+            return ctx
+
+        with mock.patch.dict(os.environ, ATTEMPT_ON):
+            monitor.start_poll_budget()
+        space = _restaurant(name="Space 220 Lounge", slug="space-220-lounge", facility_id="19634138")
+        for restaurant in (_restaurant(), space):
+            page_url = f"https://disneyworld.disney.go.com/dine-res/restaurant/{restaurant['slug']}"
+            slots, stdout, cm = self._run_check(cleared, env=ATTEMPT_ON, restaurant=restaurant)
+            ctx = cm.contexts[0]
+            self.assertEqual(len(slots), 1, restaurant["name"])
+            self.assertEqual([(g["url"], g["wait_until"]) for g in ctx.gotos],
+                             [(page_url, "domcontentloaded"), (page_url, "load")])
+            self.assertEqual(len(ctx.evaluates), 3, restaurant["name"])
+            self.assertIn("Akamai challenge finished in 12s", stdout)
+            self.assertNotIn("already used", stdout)
+
+        # Either restaurant challenged again in the same poll does not get a second attempt.
+        for restaurant in (_restaurant(), space):
+            exc, stdout, cm = self._run_check_expect_error(challenged, env=ATTEMPT_ON, restaurant=restaurant)
+            self.assertEqual(len(cm.contexts[0].gotos), 1, restaurant["name"])
+            self.assertEqual(len(cm.contexts[0].evaluates), 1, restaurant["name"])
+            self.assertIn("this restaurant's one attempt for this poll is already used", stdout)
 
     def test_wait_is_cut_to_fit_the_page_time_budget(self):
         FakeGuard.budget_secs = 48   # 8s warm-up and 2s settle leave 38s; 15s stay reserved for re-fetch and close

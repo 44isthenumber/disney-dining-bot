@@ -542,7 +542,8 @@ _GUARD_INTERVAL_SECS = 1.0
 _GUARD_KILL_GRACE_SECS = 5.0
 
 _poll_deadline: Optional[float] = None   # time.monotonic(); None outside a poll
-_akamai_attempt_used = False
+# Restaurant page URLs that have used their one challenge attempt in this poll.
+_akamai_attempted_pages: set = set()
 
 _AVAILABILITY_FETCH_JS = """async ({partySize, start, end, facilityId, token}) => {
   try {
@@ -577,10 +578,10 @@ def _env_int(name: str, default: int, low: int, high: int) -> int:
 
 
 def start_poll_budget() -> None:
-    """Start one poll's wall-clock budget for browser checks and re-arm its single challenge attempt."""
-    global _poll_deadline, _akamai_attempt_used
+    """Start one poll's wall-clock budget for browser checks and re-arm each restaurant's challenge attempt."""
+    global _poll_deadline
     _poll_deadline = time.monotonic() + _env_int("DISNEY_POLL_BUDGET_SECS", 360, 60, 900)
-    _akamai_attempt_used = False
+    _akamai_attempted_pages.clear()
 
 
 def extend_poll_budget(seconds: float) -> None:
@@ -591,7 +592,7 @@ def extend_poll_budget(seconds: float) -> None:
 
 
 def _akamai_challenge_enabled() -> bool:
-    """DISNEY_AKAMAI_CHALLENGE_RETRIES >= 1 allows one challenge attempt per poll. Off by default."""
+    """DISNEY_AKAMAI_CHALLENGE_RETRIES >= 1 allows one challenge attempt per restaurant per poll. Off by default."""
     return _env_int("DISNEY_AKAMAI_CHALLENGE_RETRIES", 0, 0, 1) >= 1
 
 
@@ -890,7 +891,7 @@ def _akamai_only_route(page, result: dict):
 
 
 def _attempt_akamai_challenge(page, guard, result: dict, refetch, name: str, url: str) -> dict:
-    """One bounded attempt per poll at Akamai's crypto challenge (HTTP 428). Off by default.
+    """One bounded attempt per restaurant per poll at Akamai's crypto challenge (HTTP 428). Off by default.
 
     Reloads the restaurant page in the same tab with everything except
     Akamai's own requests blocked, so the restaurant app is not running while
@@ -899,13 +900,12 @@ def _attempt_akamai_challenge(page, guard, result: dict, refetch, name: str, url
     fetch when the wait cap, the page's time budget or the challenge memory
     ceiling is reached.
     """
-    global _akamai_attempt_used
     if result.get("status") != AKAMAI_CHALLENGE_STATUS or not _akamai_challenge_enabled():
         return result
-    if _akamai_attempt_used:
-        print(f"[monitor] {name}: HTTP 428 Akamai challenge; this poll's one attempt is already used.", flush=True)
+    if url in _akamai_attempted_pages:
+        print(f"[monitor] {name}: HTTP 428 Akamai challenge; this restaurant's one attempt for this poll is already used.", flush=True)
         return result
-    _akamai_attempt_used = True
+    _akamai_attempted_pages.add(url)
 
     mem_limit = _env_int("DISNEY_AKAMAI_CHALLENGE_MEM_MB", 700, 100, 8000)
     if guard.mem_mb is None:
