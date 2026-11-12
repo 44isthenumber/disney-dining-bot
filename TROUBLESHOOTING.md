@@ -104,9 +104,90 @@ In practice, manually re-seeding (§3) is faster and resets the same condition.
 
 ### 2.4 Other miscellaneous failures
 
-* `HTTP 428` — Disney's Akamai is challenging us. Same fix as §2.1: re-seed.
+* `HTTP 428` — Akamai's crypto challenge, not a login problem. Do not re-seed first; see §2.5.
 * `RuntimeError: Playwright is not installed` — `pip install -r requirements.txt && python3 -m playwright install chromium` inside the venv.
 * `EPIPE` / Node driver crash when running the seeder by hand — usually a stale `SingletonLock` in the Chrome profile (see §4).
+
+### 2.5 RUNBOOK: `HTTP 428` (Akamai crypto challenge) and a seeder that reports `Page crashed`
+
+```
+[bot] Check failed for Space 220 Lounge: [monitor] Space 220 Lounge: HTTP 428 from availability API
+```
+
+**What it is.** `found via Playwright` (success) and `HTTP 428 from availability API` (failure) are printed by the same in-page `fetch()` in `monitor.check_slots_via_playwright`; there is no other dining path. The 428 body is Akamai's crypto challenge (`{"sec-cp-challenge": "true", "provider": "crypto", "chlg_duration": 15, ...}`): the restaurant page loads an Akamai script that hooks `fetch` and runs the challenge in the page, which takes about 15 seconds. The worker used to close the browser right after the 428, so no challenge could ever finish and every poll failed the same way. The worker now keeps the tab open (`chlg_duration` + 10 s), loads the restaurant page again and fetches once more. One retry per restaurant; if it fails, later restaurants in that poll skip the wait. The challenge type and the page script were confirmed from outside the VPS; that waiting clears it for the VPS browser is confirmed only when step 3 prints the `returned HTTP 200` line.
+
+**What it is not.** It is not an expired login. While the errors say `HTTP 428` (and not `Disney auth required`) the token cookie is still good, and a scheduled-activity watch such as Harmony Barber Shop keeps working because `sa-api` is not behind the challenge. Re-seeding does not clear a 428.
+
+**Seeder `Page.goto: Page crashed` on every retry.** Playwright never revives a crashed tab, and the seeder used to retry on the same one, so a single renderer crash failed all four attempts. The seeder now continues in a fresh tab, logs `[seed] Renderer crashed while on '<url>'`, and exits 0 without opening `/login` when the profile already holds a token valid for 10+ minutes (`DISNEY_SEED_FORCE_LOGIN=1` forces the login flow).
+
+Run as root on the VPS. Nothing here installs or upgrades anything: `requirements.txt` is unchanged, so there is no `pip` step, and do **not** run `playwright install` (it would swap the Chromium build Akamai currently sees).
+
+```bash
+ssh -i ~/.ssh/disney_dining_vps root@107.170.35.91
+cd /opt/disney-dining-bot
+
+# 1. Pause the timer. The second command is a dead-man switch: the timer
+#    restarts by itself in 30 minutes even if this SSH session dies.
+systemctl stop disney-dining-bot.timer
+systemd-run --on-active=30min /usr/bin/systemctl start disney-dining-bot.timer
+while [ "$(systemctl show -p ActiveState --value disney-dining-bot.service)" = "activating" ]; do sleep 5; done
+
+# 2. Deploy. Must be on main with no modified tracked files (untracked files such
+#    as .browser-profile/ and logs are fine). Stop if `git status` says otherwise.
+git status -sb
+git pull --ff-only origin main
+git log -1 --oneline
+. .venv/bin/activate
+python3 -m py_compile monitor.py seed_disney_session.py disney_bot.py && echo compile-ok
+
+# 3. One poll through the same unit the timer uses (returns when the poll ends).
+systemctl start disney-dining-bot.service
+journalctl -u disney-dining-bot.service --since "15 min ago" --no-pager | tail -n 80
+```
+
+Read the poll output:
+
+| Log line | Meaning |
+|---|---|
+| `HTTP 428 Akamai challenge; keeping the page open 25s ...` then `availability API returned HTTP 200 after the Akamai challenge retry.` (or `HTTP 404`) | Challenge cleared. Later restaurants should show no challenge lines at all. |
+| `still HTTP 428 after 1 challenge retry(ies)` | The browser stayed, Akamai still refused. Go to "Still 428" below. |
+| `Disney auth required` | The login really expired. Run step 4. |
+| No `Akamai` lines, `N slot(s) found via Playwright` | Already healthy. |
+
+The first clean poll after an outage alerts on openings that appeared while the worker was blind and are still open. That is expected. Do not clear `open_slots.json`.
+
+```bash
+# 4. ONLY if step 3 printed "Disney auth required": non-interactive seed, output kept in a log.
+#    Same shell as step 2 (venv active, cwd /opt/disney-dining-bot, timer still stopped).
+pgrep -af 'chrom' || echo "no browser running"        # must say "no browser running"
+mkdir -p /var/log/disney-dining-bot
+SEED_LOG=/var/log/disney-dining-bot/seed-$(date -u +%Y%m%dT%H%M%SZ).log
+DISNEY_HEADLESS=false xvfb-run -a timeout 600 python3 seed_disney_session.py </dev/null >"$SEED_LOG" 2>&1; echo "seed exit=$?"
+tail -n 40 "$SEED_LOG"
+#    exit 0 + "SUCCESS" = profile ready ("skipping login" means it was already signed in).
+#    exit 1 = no auth cookie (MFA or CAPTCHA needs a TTY, see §3). exit 124 = timed out.
+#    Then repeat step 3.
+
+# 5. ALWAYS restart the timer, whatever happened above.
+systemctl start disney-dining-bot.timer
+systemctl is-active disney-dining-bot.timer                 # active
+systemctl list-timers disney-dining-bot.timer --no-pager    # next run within 10 min
+
+# 6. Confirm from outside. Needs one poll with zero failed restaurants.
+curl -s -o /dev/null -w '%{http_code}\n' https://magictablefinder.com/_api/health   # 200
+curl -s https://magictablefinder.com/_api/health   # {"ok":true,"last_successful_poll_at":"...","age_minutes":<10 or less>}
+```
+
+**Still 428 after the retry.** Leave the timer running; each 10-minute poll makes one fresh attempt. Give it three polls, then try a longer wait by adding `DISNEY_AKAMAI_CHALLENGE_WAIT_MS=45000` to `.env`. If that fails too, Akamai is rejecting this browser or this IP rather than slowing it down, and waiting cannot fix that.
+
+**Renderer crash evidence.** If the poll or `$SEED_LOG` shows `Page crashed` or `Renderer crashed`, capture this before changing anything, so the next fix is based on what the kernel saw:
+
+```bash
+journalctl -k --since "2 hours ago" --no-pager | grep -iE 'out of memory|oom-kill|killed process' | tail -n 20
+free -m; df -h /dev/shm
+```
+
+**Roll back:** `DISNEY_AKAMAI_CHALLENGE_RETRIES=0` in `.env` restores the old single-fetch poll with no git work. For a full code rollback, `git log --oneline -5`, `git checkout --detach <previous-sha>`, then repeat step 3. The timer never needs to stay stopped.
 
 ---
 
