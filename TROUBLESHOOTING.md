@@ -218,7 +218,7 @@ curl -s https://magictablefinder.com/_api/health    # {"ok":true,"last_successfu
 | `stopping the browser: it ...` | A hard limit fired. That check fails; the poll carries on. |
 | `Disney auth required` | The login really expired. Re-seed (below). |
 
-**If it still does not clear.** Set `DISNEY_AKAMAI_CHALLENGE_RETRIES=0` again; polls go back to the clean 2 minute run. Then this approach (the VPS's own browser solving the challenge) is finished. The cheapest alternative is to run the dining checks on a machine where the challenge is seen to finish, for example the Mac that already has a Disney login, where the same worker runs with `DISNEY_AKAMAI_CHALLENGE_RETRIES=1` and the browser can be watched. A bigger droplet does not help with memory that climbs without a limit.
+**If it still does not clear.** Set `DISNEY_AKAMAI_CHALLENGE_RETRIES=0` again; polls go back to the clean 2 minute run. Then this approach (the VPS's own browser solving the challenge) is finished. The cheapest alternative is to run the dining checks on a machine where the challenge is seen to finish, for example a Mac or desktop seeded with its own Disney login, where the same worker runs with `DISNEY_AKAMAI_CHALLENGE_RETRIES=1` and the browser can be watched. A bigger droplet does not help with memory that climbs without a limit.
 
 **Optional: confirm the cause.** With the attempt off, add `DISNEY_AKAMAI_WARMUP_MS=25000` to `.env` for one poll. That keeps each signed-in restaurant page open for 25 seconds with no challenge running. If `browser memory peak` jumps far above 560 MB, or a check ends with `stopping the browser: it used N MB`, the page itself is what grows. Remove the line afterwards.
 
