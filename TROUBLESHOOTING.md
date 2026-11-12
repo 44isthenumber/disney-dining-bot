@@ -116,9 +116,13 @@ In practice, manually re-seeding (§3) is faster and resets the same condition.
 
 **What it is.** Since 2026-11-11 Akamai answers the dining availability call with a crypto challenge (`{"sec-cp-challenge": "true", "provider": "crypto", "chlg_duration": 15, ...}`). A brand-new anonymous Chrome on another network gets the same 428, so it is not about this VPS, its IP or its login. `found via Playwright` and `HTTP 428 from availability API` come from the same in-page `fetch()`; there is no other dining path. Re-seeding does not clear it, and Harmony Barber Shop keeps working because `sa-api` is not behind the challenge.
 
-**What clears it.** Akamai's script on the restaurant page solves the challenge by itself if the page stays open: about 12 seconds on a fast machine, with no reload, after which the same `fetch()` on the same page goes through. Opening the API URL directly does not work; only the full restaurant page carries the script.
+**What clears it.** Akamai's own scripts solve the challenge in the browser: the 428 starts a proof-of-work (about 25 small `/_sec/verify` calls over 12 seconds), it ends with a call to `/_sec/cp_challenge/verify`, and the same `fetch()` then goes through. Only the `/dine-res/` pages carry the script that does this; opening the API URL or any other light page does not work.
 
-**Why it is off by default.** In a sandbox limited to 1 CPU and told it has 1 GB (a different Chrome build, not signed in, not this VPS), the restaurant page alone needed 500 to 600 MB for the browser, Xvfb and the worker together, and the wait added about 50 MB. The 1 GB VPS has about 560 MB free. PR #51 tried the wait there (with a reload and a second tab) and the box thrashed until SSH timed out. Treat a 1 GB box as too small for the challenge; resize to 2 GB before turning it on.
+**Why the attempt reloads the page first.** With the attempt on, PR #52 kept the signed-in restaurant page open while the challenge ran. On the 2 GB VPS the browser then grew from about 560 MB to 735, 1195 and 1512 MB in 10 to 13 seconds and never finished. That could not be reproduced away from the VPS with the same Playwright (1.59.0) and Chromium (build 1217), headed under Xvfb on 1 CPU: signed out, the challenge finished in 12 seconds with about 20 MB of growth, and it stayed flat with a quarter of a CPU, with a 20 times harder challenge, with a refused proof and with 50 challenges at once. What is left is the signed-in restaurant page itself (the app and the third-party scripts around it, with this profile) staying open longer than the 10 seconds a normal check takes. That is a conclusion by elimination, not something observed. So the attempt now reloads the restaurant page with everything blocked except Akamai's scripts, its challenge calls and the availability call. The app never starts on that page, and the browser used about 320 MB there.
+
+**First VPS run (2026-11-12, as reported by Craig, commit `a749032`).** 1900 Park Fare got a 428, the reload took the browser from 554 MB to 481 MB, the challenge finished in 12 seconds with 16 proof rounds, and the availability call returned HTTP 200. The peak was 564 MB. Park Fare's next two checks passed without a 428. Cinderella's Royal Table and Space 220 Lounge were then challenged and not attempted, because the limit was one attempt per poll. So a cleared challenge covers one restaurant page or does not last long, and the limit is now one attempt per restaurant page per poll. In the sandbox (signed out) a clearance lasted under 10 seconds, on the same page and with Akamai's `sec_cpt` cookie still present, so it may be a time limit and not a per-restaurant one; the VPS run fits a time limit of a few tens of seconds as well. The memory result fits the signed-in page being what grew, but the warm-up test below is the direct check.
+
+**Why it is off by default.** One attempt per restaurant has not run on the VPS. Turn it on by hand and watch one poll (steps under "Turn the challenge attempt on").
 
 **Limits the worker enforces on every poll** (all optional in `.env`):
 
@@ -127,8 +131,8 @@ In practice, manually re-seeding (§3) is faster and resets the same condition.
 | `DISNEY_POLL_BUDGET_SECS` | 360 | Browser checks in one poll stop here. Restaurants not reached are reported as failed, not skipped silently. Time spent in login recovery is not counted. |
 | `DISNEY_PAGE_BUDGET_SECS` | 120 | One restaurant's browser is stopped after this long, however it is stuck. |
 | `DISNEY_BROWSER_MEM_LIMIT_MB` | 1000 | The browser is stopped when its memory (anonymous RAM plus swap, summed over all Chromium processes) passes this. |
-| `DISNEY_AKAMAI_CHALLENGE_RETRIES` | 0 | `1` allows one challenge attempt per poll. |
-| `DISNEY_AKAMAI_CHALLENGE_MEM_MB` | 500 | The attempt is not started, or is abandoned, above this browser memory. |
+| `DISNEY_AKAMAI_CHALLENGE_RETRIES` | 0 | `1` allows one challenge attempt per restaurant page in each poll. |
+| `DISNEY_AKAMAI_CHALLENGE_MEM_MB` | 700 | The attempt is abandoned when the browser is above this after the reload. |
 | `DISNEY_AKAMAI_CHALLENGE_WAIT_MS` | 45000 | Longest wait for the challenge; it ends early when Akamai's verify call is seen. |
 | `POLL_HARD_TIMEOUT_SECS` (`run_bot.sh`) | 780 | Last-resort kill of the whole poll process. |
 
@@ -147,7 +151,7 @@ systemctl stop disney-dining-bot.timer
 systemd-run --on-active=30min /usr/bin/systemctl start disney-dining-bot.timer
 while [ "$(systemctl show -p ActiveState --value disney-dining-bot.service)" = "activating" ]; do sleep 5; done
 
-# 2. Deploy. The checkout was left detached at a6f1360, so move it to main's tip directly.
+# 2. Deploy. The checkout is kept detached, so move it to main's tip directly.
 git status -sb                       # no modified tracked files; untracked files are fine
 git fetch origin main
 git checkout --detach origin/main
@@ -175,20 +179,28 @@ systemctl list-timers disney-dining-bot.timer --no-pager     # next run within 1
 
 With the attempt off, step 4 should look like a poll on `a6f1360`: the same `HTTP 428` failures for dining, Harmony Barber Shop still checked, about 2 minutes in total, plus one `browser memory peak N MB, open Ns` line per check. Those peak numbers are the real memory cost on this box; keep them. `/_api/health` stays 503 until dining checks pass, so this step does not bring alerts back.
 
-If step 2's `grep` shows `DISNEY_AKAMAI_CHALLENGE_RETRIES=1` on a 1 GB box, remove that line before step 4.
+If step 2's `grep` shows `DISNEY_AKAMAI_CHALLENGE_RETRIES=1`, step 4 runs the challenge attempt; set it to `0` first if you only want to check the deploy.
 
-#### Turn the challenge attempt on (2 GB box)
+#### Turn the challenge attempt on
 
-Resize first: in DigitalOcean, power the droplet off, choose Resize, "CPU and RAM only", the 2 GB plan, and power on. That keeps the disk, the browser profile and the IP. After boot, check `free -m` and `systemctl is-active disney-dining-bot.timer`.
-
-Add these two lines to `/opt/disney-dining-bot/.env`:
+The box needs 2 GB of RAM (the droplet was resized on 2026-11-12). Set these in `/opt/disney-dining-bot/.env`:
 
 ```
 DISNEY_AKAMAI_CHALLENGE_RETRIES=1
 DISNEY_AKAMAI_CHALLENGE_MEM_MB=700
 ```
 
-Then repeat steps 1, 4 and 5, and confirm from outside:
+Then repeat steps 1, 4 and 5. Each challenged restaurant should log, once per poll and in this order:
+
+```
+[monitor] <name>: HTTP 428 Akamai challenge; reloading the page with only Akamai's scripts (browser at ~560 MB).
+[monitor] <name>: waiting up to 45s for the challenge to finish (browser at N MB, challenge ceiling 700 MB).
+[monitor] <name>: Akamai challenge finished in Ns (N proof rounds answered); availability API now returns HTTP 200.
+```
+
+Each attempt adds about 15 to 20 seconds to the poll. The poll budget (`DISNEY_POLL_BUDGET_SECS`, 360) still ends the poll; a restaurant it does not reach logs `not checked; this poll's browser time budget is used up`.
+
+Confirm from outside after a poll with no failed restaurant:
 
 ```bash
 curl -s -o /dev/null -w '%{http_code}\n' https://magictablefinder.com/_api/health    # 200
@@ -197,12 +209,22 @@ curl -s https://magictablefinder.com/_api/health    # {"ok":true,"last_successfu
 
 | Log line | Meaning |
 |---|---|
-| `waiting up to 45s on this page ...` then `Akamai challenge finished in Ns; availability API now returns HTTP 200` (or `404`) | Cleared. Later restaurants should show no Akamai lines. Health turns 200 after one poll with no failed restaurant. |
-| `not attempting it because the browser is already at N MB` or `abandoned after Ns: the browser reached N MB` | The memory ceiling stopped it. Compare N with `free -m`; raise `DISNEY_AKAMAI_CHALLENGE_MEM_MB` only if the box has the room. |
-| `abandoned after 45s: no verify call within 45s` | The challenge did not finish in time. Try `DISNEY_AKAMAI_CHALLENGE_WAIT_MS=75000` once. If it still does not finish, Akamai is refusing this browser and waiting will not help. |
-| `this poll's one attempt is already used` | A later restaurant was challenged again after the one attempt. |
+| `finished in Ns (...); availability API now returns HTTP 200` (or `404`) | Cleared for that restaurant; its later checks in the poll should show no Akamai lines. Other restaurants clear their own. Health turns 200 after one poll with no failed restaurant. |
+| `waiting up to 45s ... (browser at N MB` with N below the number in the line before it (481 after 554 on the VPS) | The reload worked: the app is gone from the page. |
+| `finished in Ns (...); availability API now returns HTTP 428` | Akamai ran the challenge to the end and still refuses this browser. Waiting will not fix that; see "If it still does not clear". |
+| `abandoned after Ns: the browser reached N MB (...; largest process: ...); N proof rounds answered` | Memory grew even without the app. Keep the whole line: the proof-round count says whether the challenge was running, and the largest process says where the memory went. |
+| `abandoned after 45s: no verify call within 45s; 0 proof rounds answered` | The challenge never started on the reloaded page. Akamai's script did not load or did not react. |
+| `abandoned after 45s: no verify call within 45s; N proof rounds answered` | The challenge was running but slow. Try `DISNEY_AKAMAI_CHALLENGE_WAIT_MS=75000` once. |
+| `N of them not HTTP 200` | Akamai refused that many proof rounds. |
+| `attempt abandoned: the reload failed (...)` | The reload did not finish in 30 seconds. That check fails; the next poll tries again. |
+| `not attempting it because the response does not name Akamai's script path` | Akamai changed the 428 body. The code needs an update. |
+| `this restaurant's one attempt for this poll is already used` | The same restaurant was challenged again in this poll, after its attempt. That check fails; the next poll tries again. If it shows after a `finished ... HTTP 200` line for the same restaurant, the clearance ran out before that restaurant's checks were done, and the limit needs to become one attempt per check. |
 | `stopping the browser: it ...` | A hard limit fired. That check fails; the poll carries on. |
 | `Disney auth required` | The login really expired. Re-seed (below). |
+
+**If it still does not clear.** Set `DISNEY_AKAMAI_CHALLENGE_RETRIES=0` again; polls go back to the clean 2 minute run. Then this approach (the VPS's own browser solving the challenge) is finished. The cheapest alternative is to run the dining checks on a machine where the challenge is seen to finish, for example a Mac or desktop seeded with its own Disney login, where the same worker runs with `DISNEY_AKAMAI_CHALLENGE_RETRIES=1` and the browser can be watched. A bigger droplet does not help with memory that climbs without a limit.
+
+**Optional: confirm the cause.** With the attempt off, add `DISNEY_AKAMAI_WARMUP_MS=25000` to `.env` for one poll. That keeps each signed-in restaurant page open for 25 seconds with no challenge running. If `browser memory peak` jumps far above 560 MB, or a check ends with `stopping the browser: it used N MB`, the page itself is what grows. Remove the line afterwards.
 
 The first clean poll after the outage alerts on openings that appeared while the worker was blind and are still open. That is expected. Do not clear `open_slots.json`.
 
@@ -220,7 +242,7 @@ tail -n 40 "$SEED_LOG"
 
 Exit 0 with `SUCCESS` means the profile is ready (`skipping login` means it was already signed in; `DISNEY_SEED_FORCE_LOGIN=1` forces the login). Exit 1 means no auth cookie (MFA or CAPTCHA needs a TTY, see §3). Exit 124 means it timed out. A `Page crashed` there used to fail all four retries because the seeder kept using the dead tab; it now continues in a fresh one and logs `[seed] Renderer crashed while on '<url>'`. If you see that, capture `journalctl -k --since "2 hours ago" --no-pager | grep -iE 'out of memory|oom-kill|killed process' | tail -n 20` and `free -m`.
 
-**Roll back.** To switch the attempt off, delete the `DISNEY_AKAMAI_CHALLENGE_RETRIES` line from `.env`. For the code, `git checkout --detach a6f1360` returns to what ran before PR #51; then repeat steps 4 and 5. The timer never needs to stay stopped.
+**Roll back.** To switch the attempt off, set `DISNEY_AKAMAI_CHALLENGE_RETRIES=0` in `.env` (or delete the line). With it off, the worker never reloads a page and behaves as it did at `86478dd` (PR #52). For the code, `git checkout --detach 86478dd` returns to PR #52 and `git checkout --detach a6f1360` to what ran before PR #51; then repeat steps 4 and 5. The timer never needs to stay stopped.
 
 ---
 
