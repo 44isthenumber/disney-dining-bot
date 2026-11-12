@@ -521,12 +521,64 @@ def check_restaurant(restaurant: dict, token: str) -> List[Slot]:
 
 # ── Playwright browser checks for VPS worker ───────────────────────────────
 
+AKAMAI_CHALLENGE_STATUS = 428
+# After a challenge retry fails, later restaurants in the same poll fail fast
+# instead of each holding a tab open against an edge that is still challenging us.
+# In-process only: production runs `disney_bot.py --once`, so every 10-minute
+# poll starts with a clean slate and gets exactly one fresh challenge attempt.
+_AKAMAI_RETRY_COOLDOWN_SECS = 300
+_akamai_retry_blocked_until = 0.0   # time.monotonic() deadline
+
+_AVAILABILITY_FETCH_JS = """async ({partySize, start, end, facilityId, token}) => {
+  try {
+    const resp = await fetch(`/dine-res/api/availability/${partySize}/${start},${end}?facilityId=${facilityId}&entityType=restaurant`,
+      { headers: { 'Authorization': token, 'x-function-name': 'getAvailability',
+                   'x-disney-internal-dine-vas-365': 'true', 'x-disney-internal-dine-vas-eks': 'true',
+                   'accept': 'application/json, text/plain, */*' }});
+    if (resp.status === 200) return { status: 200, data: await resp.json() };
+    let body = '';
+    if (resp.status === 428) { try { body = (await resp.text()).slice(0, 2000); } catch (e) {} }
+    return { status: resp.status, data: null, body };
+  } catch (e) {
+    return { status: 0, error: String(e) };
+  }
+}"""
+
+
 def _playwright_headless() -> bool:
     return os.environ.get("DISNEY_HEADLESS", "true").lower() not in {"0", "false", "no"}
 
 
 def _playwright_profile_dir() -> str:
     return os.environ.get("DISNEY_BROWSER_PROFILE_DIR", ".browser-profile")
+
+
+def _akamai_challenge_retries() -> int:
+    """Challenge retries per restaurant (DISNEY_AKAMAI_CHALLENGE_RETRIES, default 1, 0 disables)."""
+    try:
+        value = int(os.environ.get("DISNEY_AKAMAI_CHALLENGE_RETRIES", "1"))
+    except ValueError:
+        return 1
+    return max(0, min(2, value))
+
+
+def _akamai_challenge_wait_ms(result: dict) -> int:
+    """How long to stay on the page so Akamai's in-page crypto challenge can finish.
+
+    The 428 body carries chlg_duration (seconds the challenge runs, 15 today);
+    add a margin for the verify round trip on a 1-vCPU box.
+    """
+    override = os.environ.get("DISNEY_AKAMAI_CHALLENGE_WAIT_MS", "").strip()
+    if override.isdigit():
+        return int(override)
+    duration = 15
+    try:
+        body = json.loads((result or {}).get("body") or "{}")
+        if isinstance(body, dict):
+            duration = int(body.get("chlg_duration", duration))
+    except (TypeError, ValueError):
+        pass
+    return (max(5, min(60, duration)) + 10) * 1000
 
 
 def _token_from_playwright_context(context) -> str:
@@ -568,6 +620,57 @@ def _token_from_playwright_context(context) -> str:
         f"{'token cookie present but not refreshable' if has_cookie else 'token cookie missing'}; "
         f"{detail}. Re-seed the VPS browser profile with seed_disney_session.py."
     )
+
+
+def disney_session_seconds_left(context) -> int:
+    """Seconds of life left on the profile's Disney access token; 0 when absent or unreadable."""
+    try:
+        cookies = context.cookies(["https://disneyworld.disney.go.com", "https://disney.go.com"])
+        remaining = 0
+        for cookie in cookies or []:
+            if cookie.get("name") != TOKEN_COOKIE_NAME:
+                continue
+            state = _token_state_from_cookie_value(cookie.get("value", ""))
+            if state.access_token and state.expires_at:
+                candidate = int(state.expires_at - time.time())
+                if candidate > remaining:
+                    remaining = candidate
+        return max(0, remaining)
+    except Exception:
+        return 0
+
+
+def _retry_after_akamai_challenge(context, page, result: dict, load_and_fetch, name: str) -> dict:
+    """Let the real page finish Akamai's crypto challenge, then load the page again and re-fetch."""
+    global _akamai_retry_blocked_until
+    retries = _akamai_challenge_retries()
+    attempt = 0
+    if result.get("status") != AKAMAI_CHALLENGE_STATUS or retries <= 0:
+        return result
+    if time.monotonic() < _akamai_retry_blocked_until:
+        print(f"[monitor] {name}: HTTP 428 Akamai challenge; skipping the retry (an earlier challenge retry failed this poll).")
+        return result
+    while result.get("status") == AKAMAI_CHALLENGE_STATUS and attempt < retries:
+        attempt += 1
+        wait_ms = _akamai_challenge_wait_ms(result)
+        print(f"[monitor] {name}: HTTP 428 Akamai challenge; keeping the page open {wait_ms // 1000}s "
+              f"so the browser can finish it, then reloading (retry {attempt}/{retries}).")
+        try:
+            page.wait_for_timeout(wait_ms)
+            result = load_and_fetch(page)
+        except Exception as exc:
+            # The challenge can reload or crash the tab, and a crashed Playwright page never recovers.
+            detail = (str(exc).splitlines() or [""])[0][:160]
+            print(f"[monitor] {name}: tab unusable after the Akamai challenge ({type(exc).__name__}: {detail}); retrying in a fresh tab.")
+            page = context.new_page()
+            result = load_and_fetch(page)
+    if result.get("status") == AKAMAI_CHALLENGE_STATUS:
+        _akamai_retry_blocked_until = time.monotonic() + _AKAMAI_RETRY_COOLDOWN_SECS
+        print(f"[monitor] {name}: still HTTP 428 after {attempt} challenge retry(ies); "
+              f"other restaurants will not retry for {_AKAMAI_RETRY_COOLDOWN_SECS // 60} min.")
+    else:
+        print(f"[monitor] {name}: availability API returned HTTP {result.get('status')} after the Akamai challenge retry.")
+    return result
 
 
 def _parse_availability_response(
@@ -649,37 +752,25 @@ def check_slots_via_playwright(restaurant: dict) -> List[Slot]:
             args=["--no-sandbox"],
         )
         page = context.pages[0] if context.pages else context.new_page()
-        try:
-            page.goto(url, wait_until="domcontentloaded", timeout=45000)
-            page.wait_for_timeout(int(os.environ.get("DISNEY_AKAMAI_WARMUP_MS", "8000")))
-            token = _token_from_playwright_context(context)
+        token = ""
 
-            result = page.evaluate(
-                """async ({partySize, start, end, facilityId, token}) => {
-                  try {
-                    const resp = await fetch(
-                      `/dine-res/api/availability/${partySize}/${start},${end}?facilityId=${facilityId}&entityType=restaurant`,
-                      { headers: {
-                        'Authorization': token,
-                        'x-function-name': 'getAvailability',
-                        'x-disney-internal-dine-vas-365': 'true',
-                        'x-disney-internal-dine-vas-eks': 'true',
-                        'accept': 'application/json, text/plain, */*',
-                      }}
-                    );
-                    return { status: resp.status, data: resp.status === 200 ? await resp.json() : null };
-                  } catch (e) {
-                    return { status: 0, error: String(e) };
-                  }
-                }""",
-                {
-                    "partySize": party_size,
-                    "start": start,
-                    "end": end,
-                    "facilityId": facility_id,
-                    "token": token,
-                },
-            )
+        def load_and_fetch(tab) -> dict:
+            nonlocal token
+            tab.goto(url, wait_until="domcontentloaded", timeout=45000)
+            tab.wait_for_timeout(int(os.environ.get("DISNEY_AKAMAI_WARMUP_MS", "8000")))
+            if not token:
+                token = _token_from_playwright_context(context)
+            return tab.evaluate(_AVAILABILITY_FETCH_JS, {
+                "partySize": party_size,
+                "start": start,
+                "end": end,
+                "facilityId": facility_id,
+                "token": token,
+            })
+
+        try:
+            result = load_and_fetch(page)
+            result = _retry_after_akamai_challenge(context, page, result, load_and_fetch, name)
         finally:
             context.close()
 
@@ -687,7 +778,9 @@ def check_slots_via_playwright(restaurant: dict) -> List[Slot]:
         print(f"[monitor] {name}: no availability returned by Disney.")
         return []
     if result.get("status") != 200:
-        raise RuntimeError(f"[monitor] {name}: HTTP {result.get('status')} from availability API {result.get('error', '')}")
+        status = result.get("status")
+        hint = " (Akamai challenge not cleared; see TROUBLESHOOTING.md 2.5)" if status == AKAMAI_CHALLENGE_STATUS else ""
+        raise RuntimeError(f"[monitor] {name}: HTTP {status} from availability API{hint} {result.get('error', '')}")
     slots = _parse_availability_response(
         data=result.get("data") or {},
         facility_id=facility_id,
