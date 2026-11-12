@@ -3,6 +3,11 @@ import contextlib
 import io
 import json
 import os
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
 import time
 import unittest
 from datetime import date, timedelta
@@ -113,10 +118,21 @@ class FakePage:
         self.fail_goto_message = "net::ERR_HTTP2_PROTOCOL_ERROR"
         self.crash_on_goto_index = None
         self._goto_n = 0
+        self.response_handlers = []
+        self.listener_log = []
+        self._challenge_waits = 0
 
     def on(self, event, handler):
         if event == "crash":
             self.crash_handlers.append(handler)
+        if event == "response":
+            self.response_handlers.append(handler)
+            self.listener_log.append("on")
+
+    def remove_listener(self, event, handler):
+        if event == "response" and handler in self.response_handlers:
+            self.response_handlers.remove(handler)
+            self.listener_log.append("remove")
 
     def is_closed(self):
         return self._closed
@@ -137,6 +153,18 @@ class FakePage:
     def wait_for_timeout(self, timeout):
         self.wait_calls.append(timeout)
         self.context.events.append(("wait_for_timeout", timeout, self))
+        if self.context.clock is not None:
+            self.context.clock.advance(timeout / 1000)
+        if self.response_handlers:
+            # Akamai's script reports the finished challenge while the page is being waited on.
+            self._challenge_waits += 1
+            if self.context.on_challenge_wait:
+                self.context.on_challenge_wait(self._challenge_waits)
+            if self._challenge_waits == self.context.verify_after_waits:
+                for handler in list(self.response_handlers):
+                    handler(FakeResponse("https://disneyworld.disney.go.com/_sec/verify", 200))
+                    handler(FakeResponse(
+                        "https://disneyworld.disney.go.com/_sec/cp_challenge/verify", self.context.verify_status))
 
     def goto(self, url, wait_until="domcontentloaded", timeout=None):
         self._goto_n += 1
@@ -160,8 +188,60 @@ class FakePage:
         return self.context.next_evaluate(script, arg)
 
 
+class FakeResponse:
+    def __init__(self, url, status):
+        self.url = url
+        self.status = status
+
+
+class FakeClock:
+    def __init__(self):
+        self.now = 1000.0
+
+    def monotonic(self):
+        return self.now
+
+    def advance(self, seconds):
+        self.now += seconds
+
+
+class FakeGuard:
+    """Stands in for monitor._BrowserGuard: no thread, scripted memory, fake clock."""
+
+    instances = []
+    clock = None
+    mem_mb_default = 300
+    budget_secs = 120
+
+    def __init__(self, name):
+        self.name = name
+        self.started = self.clock.monotonic() if self.clock else time.monotonic()
+        self.deadline = self.started + self.budget_secs
+        self.mem_mb = self.mem_mb_default
+        self.peak_mb = self.mem_mb_default or 0
+        self.tripped = ""
+        self.start_calls = 0
+        self.stop_calls = 0
+        FakeGuard.instances.append(self)
+
+    def start(self):
+        self.start_calls += 1
+
+    def stop(self):
+        self.stop_calls += 1
+
+    def seconds_left(self):
+        now = self.clock.monotonic() if self.clock else time.monotonic()
+        return self.deadline - now
+
+
 class FakeContext:
     def __init__(self, cookies=None, evaluate_results=None):
+        self.clock = FakeGuard.clock
+        self.verify_after_waits = None
+        self.verify_status = 200
+        self.on_challenge_wait = None
+        self.close_error = None
         self._cookies = list(cookies or [])
         self.cookies_error = None
         self.events = []
@@ -200,6 +280,8 @@ class FakeContext:
 
     def close(self):
         self.closed = True
+        if self.close_error:
+            raise self.close_error
 
 
 class FakeChromium:
@@ -234,244 +316,721 @@ class FakePlaywrightCM:
         return False
 
 
-class AkamaiChallengeRecoveryTest(unittest.TestCase):
+ENV_KEYS = (
+    "DISNEY_AKAMAI_CHALLENGE_RETRIES",
+    "DISNEY_AKAMAI_CHALLENGE_WAIT_MS",
+    "DISNEY_AKAMAI_CHALLENGE_MEM_MB",
+    "DISNEY_AKAMAI_WARMUP_MS",
+    "DISNEY_BROWSER_MEM_LIMIT_MB",
+    "DISNEY_PAGE_BUDGET_SECS",
+    "DISNEY_POLL_BUDGET_SECS",
+    "DISNEY_SEED_FORCE_LOGIN",
+    "DISNEY_LOGIN_EMAIL",
+    "DISNEY_LOGIN_PASSWORD",
+)
+ATTEMPT_ON = {"DISNEY_AKAMAI_CHALLENGE_RETRIES": "1"}
+
+
+def _waits(ctx):
+    return [event[1] for event in ctx.events if event[0] == "wait_for_timeout"]
+
+
+class _MonitorTestBase(unittest.TestCase):
     def setUp(self):
-        monitor._akamai_retry_blocked_until = 0.0
         self._env = mock.patch.dict(os.environ, {}, clear=False)
         self._env.start()
-        for key in (
-            "DISNEY_AKAMAI_CHALLENGE_RETRIES",
-            "DISNEY_AKAMAI_CHALLENGE_WAIT_MS",
-            "DISNEY_AKAMAI_WARMUP_MS",
-            "DISNEY_SEED_FORCE_LOGIN",
-            "DISNEY_LOGIN_EMAIL",
-            "DISNEY_LOGIN_PASSWORD",
-        ):
+        for key in ENV_KEYS:
             os.environ.pop(key, None)
-        self._token = mock.patch.object(
-            monitor, "_token_from_playwright_context", return_value="BEARER t"
-        )
-        self.mock_token = self._token.start()
+        monitor._poll_deadline = None
+        monitor._akamai_attempt_used = False
 
     def tearDown(self):
-        self._token.stop()
         self._env.stop()
-        monitor._akamai_retry_blocked_until = 0.0
+        monitor._poll_deadline = None
+        monitor._akamai_attempt_used = False
 
-    def _run_check(self, context_factory, env=None):
+
+class AkamaiChallengeRecoveryTest(_MonitorTestBase):
+    """check_slots_via_playwright with the guard faked: no threads, no real clock."""
+
+    def setUp(self):
+        super().setUp()
+        self.clock = FakeClock()
+        FakeGuard.instances = []
+        FakeGuard.clock = self.clock
+        FakeGuard.mem_mb_default = 300
+        FakeGuard.budget_secs = 120
+        self._patches = [
+            mock.patch.object(monitor, "_token_from_playwright_context", return_value="BEARER t"),
+            mock.patch.object(monitor, "_BrowserGuard", FakeGuard),
+            mock.patch.object(monitor.time, "monotonic", self.clock.monotonic),
+        ]
+        self.mock_token = self._patches[0].start()
+        for patcher in self._patches[1:]:
+            patcher.start()
+
+    def tearDown(self):
+        for patcher in reversed(self._patches):
+            patcher.stop()
+        FakeGuard.clock = None
+        super().tearDown()
+
+    def _run_check(self, context_factory, env=None, restaurant=None, check=None):
         cm = FakePlaywrightCM(context_factory)
         buf = io.StringIO()
-        env = env or {}
-        with mock.patch.dict(os.environ, env, clear=False), \
+        check = check or monitor.check_slots_via_playwright
+        with mock.patch.dict(os.environ, env or {}, clear=False), \
                 mock.patch("playwright.sync_api.sync_playwright", return_value=cm), \
                 contextlib.redirect_stdout(buf):
-            slots = monitor.check_slots_via_playwright(_restaurant())
+            slots = check(restaurant or _restaurant())
         return slots, buf.getvalue(), cm
 
-    def _run_check_expect_error(self, context_factory, env=None, error_type=RuntimeError):
+    def _run_check_expect_error(self, context_factory, env=None, error_type=RuntimeError, restaurant=None, check=None):
         cm = FakePlaywrightCM(context_factory)
         buf = io.StringIO()
-        env = env or {}
-        with mock.patch.dict(os.environ, env, clear=False), \
+        check = check or monitor.check_slots_via_playwright
+        with mock.patch.dict(os.environ, env or {}, clear=False), \
                 mock.patch("playwright.sync_api.sync_playwright", return_value=cm), \
                 contextlib.redirect_stdout(buf):
             with self.assertRaises(error_type) as caught:
-                monitor.check_slots_via_playwright(_restaurant())
+                check(restaurant or _restaurant())
         return caught.exception, buf.getvalue(), cm
 
-    def test_ac1_428_then_200_retries_once_waiting_25s_between_gotos(self):
+    # ── default: no challenge attempt ────────────────────────────────────
+
+    def test_default_is_no_attempt_428_fails_after_one_load(self):
+        def factory():
+            ctx = FakeContext()
+            ctx._evaluate_always = _challenge_428(15)
+            ctx.verify_after_waits = 1
+            return ctx
+
+        exc, stdout, cm = self._run_check_expect_error(factory)
+        ctx = cm.contexts[0]
+        self.assertFalse(monitor._akamai_challenge_enabled())
+        self.assertIn("HTTP 428 from availability API", str(exc))
+        self.assertEqual(disney_bot._error_category(exc), "akamai")
+        self.assertEqual(len(ctx.gotos), 1)
+        self.assertEqual(_waits(ctx), [8000])
+        self.assertEqual(len(ctx.evaluates), 1)
+        self.assertEqual(ctx.pages[0].listener_log, [])
+        self.assertEqual(ctx.new_page_calls, 0)
+        self.assertTrue(ctx.closed)
+        self.assertNotIn("waiting", stdout)
+
+    def test_challenge_enabled_parsing(self):
+        for value, expected in (("0", False), ("1", True), ("2", True), ("9", True), ("-3", False), ("abc", False), ("", False)):
+            with mock.patch.dict(os.environ, {"DISNEY_AKAMAI_CHALLENGE_RETRIES": value}):
+                self.assertEqual(monitor._akamai_challenge_enabled(), expected, value)
+
+    # ── the single attempt ───────────────────────────────────────────────
+
+    def test_attempt_waits_on_same_page_then_refetches_once(self):
         day = _tomorrow()
 
         def factory():
-            return FakeContext(evaluate_results=[_challenge_428(15), _ok_200(day)])
+            ctx = FakeContext(evaluate_results=[_challenge_428(15), _ok_200(day)])
+            ctx.verify_after_waits = 12
+            return ctx
 
-        slots, stdout, cm = self._run_check(factory)
+        slots, stdout, cm = self._run_check(factory, env=ATTEMPT_ON)
         ctx = cm.contexts[0]
         self.assertEqual(len(slots), 1)
         self.assertEqual(slots[0].time, "19:50")
-        gotos = [event for event in ctx.events if event[0] == "goto"]
-        self.assertEqual(len(gotos), 2)
-        self.assertEqual([event[1] for event in gotos], [_restaurant_url(), _restaurant_url()])
-        wait_idxs = [
-            i for i, event in enumerate(ctx.events)
-            if event[0] == "wait_for_timeout" and event[1] == 25000
-        ]
-        goto_idxs = [i for i, event in enumerate(ctx.events) if event[0] == "goto"]
-        self.assertEqual(len(wait_idxs), 1)
-        self.assertTrue(goto_idxs[0] < wait_idxs[0] < goto_idxs[1])
-        self.assertIn("keeping the page open 25s", stdout)
+        self.assertEqual(len(ctx.gotos), 1, "the page must not be reloaded")
+        self.assertEqual(ctx.new_page_calls, 0, "no second tab")
+        self.assertEqual(_waits(ctx), [8000] + [1000] * 12 + [1000])
+        self.assertEqual([args["token"] for args in ctx.evaluates], ["BEARER t", "BEARER t"])
+        self.assertEqual(ctx.evaluates[0], ctx.evaluates[1])
+        self.assertEqual(self.mock_token.call_count, 1)
+        self.assertEqual(ctx.pages[0].listener_log, ["on", "remove"])
+        self.assertTrue(ctx.closed)
+        self.assertIn("waiting up to 45s on this page", stdout)
+        self.assertIn("Akamai challenge finished in 12s; availability API now returns HTTP 200", stdout)
 
-    def test_ac2_retries_disabled_raises_on_428_with_single_goto(self):
+    def test_attempt_gives_up_at_wait_cap_without_refetch(self):
         def factory():
             ctx = FakeContext()
             ctx._evaluate_always = _challenge_428(15)
             return ctx
 
-        exc, stdout, cm = self._run_check_expect_error(
-            factory, env={"DISNEY_AKAMAI_CHALLENGE_RETRIES": "0"}
-        )
+        exc, stdout, cm = self._run_check_expect_error(factory, env=ATTEMPT_ON)
         ctx = cm.contexts[0]
-        self.assertIsInstance(exc, RuntimeError)
         self.assertIn("HTTP 428 from availability API", str(exc))
-        self.assertEqual(len([event for event in ctx.events if event[0] == "goto"]), 1)
-        waits = [event[1] for event in ctx.events if event[0] == "wait_for_timeout"]
-        self.assertNotIn(25000, waits)
-        self.assertNotIn("keeping the page open", stdout)
+        self.assertEqual(disney_bot._error_category(exc), "akamai")
+        self.assertEqual(_waits(ctx), [8000] + [1000] * 45)
+        self.assertEqual(len(ctx.evaluates), 1, "no re-fetch when the challenge did not finish")
+        self.assertEqual(len(ctx.gotos), 1)
+        self.assertEqual(ctx.new_page_calls, 0)
+        self.assertEqual(ctx.pages[0].listener_log, ["on", "remove"])
+        self.assertTrue(ctx.closed)
+        self.assertIn("abandoned after 45s: no verify call within 45s", stdout)
 
-    def test_ac3_persistent_428_retries_once_then_cooldown_skips_later_restaurant(self):
+    def test_attempt_respects_wait_override(self):
         def factory():
             ctx = FakeContext()
-            ctx._evaluate_always = lambda script, arg: _challenge_428(15)
+            ctx._evaluate_always = _challenge_428(15)
             return ctx
 
-        cm = FakePlaywrightCM(factory)
-        buf1 = io.StringIO()
-        with mock.patch("playwright.sync_api.sync_playwright", return_value=cm), \
-                contextlib.redirect_stdout(buf1):
-            with self.assertRaises(RuntimeError) as first:
-                monitor.check_slots_via_playwright(_restaurant())
-        self.assertIn("HTTP 428 from availability API", str(first.exception))
-        self.assertEqual(disney_bot._error_category(first.exception), "akamai")
-        self.assertEqual(len(cm.contexts[0].gotos), 2)
+        env = dict(ATTEMPT_ON, DISNEY_AKAMAI_CHALLENGE_WAIT_MS="20000")
+        exc, stdout, cm = self._run_check_expect_error(factory, env=env)
+        self.assertEqual(_waits(cm.contexts[0]), [8000] + [1000] * 20)
 
-        buf2 = io.StringIO()
-        with mock.patch("playwright.sync_api.sync_playwright", return_value=cm), \
-                contextlib.redirect_stdout(buf2):
-            with self.assertRaises(RuntimeError) as second:
-                monitor.check_slots_via_playwright(_restaurant(name="Space 220"))
-        self.assertEqual(len(cm.contexts[1].gotos), 1)
-        self.assertIn("skipping the retry", buf2.getvalue())
-        self.assertIn("HTTP 428 from availability API", str(second.exception))
+    def test_attempt_not_started_when_browser_already_over_challenge_ceiling(self):
+        FakeGuard.mem_mb_default = 620
 
-    def test_ac4_crashed_retry_goto_opens_fresh_tab_and_returns_slots(self):
+        def factory():
+            ctx = FakeContext()
+            ctx._evaluate_always = _challenge_428(15)
+            return ctx
+
+        exc, stdout, cm = self._run_check_expect_error(factory, env=ATTEMPT_ON)
+        ctx = cm.contexts[0]
+        self.assertEqual(_waits(ctx), [8000])
+        self.assertEqual(len(ctx.evaluates), 1)
+        self.assertEqual(ctx.pages[0].listener_log, [])
+        self.assertIn("already at 620 MB (challenge ceiling 500 MB)", stdout)
+        self.assertIn("HTTP 428 from availability API", str(exc))
+
+    def test_challenge_ceiling_is_configurable(self):
+        FakeGuard.mem_mb_default = 620
         day = _tomorrow()
 
         def factory():
             ctx = FakeContext(evaluate_results=[_challenge_428(15), _ok_200(day)])
-            ctx.pages[0].crash_on_goto_index = 2
+            ctx.verify_after_waits = 3
             return ctx
 
-        slots, stdout, cm = self._run_check(factory)
-        ctx = cm.contexts[0]
+        env = dict(ATTEMPT_ON, DISNEY_AKAMAI_CHALLENGE_MEM_MB="700")
+        slots, stdout, cm = self._run_check(factory, env=env)
         self.assertEqual(len(slots), 1)
-        self.assertEqual(slots[0].time, "19:50")
-        self.assertEqual(ctx.new_page_calls, 1)
-        original = ctx.pages[0]
-        fresh = ctx.created_pages[0]
-        self.assertEqual(len(original.goto_calls), 2)
-        self.assertEqual(len(fresh.goto_calls), 1)
-        self.assertEqual(fresh.goto_calls[0]["url"], _restaurant_url())
-        self.assertIn("retrying in a fresh tab", stdout)
-        goto_pages = [event[3] for event in ctx.events if event[0] == "goto"]
-        self.assertIs(goto_pages[0], original)
-        self.assertIs(goto_pages[1], original)
-        self.assertIs(goto_pages[2], fresh)
+        self.assertIn("challenge ceiling 700 MB", stdout)
 
-    def test_ac5a_auth_required_on_first_load_propagates_without_akamai_retry(self):
-        self.mock_token.side_effect = monitor.DisneyAuthRequired("Disney auth required: missing")
-
+    def test_attempt_abandoned_when_memory_crosses_ceiling_during_wait(self):
         def factory():
-            return FakeContext()
+            ctx = FakeContext()
+            ctx._evaluate_always = _challenge_428(15)
+            ctx.verify_after_waits = 10
 
-        exc, stdout, cm = self._run_check_expect_error(
-            factory, error_type=monitor.DisneyAuthRequired
-        )
+            def grow(wait_number):
+                if wait_number == 4:
+                    FakeGuard.instances[-1].mem_mb = 540
+            ctx.on_challenge_wait = grow
+            return ctx
+
+        exc, stdout, cm = self._run_check_expect_error(factory, env=ATTEMPT_ON)
         ctx = cm.contexts[0]
-        self.assertIsInstance(exc, monitor.DisneyAuthRequired)
+        self.assertEqual(_waits(ctx), [8000] + [1000] * 4)
+        self.assertEqual(len(ctx.evaluates), 1)
+        self.assertEqual(ctx.pages[0].listener_log, ["on", "remove"])
         self.assertTrue(ctx.closed)
-        self.assertEqual(len([event for event in ctx.events if event[0] == "goto"]), 1)
-        self.assertEqual(len(ctx.evaluates), 0)
-        self.assertNotIn("Akamai", stdout)
+        self.assertIn("abandoned after 4s: the browser reached 540 MB (challenge ceiling 500 MB)", stdout)
 
-    def test_ac5b_token_is_read_once_and_reused_on_challenge_retry(self):
-        day = _tomorrow()
+    def test_attempt_not_started_when_memory_cannot_be_measured(self):
+        FakeGuard.mem_mb_default = None
 
         def factory():
-            return FakeContext(evaluate_results=[_challenge_428(15), _ok_200(day)])
+            ctx = FakeContext()
+            ctx._evaluate_always = _challenge_428(15)
+            return ctx
 
-        slots, stdout, cm = self._run_check(factory)
-        self.assertEqual(len(slots), 1)
-        self.assertEqual(self.mock_token.call_count, 1)
-        tokens = [args["token"] for args in cm.contexts[0].evaluates]
-        self.assertEqual(tokens, ["BEARER t", "BEARER t"])
-        self.assertIn("keeping the page open 25s", stdout)
+        exc, stdout, cm = self._run_check_expect_error(factory, env=ATTEMPT_ON)
+        self.assertEqual(_waits(cm.contexts[0]), [8000])
+        self.assertIn("browser memory cannot be measured", stdout)
 
-    def test_ac6_first_fetch_200_does_one_goto_and_only_warmup_wait(self):
+    def test_failed_verify_call_is_not_followed_by_a_refetch(self):
+        def factory():
+            ctx = FakeContext()
+            ctx._evaluate_always = _challenge_428(15)
+            ctx.verify_after_waits = 5
+            ctx.verify_status = 403
+            return ctx
+
+        exc, stdout, cm = self._run_check_expect_error(factory, env=ATTEMPT_ON)
+        ctx = cm.contexts[0]
+        self.assertEqual(len(ctx.evaluates), 1)
+        self.assertEqual(_waits(ctx), [8000] + [1000] * 5)
+        self.assertIn("verify call returned HTTP 403", stdout)
+
+    def test_only_one_attempt_per_poll(self):
+        def factory():
+            ctx = FakeContext()
+            ctx._evaluate_always = _challenge_428(15)
+            return ctx
+
+        self._run_check_expect_error(factory, env=ATTEMPT_ON)
+        exc, stdout, cm = self._run_check_expect_error(factory, env=ATTEMPT_ON, restaurant=_restaurant(name="Space 220"))
+        self.assertEqual(_waits(cm.contexts[0]), [8000])
+        self.assertIn("this poll's one attempt is already used", stdout)
+
+        with mock.patch.dict(os.environ, ATTEMPT_ON):
+            monitor.start_poll_budget()
+        exc, stdout, cm = self._run_check_expect_error(factory, env=ATTEMPT_ON)
+        self.assertEqual(len(_waits(cm.contexts[0])), 46, "a new poll gets a new attempt")
+
+    def test_wait_is_cut_to_fit_the_page_time_budget(self):
+        FakeGuard.budget_secs = 48   # 8s warm-up leaves 40s; 15s stay reserved for re-fetch and close
+
+        def factory():
+            ctx = FakeContext()
+            ctx._evaluate_always = _challenge_428(15)
+            return ctx
+
+        exc, stdout, cm = self._run_check_expect_error(factory, env=ATTEMPT_ON)
+        self.assertEqual(_waits(cm.contexts[0]), [8000] + [1000] * 25)
+        self.assertIn("waiting up to 25s", stdout)
+
+    def test_attempt_not_started_when_page_budget_nearly_used(self):
+        FakeGuard.budget_secs = 26   # 18s left after warm-up, under the 15s reserve + 5s minimum
+
+        def factory():
+            ctx = FakeContext()
+            ctx._evaluate_always = _challenge_428(15)
+            return ctx
+
+        exc, stdout, cm = self._run_check_expect_error(factory, env=ATTEMPT_ON)
+        self.assertEqual(_waits(cm.contexts[0]), [8000])
+        self.assertIn("time budget is nearly used", stdout)
+
+    def test_wait_secs_parsing_and_clamps(self):
+        self.assertEqual(monitor._akamai_challenge_wait_secs({"body": '{"chlg_duration":15}'}), 45)
+        self.assertEqual(monitor._akamai_challenge_wait_secs({}), 45)
+        self.assertEqual(monitor._akamai_challenge_wait_secs({"body": "not-json"}), 45)
+        self.assertEqual(monitor._akamai_challenge_wait_secs({"body": "[1,2]"}), 45)
+        self.assertEqual(monitor._akamai_challenge_wait_secs({"body": '{"chlg_duration":500}'}), 90)
+        self.assertEqual(monitor._akamai_challenge_wait_secs({"body": '{"chlg_duration":1}'}), 35)
+        for value, expected in (("1000", 5), ("30000", 30), ("999999", 90), ("abc", 45)):
+            with mock.patch.dict(os.environ, {"DISNEY_AKAMAI_CHALLENGE_WAIT_MS": value}):
+                self.assertEqual(monitor._akamai_challenge_wait_secs({"body": '{"chlg_duration":15}'}), expected, value)
+
+    # ── paths that must not change ───────────────────────────────────────
+
+    def test_first_fetch_200_does_one_goto_and_only_warmup_wait(self):
         day = _tomorrow()
 
         def factory():
             return FakeContext(evaluate_results=[_ok_200(day)])
 
-        slots, stdout, cm = self._run_check(factory)
-        ctx = cm.contexts[0]
-        self.assertEqual(len(slots), 1)
-        self.assertEqual(len([event for event in ctx.events if event[0] == "goto"]), 1)
-        waits = [event[1] for event in ctx.events if event[0] == "wait_for_timeout"]
-        self.assertEqual(waits, [8000])
-        self.assertNotIn(25000, waits)
-        self.assertNotIn("Akamai", stdout)
+        for env in ({}, ATTEMPT_ON):
+            slots, stdout, cm = self._run_check(factory, env=env)
+            ctx = cm.contexts[0]
+            self.assertEqual(len(slots), 1)
+            self.assertEqual(len(ctx.gotos), 1)
+            self.assertEqual(ctx.gotos[0]["url"], _restaurant_url())
+            self.assertEqual(_waits(ctx), [8000])
+            self.assertEqual(ctx.pages[0].listener_log, [])
+            self.assertNotIn("Akamai", stdout)
+            self.assertIn("1 slot(s) found via Playwright", stdout)
 
-    def test_ac6_first_fetch_404_returns_empty_after_one_goto(self):
+    def test_first_fetch_404_returns_empty_after_one_goto(self):
         def factory():
             return FakeContext(evaluate_results=[{"status": 404, "data": None, "body": ""}])
 
         slots, stdout, cm = self._run_check(factory)
         ctx = cm.contexts[0]
         self.assertEqual(slots, [])
-        self.assertEqual(len([event for event in ctx.events if event[0] == "goto"]), 1)
+        self.assertEqual(len(ctx.gotos), 1)
         self.assertIn("no availability returned by Disney", stdout)
 
-    def test_ac7_akamai_challenge_wait_ms_env_and_body_parsing(self):
-        self.assertEqual(
-            monitor._akamai_challenge_wait_ms({"body": '{"chlg_duration":15}'}),
-            25000,
-        )
-        self.assertEqual(monitor._akamai_challenge_wait_ms({}), 25000)
-        self.assertEqual(monitor._akamai_challenge_wait_ms({"body": "not-json"}), 25000)
-        self.assertEqual(monitor._akamai_challenge_wait_ms({"body": "[1,2]"}), 25000)
-        self.assertEqual(
-            monitor._akamai_challenge_wait_ms({"body": '{"chlg_duration":500}'}),
-            70000,
-        )
-        self.assertEqual(
-            monitor._akamai_challenge_wait_ms({"body": '{"chlg_duration":1}'}),
-            15000,
-        )
-        with mock.patch.dict(os.environ, {"DISNEY_AKAMAI_CHALLENGE_WAIT_MS": "1000"}):
-            self.assertEqual(
-                monitor._akamai_challenge_wait_ms({"body": '{"chlg_duration":15}'}),
-                1000,
-            )
-        with mock.patch.dict(os.environ, {"DISNEY_AKAMAI_CHALLENGE_WAIT_MS": "abc"}):
-            self.assertEqual(
-                monitor._akamai_challenge_wait_ms({"body": '{"chlg_duration":15}'}),
-                25000,
-            )
+    def test_auth_required_propagates_and_closes_the_browser(self):
+        self.mock_token.side_effect = monitor.DisneyAuthRequired("Disney auth required: missing")
 
-    def test_ac8_akamai_challenge_retries_default_clamp_and_invalid(self):
-        self.assertEqual(monitor._akamai_challenge_retries(), 1)
-        with mock.patch.dict(os.environ, {"DISNEY_AKAMAI_CHALLENGE_RETRIES": "0"}):
-            self.assertEqual(monitor._akamai_challenge_retries(), 0)
-        with mock.patch.dict(os.environ, {"DISNEY_AKAMAI_CHALLENGE_RETRIES": "2"}):
-            self.assertEqual(monitor._akamai_challenge_retries(), 2)
-        with mock.patch.dict(os.environ, {"DISNEY_AKAMAI_CHALLENGE_RETRIES": "9"}):
-            self.assertEqual(monitor._akamai_challenge_retries(), 2)
-        with mock.patch.dict(os.environ, {"DISNEY_AKAMAI_CHALLENGE_RETRIES": "-3"}):
-            self.assertEqual(monitor._akamai_challenge_retries(), 0)
-        with mock.patch.dict(os.environ, {"DISNEY_AKAMAI_CHALLENGE_RETRIES": "abc"}):
-            self.assertEqual(monitor._akamai_challenge_retries(), 1)
+        def factory():
+            return FakeContext()
 
-    def test_ac9_launch_still_passes_no_sandbox_and_headless_helper(self):
+        exc, stdout, cm = self._run_check_expect_error(factory, env=ATTEMPT_ON, error_type=monitor.DisneyAuthRequired)
+        ctx = cm.contexts[0]
+        self.assertEqual(disney_bot._error_category(exc), "disney_auth")
+        self.assertTrue(ctx.closed)
+        self.assertEqual(len(ctx.evaluates), 0)
+        self.assertEqual(FakeGuard.instances[-1].stop_calls, 1)
+
+    def test_launch_args_are_unchanged(self):
         day = _tomorrow()
 
         def factory():
             return FakeContext(evaluate_results=[_ok_200(day)])
 
         slots, stdout, cm = self._run_check(factory)
-        self.assertEqual(len(slots), 1)
         kwargs = cm.contexts[0].launch_kwargs
-        self.assertEqual(kwargs.get("args"), ["--no-sandbox"])
-        self.assertEqual(kwargs.get("headless"), monitor._playwright_headless())
+        self.assertEqual(kwargs, {"headless": monitor._playwright_headless(), "args": ["--no-sandbox"]})
+        self.assertEqual(cm.contexts[0].profile_dir, monitor._playwright_profile_dir())
+
+    # ── guard wiring ─────────────────────────────────────────────────────
+
+    def test_guard_runs_from_before_launch_until_after_close(self):
+        def factory():
+            return FakeContext(evaluate_results=[_ok_200(_tomorrow())])
+
+        slots, stdout, cm = self._run_check(factory)
+        guard = FakeGuard.instances[-1]
+        self.assertEqual((guard.start_calls, guard.stop_calls), (1, 1))
+        self.assertTrue(cm.contexts[0].closed)
+        self.assertIn("browser memory peak 300 MB", stdout)
+
+    def test_error_after_guard_trip_names_the_limit(self):
+        def factory():
+            ctx = FakeContext()
+
+            def blocked_call_fails(script, arg):
+                FakeGuard.instances[-1].tripped = "ran past the 120s page time limit"
+                raise Exception("Page.evaluate: Target crashed")
+            ctx._evaluate_always = blocked_call_fails
+            ctx.close_error = Exception("Target page, context or browser has been closed")
+            return ctx
+
+        exc, stdout, cm = self._run_check_expect_error(factory)
+        self.assertEqual(str(exc), "[monitor] Ohana: browser stopped because it ran past the 120s page time limit.")
+        self.assertNotEqual(disney_bot._error_category(exc), "disney_auth")
+        self.assertTrue(cm.contexts[0].closed)
+        self.assertEqual(FakeGuard.instances[-1].stop_calls, 1)
+
+    def test_untripped_errors_pass_through_unchanged(self):
+        def factory():
+            ctx = FakeContext()
+            ctx.pages[0].always_fail_goto = "net::ERR_HTTP2_PROTOCOL_ERROR"
+            return ctx
+
+        exc, stdout, cm = self._run_check_expect_error(factory, error_type=Exception)
+        self.assertEqual(str(exc), "net::ERR_HTTP2_PROTOCOL_ERROR")
+        self.assertTrue(cm.contexts[0].closed)
+        self.assertEqual(FakeGuard.instances[-1].stop_calls, 1)
+
+    def test_poll_budget_used_up_skips_the_launch(self):
+        with mock.patch.dict(os.environ, {"DISNEY_POLL_BUDGET_SECS": "360"}):
+            monitor.start_poll_budget()
+        self.clock.advance(361)
+
+        def factory():
+            return FakeContext(evaluate_results=[_ok_200(_tomorrow())])
+
+        exc, stdout, cm = self._run_check_expect_error(factory)
+        self.assertIn("this poll's browser time budget is used up", str(exc))
+        self.assertIsNone(cm.contexts[0].launch_kwargs, "no browser may be launched")
+        self.assertEqual(FakeGuard.instances, [])
+        self.assertNotEqual(disney_bot._error_category(exc), "disney_auth")
+
+        monitor.extend_poll_budget(120)   # time spent in login recovery is given back
+        slots, stdout, cm = self._run_check(factory)
+        self.assertEqual(len(slots), 1)
+
+    def test_poll_budget_env_is_clamped(self):
+        for value, expected in (("", 360), ("abc", 360), ("5", 60), ("240", 240), ("99999", 900)):
+            with mock.patch.dict(os.environ, {"DISNEY_POLL_BUDGET_SECS": value}):
+                monitor.start_poll_budget()
+            self.assertEqual(monitor._poll_deadline - self.clock.now, expected, value)
+
+    # ── scheduled activities (the path that still works today) ───────────
+
+    def _activity(self):
+        return _restaurant(name="Harmony Barber Shop", slug="harmony-barber-shop", booking_type="scheduled_activity")
+
+    def test_scheduled_activity_check_runs_under_the_guard(self):
+        def factory():
+            return FakeContext(evaluate_results=[{"status": 200, "data": {}}, {"status": 404, "data": None}])
+
+        slots, stdout, cm = self._run_check(factory, restaurant=self._activity(),
+                                            check=monitor.check_scheduled_activity_slots_via_playwright)
+        ctx = cm.contexts[0]
+        guard = FakeGuard.instances[-1]
+        self.assertEqual(slots, [])
+        self.assertEqual(ctx.launch_kwargs, {"headless": monitor._playwright_headless(), "args": ["--no-sandbox"]})
+        self.assertEqual(len(ctx.gotos), 1)
+        self.assertEqual(_waits(ctx), [8000])
+        self.assertTrue(ctx.closed)
+        self.assertEqual((guard.start_calls, guard.stop_calls), (1, 1))
+        self.assertIn("0 slot(s) found via scheduled-activity API", stdout)
+
+    def test_scheduled_activity_early_return_and_errors_close_the_browser(self):
+        far = (date.today() + timedelta(days=400)).isoformat()
+
+        def early():
+            return FakeContext(evaluate_results=[{"status": 200, "data": {"bookableStartDate": far}}])
+
+        slots, stdout, cm = self._run_check(early, restaurant=self._activity(),
+                                            check=monitor.check_scheduled_activity_slots_via_playwright)
+        self.assertEqual(slots, [])
+        self.assertTrue(cm.contexts[0].closed)
+        self.assertEqual(FakeGuard.instances[-1].stop_calls, 1)
+
+        def expired():
+            return FakeContext(evaluate_results=[{"status": 401, "data": None}])
+
+        exc, stdout, cm = self._run_check_expect_error(expired, restaurant=self._activity(),
+                                                       check=monitor.check_scheduled_activity_slots_via_playwright)
+        self.assertEqual(disney_bot._error_category(exc), "disney_auth")
+        self.assertTrue(cm.contexts[0].closed)
+
+    def test_poll_starts_the_budget_and_recovery_time_is_given_back(self):
+        calls = []
+        with mock.patch.object(monitor, "start_poll_budget", side_effect=lambda: calls.append("start")), \
+                mock.patch.object(monitor, "extend_poll_budget", side_effect=lambda secs: calls.append(("extend", secs))), \
+                mock.patch.object(disney_bot.storage, "read_json", return_value={}), \
+                mock.patch.object(disney_bot.storage, "write_json"), \
+                mock.patch.object(disney_bot.watch_store, "load_watches", return_value=[{"id": "w1"}]), \
+                mock.patch.object(disney_bot.watch_store, "grouped_restaurant_requests",
+                                  return_value=[{"name": "Ohana", "watches": []}]), \
+                mock.patch.object(disney_bot, "check_slots_for_restaurant",
+                                  side_effect=monitor.DisneyAuthRequired("Disney auth required: x")), \
+                mock.patch.object(disney_bot, "attempt_disney_session_recovery",
+                                  side_effect=lambda: self.clock.advance(200) or False), \
+                mock.patch.object(disney_bot, "_load_open_keys", return_value=set()), \
+                mock.patch.object(disney_bot, "_save_open_keys"), \
+                mock.patch.object(disney_bot, "_configured_owner_phones", return_value=[]), \
+                contextlib.redirect_stdout(io.StringIO()):
+            disney_bot.poll({})
+        self.assertEqual(calls, ["start", ("extend", 200.0)])
+
+
+class BrowserGuardTest(_MonitorTestBase):
+    """The real _BrowserGuard against a scripted process table."""
+
+    PROCS = [
+        (100, "/opt/chrome --user-data-dir=/opt/disney-dining-bot/.browser-profile --no-sandbox"),
+        (101, "/opt/chrome --type=zygote"),
+        (102, "/opt/chrome --type=gpu-process"),
+        (103, "/opt/chrome --type=renderer --lang=en-US"),
+        (104, "/opt/chrome --type=renderer --lang=en-US"),
+    ]
+
+    def setUp(self):
+        super().setUp()
+        self.memory_kb = {100: 90_000, 101: 10_000, 102: 40_000, 103: 250_000, 104: 30_000}
+        self.kills = []
+        self._patches = [
+            mock.patch.object(monitor, "_browser_processes", side_effect=lambda: list(self.PROCS)),
+            mock.patch.object(monitor, "_process_memory_kb", side_effect=lambda pid: self.memory_kb[pid]),
+            mock.patch.object(monitor.os, "kill", side_effect=lambda pid, sig: self.kills.append((pid, sig))),
+        ]
+        for patcher in self._patches:
+            patcher.start()
+
+    def tearDown(self):
+        for patcher in reversed(self._patches):
+            patcher.stop()
+        super().tearDown()
+
+    def _check(self, guard):
+        with contextlib.redirect_stdout(io.StringIO()) as buf:
+            tripped = guard.check()
+        return tripped, buf.getvalue()
+
+    def test_defaults(self):
+        guard = monitor._BrowserGuard("Ohana")
+        self.assertEqual(guard.budget_secs, 120)
+        self.assertEqual(guard.mem_limit_mb, 1000)
+        self.assertAlmostEqual(guard.seconds_left(), 120, delta=1)
+
+    def test_under_limits_samples_memory_and_kills_nothing(self):
+        guard = monitor._BrowserGuard("Ohana")
+        self.assertIsNone(guard.mem_mb)
+        tripped, stdout = self._check(guard)
+        self.assertFalse(tripped)
+        self.assertEqual(guard.mem_mb, 420_000 // 1024)
+        self.assertEqual(guard.peak_mb, guard.mem_mb)
+        self.assertEqual(guard.tripped, "")
+        self.assertEqual(self.kills, [])
+        self.assertEqual(stdout, "")
+        self.memory_kb[103] = 100_000
+        self._check(guard)
+        self.assertEqual(guard.mem_mb, 270_000 // 1024)
+        self.assertEqual(guard.peak_mb, 420_000 // 1024, "peak is kept")
+
+    def test_memory_over_limit_kills_only_the_renderers(self):
+        with mock.patch.dict(os.environ, {"DISNEY_BROWSER_MEM_LIMIT_MB": "600"}):
+            guard = monitor._BrowserGuard("Ohana")
+        self.memory_kb[103] = 700_000
+        tripped, stdout = self._check(guard)
+        self.assertTrue(tripped)
+        self.assertEqual(self.kills, [(103, signal.SIGKILL), (104, signal.SIGKILL)])
+        self.assertEqual(guard.tripped, "used 849 MB of memory (limit 600 MB)")
+        self.assertIn("stopping the browser: it used 849 MB of memory (limit 600 MB)", stdout)
+
+    def test_past_deadline_kills_only_the_renderers(self):
+        with mock.patch.dict(os.environ, {"DISNEY_PAGE_BUDGET_SECS": "90"}):
+            guard = monitor._BrowserGuard("Ohana")
+        guard.deadline = time.monotonic() - 1
+        tripped, stdout = self._check(guard)
+        self.assertTrue(tripped)
+        self.assertEqual(self.kills, [(103, signal.SIGKILL), (104, signal.SIGKILL)])
+        self.assertEqual(guard.tripped, "ran past the 90s page time limit")
+
+    def test_stopped_guard_never_kills(self):
+        guard = monitor._BrowserGuard("Ohana")
+        guard.deadline = time.monotonic() - 1
+        guard._stop.set()
+        tripped, stdout = self._check(guard)
+        self.assertFalse(tripped)
+        self.assertEqual(self.kills, [], "a late sample must not kill the next check's browser")
+        self.assertEqual(guard.tripped, "")
+        self.assertEqual(stdout, "")
+
+    def test_page_deadline_never_outlives_the_poll_deadline(self):
+        monitor._poll_deadline = time.monotonic() + 20
+        guard = monitor._BrowserGuard("Ohana")
+        self.assertAlmostEqual(guard.seconds_left(), 20, delta=1)
+        guard.deadline = time.monotonic() - 1
+        self._check(guard)
+        self.assertEqual(guard.tripped, "was still open when this poll's time budget ran out")
+        monitor._poll_deadline = time.monotonic() + 500
+        guard = monitor._BrowserGuard("Ohana")
+        self.assertAlmostEqual(guard.seconds_left(), 120, delta=1)
+
+    def test_limits_are_clamped(self):
+        env = {"DISNEY_PAGE_BUDGET_SECS": "1", "DISNEY_BROWSER_MEM_LIMIT_MB": "5"}
+        with mock.patch.dict(os.environ, env):
+            guard = monitor._BrowserGuard("Ohana")
+        self.assertEqual((guard.budget_secs, guard.mem_limit_mb), (30, 200))
+        env = {"DISNEY_PAGE_BUDGET_SECS": "99999", "DISNEY_BROWSER_MEM_LIMIT_MB": "abc"}
+        with mock.patch.dict(os.environ, env):
+            guard = monitor._BrowserGuard("Ohana")
+        self.assertEqual((guard.budget_secs, guard.mem_limit_mb), (300, 1000))
+
+    def test_no_browser_visible_means_no_memory_reading_and_no_kill(self):
+        with mock.patch.object(monitor, "_browser_processes", return_value=[]):
+            guard = monitor._BrowserGuard("Ohana")
+            tripped, _ = self._check(guard)
+        self.assertFalse(tripped)
+        self.assertIsNone(guard.mem_mb)
+        self.assertEqual(self.kills, [])
+
+    def test_kill_survives_processes_that_already_exited(self):
+        with mock.patch.object(monitor.os, "kill", side_effect=ProcessLookupError):
+            monitor._BrowserGuard._kill(list(self.PROCS), renderers_only=False)
+
+    def _run_thread(self, stop_after_trip):
+        self.profile = tempfile.mkdtemp(prefix="mtf-test-profile-")
+        self.addCleanup(shutil.rmtree, self.profile, ignore_errors=True)
+        for leftover in ("SingletonLock", "SingletonCookie", "SingletonSocket", "Cookies"):
+            with open(os.path.join(self.profile, leftover), "w") as fh:
+                fh.write("x")
+        with mock.patch.object(monitor, "_GUARD_INTERVAL_SECS", 0.01), \
+                mock.patch.object(monitor, "_GUARD_KILL_GRACE_SECS", 0.3), \
+                mock.patch.dict(os.environ, {"DISNEY_BROWSER_MEM_LIMIT_MB": "200",
+                                             "DISNEY_BROWSER_PROFILE_DIR": self.profile}), \
+                contextlib.redirect_stdout(io.StringIO()):
+            guard = monitor._BrowserGuard("Ohana")
+            guard.start()
+            deadline = time.monotonic() + 5
+            while not guard.tripped and time.monotonic() < deadline:
+                time.sleep(0.01)
+            self.assertTrue(guard.tripped)
+            if stop_after_trip:
+                guard.stop()
+            else:
+                guard._thread.join(timeout=5)
+            self.assertFalse(guard._thread.is_alive())
+        return guard
+
+    def test_thread_kills_everything_when_the_caller_stays_stuck(self):
+        self._run_thread(stop_after_trip=False)
+        self.assertEqual(self.kills[:2], [(103, signal.SIGKILL), (104, signal.SIGKILL)])
+        self.assertEqual(sorted(pid for pid, _sig in self.kills[2:]), [100, 101, 102, 103, 104])
+        self.assertEqual(os.listdir(self.profile), ["Cookies"], "stale locks removed, profile data kept")
+
+    def test_thread_leaves_the_main_process_alone_when_the_caller_closes_in_time(self):
+        self._run_thread(stop_after_trip=True)
+        self.assertEqual(self.kills, [(103, signal.SIGKILL), (104, signal.SIGKILL)])
+        self.assertEqual(len(os.listdir(self.profile)), 4, "a browser that closed by itself keeps its own files")
+
+    def test_guarded_browser_reports_trip_and_swallows_close_error(self):
+        ctx = FakeContext()
+        ctx.close_error = Exception("Target page, context or browser has been closed")
+        with mock.patch.dict(os.environ, {"DISNEY_BROWSER_MEM_LIMIT_MB": "200"}), \
+                mock.patch.object(monitor, "_GUARD_INTERVAL_SECS", 0.01), \
+                contextlib.redirect_stdout(io.StringIO()) as buf, \
+                self.assertRaises(RuntimeError) as caught:
+            with monitor._guarded_browser(FakePlaywright(ctx), "Ohana") as (context, guard):
+                deadline = time.monotonic() + 5
+                while not guard.tripped and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                raise Exception("Page.evaluate: Target crashed")
+        self.assertEqual(str(caught.exception),
+                         "[monitor] Ohana: browser stopped because it used 410 MB of memory (limit 200 MB).")
+        self.assertTrue(ctx.closed)
+        self.assertEqual(self.kills, [(103, signal.SIGKILL), (104, signal.SIGKILL)])
+        self.assertIn("browser memory peak 410 MB", buf.getvalue())
+
+
+@unittest.skipUnless(os.path.isdir("/proc/self"), "needs Linux /proc")
+class BrowserProcessDiscoveryTest(_MonitorTestBase):
+    """_browser_processes / _process_memory_kb / _kill against real processes (no browser)."""
+
+    def setUp(self):
+        super().setUp()
+        sleeper = "import time; time.sleep(60)"
+        # The flags are assembled inside each script so that a parent's own
+        # command line (which carries the script text) does not contain them.
+        parent = (
+            "import subprocess, sys, time\n"
+            f"subprocess.Popen([sys.executable, '-c', {sleeper!r}, '--type' + '=renderer'])\n"
+            f"subprocess.Popen([sys.executable, '-c', {sleeper!r}, '--type' + '=gpu-process'])\n"
+            "time.sleep(60)\n"
+        )
+        # Stand-ins: a "driver" with no browser flags, whose child looks like a browser main process.
+        driver = (
+            "import subprocess, sys, time\n"
+            f"subprocess.Popen([sys.executable, '-c', {parent!r}, '--user-data' + '-dir=/tmp/fake-profile'])\n"
+            "time.sleep(60)\n"
+        )
+        self.driver = subprocess.Popen([sys.executable, "-c", driver])
+        self.bystander = subprocess.Popen([sys.executable, "-c", sleeper])
+        deadline = time.monotonic() + 10
+        while len(monitor._browser_processes()) < 3 and time.monotonic() < deadline:
+            time.sleep(0.05)
+
+    def tearDown(self):
+        monitor._BrowserGuard._kill(monitor._browser_processes(), renderers_only=False)
+        for proc in (self.driver, self.bystander):
+            proc.kill()
+            proc.wait(timeout=10)
+        super().tearDown()
+
+    def test_finds_the_browser_tree_and_nothing_else(self):
+        procs = monitor._browser_processes()
+        kinds = sorted("main" if "--user-data-dir=" in cmd else cmd.split("--type=")[1].strip() for _pid, cmd in procs)
+        self.assertEqual(kinds, ["gpu-process", "main", "renderer"])
+        pids = {pid for pid, _cmd in procs}
+        self.assertNotIn(self.driver.pid, pids)
+        self.assertNotIn(self.bystander.pid, pids)
+        self.assertNotIn(os.getpid(), pids)
+        for pid in pids:
+            self.assertGreater(monitor._process_memory_kb(pid), 0)
+        self.assertEqual(monitor._process_memory_kb(2 ** 30), 0)
+
+    def test_renderer_kill_takes_only_the_renderer(self):
+        procs = monitor._browser_processes()
+        renderer = next(pid for pid, cmd in procs if "--type=renderer" in cmd)
+        monitor._BrowserGuard._kill(procs, renderers_only=True)
+        deadline = time.monotonic() + 10
+
+        def alive(pid):
+            try:
+                with open(f"/proc/{pid}/stat") as fh:
+                    return fh.read().rsplit(")", 1)[1].split()[0] != "Z"
+            except OSError:
+                return False
+
+        while alive(renderer) and time.monotonic() < deadline:
+            time.sleep(0.05)
+        self.assertFalse(alive(renderer))
+        left = sorted("main" if "--user-data-dir=" in cmd else cmd.split("--type=")[1].strip()
+                      for pid, cmd in monitor._browser_processes() if alive(pid))
+        self.assertEqual(left, ["gpu-process", "main"])
+        self.assertIsNone(self.driver.poll())
+        self.assertIsNone(self.bystander.poll())
+
+
+class SeederRecoveryTest(unittest.TestCase):
+    def setUp(self):
+        FakeGuard.clock = None
+        self._env = mock.patch.dict(os.environ, {}, clear=False)
+        self._env.start()
+        for key in ENV_KEYS:
+            os.environ.pop(key, None)
+
+    def tearDown(self):
+        self._env.stop()
 
     def test_ac10_disney_session_seconds_left_from_cookie_and_failures(self):
         live = FakeContext(cookies=[_token_cookie(3600)])

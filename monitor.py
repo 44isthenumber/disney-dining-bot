@@ -18,12 +18,15 @@ import base64
 import json
 import os
 import re
+import signal
 import subprocess
+import threading
 import time
 import uuid
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date, datetime, time as datetime_time, timedelta
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
@@ -522,12 +525,18 @@ def check_restaurant(restaurant: dict, token: str) -> List[Slot]:
 # ── Playwright browser checks for VPS worker ───────────────────────────────
 
 AKAMAI_CHALLENGE_STATUS = 428
-# After a challenge retry fails, later restaurants in the same poll fail fast
-# instead of each holding a tab open against an edge that is still challenging us.
-# In-process only: production runs `disney_bot.py --once`, so every 10-minute
-# poll starts with a clean slate and gets exactly one fresh challenge attempt.
-_AKAMAI_RETRY_COOLDOWN_SECS = 300
-_akamai_retry_blocked_until = 0.0   # time.monotonic() deadline
+# Akamai's in-page challenge script calls this once the proof-of-work is done.
+_AKAMAI_VERIFY_PATH = "/_sec/cp_challenge/verify"
+# Time kept back after the challenge wait for the re-fetch and a clean close.
+_AKAMAI_CHALLENGE_RESERVE_SECS = 15
+
+_GUARD_INTERVAL_SECS = 1.0
+# After the guard kills the renderers, the caller gets this long to close the
+# browser cleanly (so the profile is flushed) before everything is killed.
+_GUARD_KILL_GRACE_SECS = 5.0
+
+_poll_deadline: Optional[float] = None   # time.monotonic(); None outside a poll
+_akamai_attempt_used = False
 
 _AVAILABILITY_FETCH_JS = """async ({partySize, start, end, facilityId, token}) => {
   try {
@@ -553,24 +562,43 @@ def _playwright_profile_dir() -> str:
     return os.environ.get("DISNEY_BROWSER_PROFILE_DIR", ".browser-profile")
 
 
-def _akamai_challenge_retries() -> int:
-    """Challenge retries per restaurant (DISNEY_AKAMAI_CHALLENGE_RETRIES, default 1, 0 disables)."""
+def _env_int(name: str, default: int, low: int, high: int) -> int:
     try:
-        value = int(os.environ.get("DISNEY_AKAMAI_CHALLENGE_RETRIES", "1"))
+        value = int((os.environ.get(name) or "").strip() or default)
     except ValueError:
-        return 1
-    return max(0, min(2, value))
+        value = default
+    return max(low, min(high, value))
 
 
-def _akamai_challenge_wait_ms(result: dict) -> int:
-    """How long to stay on the page so Akamai's in-page crypto challenge can finish.
+def start_poll_budget() -> None:
+    """Start one poll's wall-clock budget for browser checks and re-arm its single challenge attempt."""
+    global _poll_deadline, _akamai_attempt_used
+    _poll_deadline = time.monotonic() + _env_int("DISNEY_POLL_BUDGET_SECS", 360, 60, 900)
+    _akamai_attempt_used = False
 
-    The 428 body carries chlg_duration (seconds the challenge runs, 15 today);
-    add a margin for the verify round trip on a 1-vCPU box.
+
+def extend_poll_budget(seconds: float) -> None:
+    """Give back time the poll spent outside browser checks (login recovery has its own cap)."""
+    global _poll_deadline
+    if _poll_deadline is not None and seconds > 0:
+        _poll_deadline += seconds
+
+
+def _akamai_challenge_enabled() -> bool:
+    """DISNEY_AKAMAI_CHALLENGE_RETRIES >= 1 allows one challenge attempt per poll. Off by default."""
+    return _env_int("DISNEY_AKAMAI_CHALLENGE_RETRIES", 0, 0, 1) >= 1
+
+
+def _akamai_challenge_wait_secs(result: dict) -> int:
+    """Longest the challenge attempt waits for Akamai's verify call.
+
+    The 428 body carries chlg_duration (15 today), the minimum the challenge
+    runs; the wait ends as soon as the verify call is seen, so the cap only
+    matters on a slow box.
     """
-    override = os.environ.get("DISNEY_AKAMAI_CHALLENGE_WAIT_MS", "").strip()
+    override = (os.environ.get("DISNEY_AKAMAI_CHALLENGE_WAIT_MS") or "").strip()
     if override.isdigit():
-        return int(override)
+        return max(5, min(90, int(override) // 1000))
     duration = 15
     try:
         body = json.loads((result or {}).get("body") or "{}")
@@ -578,7 +606,174 @@ def _akamai_challenge_wait_ms(result: dict) -> int:
             duration = int(body.get("chlg_duration", duration))
     except (TypeError, ValueError):
         pass
-    return (max(5, min(60, duration)) + 10) * 1000
+    return max(5, min(60, duration)) + 30
+
+
+def _browser_processes() -> List[Tuple[int, str]]:
+    """(pid, cmdline) of every Chromium process this process launched. Empty without /proc."""
+    try:
+        pids = [int(entry) for entry in os.listdir("/proc") if entry.isdigit()]
+    except OSError:
+        return []
+    children = {}
+    for pid in pids:
+        try:
+            with open(f"/proc/{pid}/stat") as fh:
+                stat = fh.read()
+            ppid = int(stat[stat.rindex(")") + 2:].split()[1])
+        except (OSError, ValueError, IndexError):
+            continue
+        children.setdefault(ppid, []).append(pid)
+
+    def cmdline(pid: int) -> str:
+        try:
+            with open(f"/proc/{pid}/cmdline", "rb") as fh:
+                return fh.read().replace(b"\0", b" ").decode("utf-8", "replace")
+        except OSError:
+            return ""
+
+    found: List[Tuple[int, str]] = []
+    # (pid, True once a browser's main process has been passed on the way down)
+    stack = [(pid, False) for pid in children.get(os.getpid(), [])]
+    while stack:
+        pid, in_browser = stack.pop()
+        cmd = cmdline(pid)
+        if not in_browser and "--user-data-dir=" in cmd:
+            in_browser = True
+        if in_browser:
+            found.append((pid, cmd))
+        stack.extend((child, in_browser) for child in children.get(pid, []))
+    return found
+
+
+def _process_memory_kb(pid: int) -> int:
+    """Anonymous memory a process holds in RAM plus what it has in swap, in kB."""
+    total = 0
+    try:
+        with open(f"/proc/{pid}/status") as fh:
+            for line in fh:
+                if line.startswith(("RssAnon:", "VmSwap:")):
+                    total += int(line.split()[1])
+    except (OSError, ValueError, IndexError):
+        pass
+    return total
+
+
+def _clear_profile_locks() -> None:
+    """Remove the lock files a SIGKILLed Chromium leaves in its profile; a stale one can stop the next launch."""
+    for leftover in ("SingletonLock", "SingletonCookie", "SingletonSocket"):
+        try:
+            os.unlink(os.path.join(_playwright_profile_dir(), leftover))
+        except OSError:
+            pass
+
+
+class _BrowserGuard:
+    """Wall-clock and memory limits for one browser launch.
+
+    A sync Playwright call that hangs cannot be interrupted from Python. On a
+    breach the guard kills the renderers, which makes the blocked call raise so
+    the caller closes the context normally; if the caller has not finished a
+    few seconds later it kills the rest of the browser too.
+    """
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+        self.started = time.monotonic()
+        self.budget_secs = _env_int("DISNEY_PAGE_BUDGET_SECS", 120, 30, 300)
+        self.deadline = self.started + self.budget_secs
+        self._time_limit = f"ran past the {self.budget_secs}s page time limit"
+        if _poll_deadline is not None and _poll_deadline < self.deadline:
+            self.deadline = _poll_deadline
+            self._time_limit = "was still open when this poll's time budget ran out"
+        self.mem_limit_mb = _env_int("DISNEY_BROWSER_MEM_LIMIT_MB", 1000, 200, 8000)
+        self.mem_mb: Optional[int] = None   # last sample; None until /proc shows the browser
+        self.peak_mb = 0
+        self.tripped = ""
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._run, name="browser-guard", daemon=True)
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop.set()
+        if self._thread.is_alive():
+            self._thread.join(timeout=2)
+
+    def seconds_left(self) -> float:
+        return self.deadline - time.monotonic()
+
+    def check(self) -> bool:
+        """Take one sample. Kills the renderers and returns True when a limit is broken."""
+        procs = _browser_processes()
+        if procs:
+            self.mem_mb = sum(_process_memory_kb(pid) for pid, _cmd in procs) // 1024
+            self.peak_mb = max(self.peak_mb, self.mem_mb)
+        if self.seconds_left() <= 0:
+            reason = self._time_limit
+        elif self.mem_mb is not None and self.mem_mb > self.mem_limit_mb:
+            reason = f"used {self.mem_mb} MB of memory (limit {self.mem_limit_mb} MB)"
+        else:
+            return False
+        if self._stop.is_set():
+            # The caller has closed this browser; anything in /proc now belongs to the next check.
+            return False
+        self.tripped = reason
+        print(f"[monitor] {self.name}: stopping the browser: it {self.tripped}.", flush=True)
+        self._kill(procs, renderers_only=True)
+        return True
+
+    @staticmethod
+    def _kill(procs: List[Tuple[int, str]], renderers_only: bool) -> None:
+        for pid, cmd in procs:
+            if renderers_only and "--type=renderer" not in cmd:
+                continue
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except OSError:
+                pass
+
+    def _run(self) -> None:
+        while not self._stop.wait(_GUARD_INTERVAL_SECS):
+            if self.check():
+                if not self._stop.wait(_GUARD_KILL_GRACE_SECS):
+                    self._kill(_browser_processes(), renderers_only=False)
+                    _clear_profile_locks()
+                return
+
+
+@contextmanager
+def _guarded_browser(playwright, name: str):
+    """Launch the persistent profile under a _BrowserGuard. Yields (context, guard); always closes the context."""
+    if _poll_deadline is not None and time.monotonic() >= _poll_deadline:
+        raise RuntimeError(f"[monitor] {name}: not checked; this poll's browser time budget is used up.")
+    guard = _BrowserGuard(name)
+    guard.start()
+    context = None
+    try:
+        context = playwright.chromium.launch_persistent_context(
+            _playwright_profile_dir(),
+            headless=_playwright_headless(),
+            args=["--no-sandbox"],
+        )
+        yield context, guard
+    except Exception as exc:
+        if guard.tripped:
+            raise RuntimeError(f"[monitor] {name}: browser stopped because it {guard.tripped}.") from exc
+        raise
+    finally:
+        try:
+            if context is not None:
+                context.close()
+        except Exception:
+            if not guard.tripped:
+                raise
+        finally:
+            guard.stop()
+            if guard.peak_mb:
+                print(f"[monitor] {name}: browser memory peak {guard.peak_mb} MB, "
+                      f"open {int(time.monotonic() - guard.started)}s.", flush=True)
 
 
 def _token_from_playwright_context(context) -> str:
@@ -640,36 +835,72 @@ def disney_session_seconds_left(context) -> int:
         return 0
 
 
-def _retry_after_akamai_challenge(context, page, result: dict, load_and_fetch, name: str) -> dict:
-    """Let the real page finish Akamai's crypto challenge, then load the page again and re-fetch."""
-    global _akamai_retry_blocked_until
-    retries = _akamai_challenge_retries()
-    attempt = 0
-    if result.get("status") != AKAMAI_CHALLENGE_STATUS or retries <= 0:
+def _attempt_akamai_challenge(page, guard, result: dict, refetch, name: str) -> dict:
+    """One bounded attempt per poll at Akamai's crypto challenge (HTTP 428). Off by default.
+
+    The 428 has already started the challenge inside this page. Stay on the
+    page, with no reload and no second tab, until Akamai's verify call
+    returns, then fetch once more. Gives up without re-fetching when the wait
+    cap, the page's time budget or the challenge memory ceiling is reached.
+    """
+    global _akamai_attempt_used
+    if result.get("status") != AKAMAI_CHALLENGE_STATUS or not _akamai_challenge_enabled():
         return result
-    if time.monotonic() < _akamai_retry_blocked_until:
-        print(f"[monitor] {name}: HTTP 428 Akamai challenge; skipping the retry (an earlier challenge retry failed this poll).")
+    if _akamai_attempt_used:
+        print(f"[monitor] {name}: HTTP 428 Akamai challenge; this poll's one attempt is already used.", flush=True)
         return result
-    while result.get("status") == AKAMAI_CHALLENGE_STATUS and attempt < retries:
-        attempt += 1
-        wait_ms = _akamai_challenge_wait_ms(result)
-        print(f"[monitor] {name}: HTTP 428 Akamai challenge; keeping the page open {wait_ms // 1000}s "
-              f"so the browser can finish it, then reloading (retry {attempt}/{retries}).")
+    _akamai_attempt_used = True
+
+    mem_limit = _env_int("DISNEY_AKAMAI_CHALLENGE_MEM_MB", 500, 100, 8000)
+    wait_cap = min(_akamai_challenge_wait_secs(result), int(guard.seconds_left()) - _AKAMAI_CHALLENGE_RESERVE_SECS)
+    if guard.mem_mb is None:
+        print(f"[monitor] {name}: HTTP 428 Akamai challenge; not attempting it because browser memory cannot be measured here.", flush=True)
+        return result
+    if guard.mem_mb > mem_limit:
+        print(f"[monitor] {name}: HTTP 428 Akamai challenge; not attempting it because the browser is already at "
+              f"{guard.mem_mb} MB (challenge ceiling {mem_limit} MB).", flush=True)
+        return result
+    if wait_cap < 5:
+        print(f"[monitor] {name}: HTTP 428 Akamai challenge; not attempting it because the page's time budget is nearly used.", flush=True)
+        return result
+
+    verify_statuses: List[int] = []
+
+    def on_response(response) -> None:
         try:
-            page.wait_for_timeout(wait_ms)
-            result = load_and_fetch(page)
-        except Exception as exc:
-            # The challenge can reload or crash the tab, and a crashed Playwright page never recovers.
-            detail = (str(exc).splitlines() or [""])[0][:160]
-            print(f"[monitor] {name}: tab unusable after the Akamai challenge ({type(exc).__name__}: {detail}); retrying in a fresh tab.")
-            page = context.new_page()
-            result = load_and_fetch(page)
-    if result.get("status") == AKAMAI_CHALLENGE_STATUS:
-        _akamai_retry_blocked_until = time.monotonic() + _AKAMAI_RETRY_COOLDOWN_SECS
-        print(f"[monitor] {name}: still HTTP 428 after {attempt} challenge retry(ies); "
-              f"other restaurants will not retry for {_AKAMAI_RETRY_COOLDOWN_SECS // 60} min.")
-    else:
-        print(f"[monitor] {name}: availability API returned HTTP {result.get('status')} after the Akamai challenge retry.")
+            if _AKAMAI_VERIFY_PATH in response.url:
+                verify_statuses.append(response.status)
+        except Exception:
+            pass
+
+    print(f"[monitor] {name}: HTTP 428 Akamai challenge; waiting up to {wait_cap}s on this page for it to finish "
+          f"(browser at {guard.mem_mb} MB, challenge ceiling {mem_limit} MB).", flush=True)
+    started = time.monotonic()
+    gave_up = f"no verify call within {wait_cap}s"
+    page.on("response", on_response)
+    try:
+        while time.monotonic() - started < wait_cap:
+            page.wait_for_timeout(1000)
+            if verify_statuses:
+                break
+            if guard.mem_mb > mem_limit:
+                gave_up = f"the browser reached {guard.mem_mb} MB (challenge ceiling {mem_limit} MB)"
+                break
+    finally:
+        try:
+            page.remove_listener("response", on_response)
+        except Exception:
+            pass
+    waited = int(time.monotonic() - started)
+    if not verify_statuses:
+        print(f"[monitor] {name}: Akamai challenge attempt abandoned after {waited}s: {gave_up}.", flush=True)
+        return result
+    if verify_statuses[-1] != 200:
+        print(f"[monitor] {name}: Akamai challenge verify call returned HTTP {verify_statuses[-1]} after {waited}s; not re-fetching.", flush=True)
+        return result
+    page.wait_for_timeout(1000)
+    result = refetch()
+    print(f"[monitor] {name}: Akamai challenge finished in {waited}s; availability API now returns HTTP {result.get('status')}.", flush=True)
     return result
 
 
@@ -746,40 +977,29 @@ def check_slots_via_playwright(restaurant: dict) -> List[Slot]:
     start, end = min(dates), max(dates)
     url = f"https://disneyworld.disney.go.com/dine-res/restaurant/{slug}"
     with sync_playwright() as p:
-        context = p.chromium.launch_persistent_context(
-            _playwright_profile_dir(),
-            headless=_playwright_headless(),
-            args=["--no-sandbox"],
-        )
-        page = context.pages[0] if context.pages else context.new_page()
-        token = ""
-
-        def load_and_fetch(tab) -> dict:
-            nonlocal token
-            tab.goto(url, wait_until="domcontentloaded", timeout=45000)
-            tab.wait_for_timeout(int(os.environ.get("DISNEY_AKAMAI_WARMUP_MS", "8000")))
-            if not token:
-                token = _token_from_playwright_context(context)
-            return tab.evaluate(_AVAILABILITY_FETCH_JS, {
+        with _guarded_browser(p, name) as (context, guard):
+            page = context.pages[0] if context.pages else context.new_page()
+            page.goto(url, wait_until="domcontentloaded", timeout=45000)
+            page.wait_for_timeout(int(os.environ.get("DISNEY_AKAMAI_WARMUP_MS", "8000")))
+            token = _token_from_playwright_context(context)
+            fetch_args = {
                 "partySize": party_size,
                 "start": start,
                 "end": end,
                 "facilityId": facility_id,
                 "token": token,
-            })
-
-        try:
-            result = load_and_fetch(page)
-            result = _retry_after_akamai_challenge(context, page, result, load_and_fetch, name)
-        finally:
-            context.close()
+            }
+            result = page.evaluate(_AVAILABILITY_FETCH_JS, fetch_args)
+            result = _attempt_akamai_challenge(
+                page, guard, result, lambda: page.evaluate(_AVAILABILITY_FETCH_JS, fetch_args), name,
+            )
 
     if result.get("status") == 404:
         print(f"[monitor] {name}: no availability returned by Disney.")
         return []
     if result.get("status") != 200:
         status = result.get("status")
-        hint = " (Akamai challenge not cleared; see TROUBLESHOOTING.md 2.5)" if status == AKAMAI_CHALLENGE_STATUS else ""
+        hint = " (Akamai challenge; see TROUBLESHOOTING.md 2.5)" if status == AKAMAI_CHALLENGE_STATUS else ""
         raise RuntimeError(f"[monitor] {name}: HTTP {status} from availability API{hint} {result.get('error', '')}")
     slots = _parse_availability_response(
         data=result.get("data") or {},
@@ -1015,13 +1235,8 @@ def check_scheduled_activity_slots_via_playwright(restaurant: dict) -> List[Slot
 
     slots: List[Slot] = []
     with sync_playwright() as p:
-        context = p.chromium.launch_persistent_context(
-            _playwright_profile_dir(),
-            headless=_playwright_headless(),
-            args=["--no-sandbox"],
-        )
-        page = context.pages[0] if context.pages else context.new_page()
-        try:
+        with _guarded_browser(p, name) as (context, _guard):
+            page = context.pages[0] if context.pages else context.new_page()
             page.goto(_sa_page_url(slug), wait_until="domcontentloaded", timeout=45000)
             page.wait_for_timeout(int(os.environ.get("DISNEY_AKAMAI_WARMUP_MS", "8000")))
             details = page.evaluate(_SA_FETCH_JS, f"{SA_API_BASE}/details/{slug}/")
@@ -1050,8 +1265,6 @@ def check_scheduled_activity_slots_via_playwright(restaurant: dict) -> List[Slot
                     time_to=time_to,
                 ))
                 page.wait_for_timeout(800)
-        finally:
-            context.close()
 
     print(f"[monitor] {name}: {len(slots)} slot(s) found via scheduled-activity API.")
     return slots
