@@ -55,6 +55,10 @@ def _challenge_428(duration=15):
         "sec-cp-challenge": "true",
         "provider": "crypto",
         "chlg_duration": duration,
+        "branding_type": "custom_branding",
+        "branding_cust_url": "https://disneyworld.disney.go.com/prodksd/media/waiting-room-assets/processing_request.html",
+        "difficulty": 7500,
+        "verify_url": "https://disneyworld.disney.go.com/-UKSQh/rqROa/-14a5/Qrfw/DLuhSzYNuaQO/Wh9aIw/CTc2IW4-/CwUC",
     })
     return {"status": 428, "data": None, "body": body}
 
@@ -121,6 +125,12 @@ class FakePage:
         self.response_handlers = []
         self.listener_log = []
         self._challenge_waits = 0
+        self.route_calls = []
+        self.main_frame = object()
+
+    def route(self, pattern, handler):
+        self.route_calls.append((pattern, handler))
+        self.context.events.append(("route", pattern, self))
 
     def on(self, event, handler):
         if event == "crash":
@@ -160,9 +170,13 @@ class FakePage:
             self._challenge_waits += 1
             if self.context.on_challenge_wait:
                 self.context.on_challenge_wait(self._challenge_waits)
+            if self._challenge_waits <= len(self.context.proof_responses_per_wait):
+                for handler in list(self.response_handlers):
+                    handler(FakeResponse("https://disneyworld.disney.go.com/_sec/verify?provider=crypto",
+                                         self.context.proof_responses_per_wait[self._challenge_waits - 1]))
             if self._challenge_waits == self.context.verify_after_waits:
                 for handler in list(self.response_handlers):
-                    handler(FakeResponse("https://disneyworld.disney.go.com/_sec/verify", 200))
+                    handler(FakeResponse("https://disneyworld.disney.go.com/_sec/verify?provider=crypto", 200))
                     handler(FakeResponse(
                         "https://disneyworld.disney.go.com/_sec/cp_challenge/verify", self.context.verify_status))
 
@@ -173,6 +187,8 @@ class FakePage:
         self.context.events.append(("goto", url, wait_until, self))
         self.context.gotos.append(call)
         self.url = url
+        if self.context.on_goto:
+            self.context.on_goto(self._goto_n)
         if self.crash_on_goto_index is not None and self._goto_n == self.crash_on_goto_index:
             raise Exception("Page.goto: Page crashed")
         if self.always_fail_goto:
@@ -194,6 +210,39 @@ class FakeResponse:
         self.status = status
 
 
+class FakeRequest:
+    def __init__(self, url, navigation, frame):
+        self.url = url
+        self.frame = frame
+        self._navigation = navigation
+
+    def is_navigation_request(self):
+        return self._navigation
+
+
+class FakeRoute:
+    def __init__(self, url, navigation=False, frame=None, fail=""):
+        self._request = FakeRequest(url, navigation, frame)
+        self._fail = fail
+        self.outcome = None
+
+    @property
+    def request(self):
+        if self._fail == "request":
+            raise Exception("request is gone")
+        return self._request
+
+    def continue_(self):
+        self.outcome = "continue"
+        if self._fail == "continue":
+            raise Exception("Route.continue: Target closed")
+
+    def abort(self):
+        self.outcome = "abort"
+        if self._fail == "abort":
+            raise Exception("Route.abort: Target closed")
+
+
 class FakeClock:
     def __init__(self):
         self.now = 1000.0
@@ -212,6 +261,7 @@ class FakeGuard:
     clock = None
     mem_mb_default = 300
     budget_secs = 120
+    largest = ""
 
     def __init__(self, name):
         self.name = name
@@ -241,6 +291,8 @@ class FakeContext:
         self.verify_after_waits = None
         self.verify_status = 200
         self.on_challenge_wait = None
+        self.on_goto = None
+        self.proof_responses_per_wait = []
         self.close_error = None
         self._cookies = list(cookies or [])
         self.cookies_error = None
@@ -414,9 +466,11 @@ class AkamaiChallengeRecoveryTest(_MonitorTestBase):
         self.assertEqual(_waits(ctx), [8000])
         self.assertEqual(len(ctx.evaluates), 1)
         self.assertEqual(ctx.pages[0].listener_log, [])
+        self.assertEqual(ctx.pages[0].route_calls, [])
         self.assertEqual(ctx.new_page_calls, 0)
         self.assertTrue(ctx.closed)
         self.assertNotIn("waiting", stdout)
+        self.assertNotIn("reloading", stdout)
 
     def test_challenge_enabled_parsing(self):
         for value, expected in (("0", False), ("1", True), ("2", True), ("9", True), ("-3", False), ("abc", False), ("", False)):
@@ -425,30 +479,37 @@ class AkamaiChallengeRecoveryTest(_MonitorTestBase):
 
     # ── the single attempt ───────────────────────────────────────────────
 
-    def test_attempt_waits_on_same_page_then_refetches_once(self):
+    def test_attempt_reloads_without_the_app_then_refetches_once(self):
         day = _tomorrow()
 
         def factory():
-            ctx = FakeContext(evaluate_results=[_challenge_428(15), _ok_200(day)])
+            ctx = FakeContext(evaluate_results=[_challenge_428(15), _challenge_428(15), _ok_200(day)])
             ctx.verify_after_waits = 12
             return ctx
 
         slots, stdout, cm = self._run_check(factory, env=ATTEMPT_ON)
         ctx = cm.contexts[0]
+        page = ctx.pages[0]
         self.assertEqual(len(slots), 1)
         self.assertEqual(slots[0].time, "19:50")
-        self.assertEqual(len(ctx.gotos), 1, "the page must not be reloaded")
+        self.assertEqual([(g["url"], g["wait_until"]) for g in ctx.gotos],
+                         [(_restaurant_url(), "domcontentloaded"), (_restaurant_url(), "load")])
         self.assertEqual(ctx.new_page_calls, 0, "no second tab")
-        self.assertEqual(_waits(ctx), [8000] + [1000] * 12 + [1000])
-        self.assertEqual([args["token"] for args in ctx.evaluates], ["BEARER t", "BEARER t"])
-        self.assertEqual(ctx.evaluates[0], ctx.evaluates[1])
+        self.assertEqual([p for p, _handler in page.route_calls], ["**/*"])
+        kinds = [event[0] for event in ctx.events]
+        self.assertLess(kinds.index("route"), [i for i, kind in enumerate(kinds) if kind == "goto"][1],
+                        "the filter must be in place before the reload")
+        self.assertEqual(_waits(ctx), [8000, 2000] + [1000] * 12 + [1000])
+        self.assertEqual([args["token"] for args in ctx.evaluates], ["BEARER t"] * 3)
+        self.assertEqual(ctx.evaluates[0], ctx.evaluates[2])
         self.assertEqual(self.mock_token.call_count, 1)
-        self.assertEqual(ctx.pages[0].listener_log, ["on", "remove"])
+        self.assertEqual(page.listener_log, ["on", "remove"])
         self.assertTrue(ctx.closed)
-        self.assertIn("waiting up to 45s on this page", stdout)
-        self.assertIn("Akamai challenge finished in 12s; availability API now returns HTTP 200", stdout)
+        self.assertIn("reloading the page with only Akamai's scripts (browser at 300 MB)", stdout)
+        self.assertIn("waiting up to 45s for the challenge to finish (browser at 300 MB, challenge ceiling 700 MB)", stdout)
+        self.assertIn("Akamai challenge finished in 12s (1 proof rounds answered); availability API now returns HTTP 200", stdout)
 
-    def test_attempt_gives_up_at_wait_cap_without_refetch(self):
+    def test_attempt_gives_up_at_wait_cap_without_another_fetch(self):
         def factory():
             ctx = FakeContext()
             ctx._evaluate_always = _challenge_428(15)
@@ -458,13 +519,13 @@ class AkamaiChallengeRecoveryTest(_MonitorTestBase):
         ctx = cm.contexts[0]
         self.assertIn("HTTP 428 from availability API", str(exc))
         self.assertEqual(disney_bot._error_category(exc), "akamai")
-        self.assertEqual(_waits(ctx), [8000] + [1000] * 45)
-        self.assertEqual(len(ctx.evaluates), 1, "no re-fetch when the challenge did not finish")
-        self.assertEqual(len(ctx.gotos), 1)
+        self.assertEqual(_waits(ctx), [8000, 2000] + [1000] * 45)
+        self.assertEqual(len(ctx.evaluates), 2, "no further fetch when the challenge did not finish")
+        self.assertEqual(len(ctx.gotos), 2)
         self.assertEqual(ctx.new_page_calls, 0)
         self.assertEqual(ctx.pages[0].listener_log, ["on", "remove"])
         self.assertTrue(ctx.closed)
-        self.assertIn("abandoned after 45s: no verify call within 45s", stdout)
+        self.assertIn("abandoned after 45s: no verify call within 45s; 0 proof rounds answered.", stdout)
 
     def test_attempt_respects_wait_override(self):
         def factory():
@@ -474,10 +535,25 @@ class AkamaiChallengeRecoveryTest(_MonitorTestBase):
 
         env = dict(ATTEMPT_ON, DISNEY_AKAMAI_CHALLENGE_WAIT_MS="20000")
         exc, stdout, cm = self._run_check_expect_error(factory, env=env)
-        self.assertEqual(_waits(cm.contexts[0]), [8000] + [1000] * 20)
+        self.assertEqual(_waits(cm.contexts[0]), [8000, 2000] + [1000] * 20)
 
-    def test_attempt_not_started_when_browser_already_over_challenge_ceiling(self):
-        FakeGuard.mem_mb_default = 620
+    def test_restaurant_page_memory_does_not_block_the_attempt(self):
+        day = _tomorrow()
+
+        def factory():
+            ctx = FakeContext(evaluate_results=[_challenge_428(15), _challenge_428(15), _ok_200(day)])
+            ctx.verify_after_waits = 3
+            # 760 MB with the app loaded; the reload without it brings the browser down.
+            ctx.on_goto = lambda n: setattr(FakeGuard.instances[-1], "mem_mb", 760 if n == 1 else 380)
+            return ctx
+
+        slots, stdout, cm = self._run_check(factory, env=ATTEMPT_ON)
+        self.assertEqual(len(slots), 1)
+        self.assertIn("(browser at 760 MB)", stdout)
+        self.assertIn("(browser at 380 MB, challenge ceiling 700 MB)", stdout)
+
+    def test_attempt_abandoned_when_browser_stays_over_ceiling_after_reload(self):
+        FakeGuard.mem_mb_default = 720
 
         def factory():
             ctx = FakeContext()
@@ -486,25 +562,25 @@ class AkamaiChallengeRecoveryTest(_MonitorTestBase):
 
         exc, stdout, cm = self._run_check_expect_error(factory, env=ATTEMPT_ON)
         ctx = cm.contexts[0]
-        self.assertEqual(_waits(ctx), [8000])
-        self.assertEqual(len(ctx.evaluates), 1)
-        self.assertEqual(ctx.pages[0].listener_log, [])
-        self.assertIn("already at 620 MB (challenge ceiling 500 MB)", stdout)
+        self.assertEqual(_waits(ctx), [8000, 2000, 1000])
+        self.assertEqual(len(ctx.evaluates), 2)
+        self.assertEqual(ctx.pages[0].listener_log, ["on", "remove"])
+        self.assertIn("abandoned after 1s: the browser reached 720 MB (challenge ceiling 700 MB)", stdout)
         self.assertIn("HTTP 428 from availability API", str(exc))
 
     def test_challenge_ceiling_is_configurable(self):
-        FakeGuard.mem_mb_default = 620
+        FakeGuard.mem_mb_default = 820
         day = _tomorrow()
 
         def factory():
-            ctx = FakeContext(evaluate_results=[_challenge_428(15), _ok_200(day)])
+            ctx = FakeContext(evaluate_results=[_challenge_428(15), _challenge_428(15), _ok_200(day)])
             ctx.verify_after_waits = 3
             return ctx
 
-        env = dict(ATTEMPT_ON, DISNEY_AKAMAI_CHALLENGE_MEM_MB="700")
+        env = dict(ATTEMPT_ON, DISNEY_AKAMAI_CHALLENGE_MEM_MB="900")
         slots, stdout, cm = self._run_check(factory, env=env)
         self.assertEqual(len(slots), 1)
-        self.assertIn("challenge ceiling 700 MB", stdout)
+        self.assertIn("challenge ceiling 900 MB", stdout)
 
     def test_attempt_abandoned_when_memory_crosses_ceiling_during_wait(self):
         def factory():
@@ -514,17 +590,20 @@ class AkamaiChallengeRecoveryTest(_MonitorTestBase):
 
             def grow(wait_number):
                 if wait_number == 4:
-                    FakeGuard.instances[-1].mem_mb = 540
+                    FakeGuard.instances[-1].mem_mb = 740
+                    FakeGuard.instances[-1].largest = "renderer 610 MB"
             ctx.on_challenge_wait = grow
+            ctx.proof_responses_per_wait = [200, 200, 403]
             return ctx
 
         exc, stdout, cm = self._run_check_expect_error(factory, env=ATTEMPT_ON)
         ctx = cm.contexts[0]
-        self.assertEqual(_waits(ctx), [8000] + [1000] * 4)
-        self.assertEqual(len(ctx.evaluates), 1)
+        self.assertEqual(_waits(ctx), [8000, 2000] + [1000] * 4)
+        self.assertEqual(len(ctx.evaluates), 2)
         self.assertEqual(ctx.pages[0].listener_log, ["on", "remove"])
         self.assertTrue(ctx.closed)
-        self.assertIn("abandoned after 4s: the browser reached 540 MB (challenge ceiling 500 MB)", stdout)
+        self.assertIn("abandoned after 4s: the browser reached 740 MB (challenge ceiling 700 MB; largest process: renderer 610 MB); "
+                      "3 proof rounds answered, 1 of them not HTTP 200.", stdout)
 
     def test_attempt_not_started_when_memory_cannot_be_measured(self):
         FakeGuard.mem_mb_default = None
@@ -535,8 +614,71 @@ class AkamaiChallengeRecoveryTest(_MonitorTestBase):
             return ctx
 
         exc, stdout, cm = self._run_check_expect_error(factory, env=ATTEMPT_ON)
-        self.assertEqual(_waits(cm.contexts[0]), [8000])
+        ctx = cm.contexts[0]
+        self.assertEqual(_waits(ctx), [8000])
+        self.assertEqual(len(ctx.gotos), 1)
+        self.assertEqual(ctx.pages[0].route_calls, [])
         self.assertIn("browser memory cannot be measured", stdout)
+
+    def test_attempt_not_started_when_428_does_not_name_akamai_paths(self):
+        for body in ('{"sec-cp-challenge": "true", "chlg_duration": 15}', "not json", "",
+                     '{"verify_url": "https://elsewhere.example/-UKSQh/a/b"}', '{"verify_url": "/"}', '{"verify_url": 7}'):
+            monitor._akamai_attempt_used = False
+
+            def factory():
+                ctx = FakeContext()
+                ctx._evaluate_always = {"status": 428, "data": None, "body": body}
+                return ctx
+
+            exc, stdout, cm = self._run_check_expect_error(factory, env=ATTEMPT_ON)
+            ctx = cm.contexts[0]
+            self.assertEqual(_waits(ctx), [8000], body)
+            self.assertEqual(len(ctx.gotos), 1, body)
+            self.assertEqual(ctx.pages[0].route_calls, [], body)
+            self.assertIn("does not name Akamai's script path", stdout, body)
+            self.assertIn("HTTP 428 from availability API", str(exc))
+
+    def test_failed_reload_abandons_the_attempt(self):
+        def factory():
+            ctx = FakeContext()
+            ctx._evaluate_always = _challenge_428(15)
+            ctx.pages[0].crash_on_goto_index = 2
+            return ctx
+
+        exc, stdout, cm = self._run_check_expect_error(factory, env=ATTEMPT_ON)
+        ctx = cm.contexts[0]
+        self.assertIn("HTTP 428 from availability API", str(exc))
+        self.assertEqual(len(ctx.evaluates), 1)
+        self.assertEqual(_waits(ctx), [8000])
+        self.assertEqual(ctx.pages[0].listener_log, [])
+        self.assertTrue(ctx.closed)
+        self.assertIn("attempt abandoned: the reload failed (Page.goto: Page crashed)", stdout)
+
+    def test_reload_stopped_by_the_guard_reports_the_limit(self):
+        def factory():
+            ctx = FakeContext()
+            ctx._evaluate_always = _challenge_428(15)
+            ctx.pages[0].crash_on_goto_index = 2
+            ctx.on_goto = lambda n: setattr(FakeGuard.instances[-1], "tripped", "ran past the 120s page time limit" if n == 2 else "")
+            return ctx
+
+        exc, stdout, cm = self._run_check_expect_error(factory, env=ATTEMPT_ON)
+        self.assertEqual(str(exc), "[monitor] Ohana: browser stopped because it ran past the 120s page time limit.")
+        self.assertNotIn("the reload failed", stdout)
+        self.assertTrue(cm.contexts[0].closed)
+
+    def test_no_wait_when_the_reloaded_page_is_not_challenged(self):
+        day = _tomorrow()
+
+        def factory():
+            return FakeContext(evaluate_results=[_challenge_428(15), _ok_200(day)])
+
+        slots, stdout, cm = self._run_check(factory, env=ATTEMPT_ON)
+        ctx = cm.contexts[0]
+        self.assertEqual(len(slots), 1)
+        self.assertEqual(_waits(ctx), [8000, 2000])
+        self.assertEqual(ctx.pages[0].listener_log, ["on", "remove"])
+        self.assertIn("after the reload the availability API returns HTTP 200", stdout)
 
     def test_failed_verify_call_is_not_followed_by_a_refetch(self):
         def factory():
@@ -548,9 +690,9 @@ class AkamaiChallengeRecoveryTest(_MonitorTestBase):
 
         exc, stdout, cm = self._run_check_expect_error(factory, env=ATTEMPT_ON)
         ctx = cm.contexts[0]
-        self.assertEqual(len(ctx.evaluates), 1)
-        self.assertEqual(_waits(ctx), [8000] + [1000] * 5)
-        self.assertIn("verify call returned HTTP 403", stdout)
+        self.assertEqual(len(ctx.evaluates), 2)
+        self.assertEqual(_waits(ctx), [8000, 2000] + [1000] * 5)
+        self.assertIn("verify call returned HTTP 403 after 5s (1 proof rounds answered); not re-fetching", stdout)
 
     def test_only_one_attempt_per_poll(self):
         def factory():
@@ -561,15 +703,16 @@ class AkamaiChallengeRecoveryTest(_MonitorTestBase):
         self._run_check_expect_error(factory, env=ATTEMPT_ON)
         exc, stdout, cm = self._run_check_expect_error(factory, env=ATTEMPT_ON, restaurant=_restaurant(name="Space 220"))
         self.assertEqual(_waits(cm.contexts[0]), [8000])
+        self.assertEqual(len(cm.contexts[0].gotos), 1)
         self.assertIn("this poll's one attempt is already used", stdout)
 
         with mock.patch.dict(os.environ, ATTEMPT_ON):
             monitor.start_poll_budget()
         exc, stdout, cm = self._run_check_expect_error(factory, env=ATTEMPT_ON)
-        self.assertEqual(len(_waits(cm.contexts[0])), 46, "a new poll gets a new attempt")
+        self.assertEqual(len(_waits(cm.contexts[0])), 47, "a new poll gets a new attempt")
 
     def test_wait_is_cut_to_fit_the_page_time_budget(self):
-        FakeGuard.budget_secs = 48   # 8s warm-up leaves 40s; 15s stay reserved for re-fetch and close
+        FakeGuard.budget_secs = 48   # 8s warm-up and 2s settle leave 38s; 15s stay reserved for re-fetch and close
 
         def factory():
             ctx = FakeContext()
@@ -577,8 +720,8 @@ class AkamaiChallengeRecoveryTest(_MonitorTestBase):
             return ctx
 
         exc, stdout, cm = self._run_check_expect_error(factory, env=ATTEMPT_ON)
-        self.assertEqual(_waits(cm.contexts[0]), [8000] + [1000] * 25)
-        self.assertIn("waiting up to 25s", stdout)
+        self.assertEqual(_waits(cm.contexts[0]), [8000, 2000] + [1000] * 23)
+        self.assertIn("waiting up to 23s", stdout)
 
     def test_attempt_not_started_when_page_budget_nearly_used(self):
         FakeGuard.budget_secs = 26   # 18s left after warm-up, under the 15s reserve + 5s minimum
@@ -589,8 +732,89 @@ class AkamaiChallengeRecoveryTest(_MonitorTestBase):
             return ctx
 
         exc, stdout, cm = self._run_check_expect_error(factory, env=ATTEMPT_ON)
-        self.assertEqual(_waits(cm.contexts[0]), [8000])
-        self.assertIn("time budget is nearly used", stdout)
+        ctx = cm.contexts[0]
+        self.assertEqual(_waits(ctx), [8000])
+        self.assertEqual(len(ctx.gotos), 1)
+        self.assertIn("not attempting it because the page's time budget is nearly used", stdout)
+
+    def test_attempt_abandoned_when_the_reload_uses_up_the_page_budget(self):
+        FakeGuard.budget_secs = 29   # 21s left after warm-up is enough to start; 19s after the reload is not enough to wait
+
+        def factory():
+            ctx = FakeContext()
+            ctx._evaluate_always = _challenge_428(15)
+            return ctx
+
+        exc, stdout, cm = self._run_check_expect_error(factory, env=ATTEMPT_ON)
+        ctx = cm.contexts[0]
+        self.assertEqual(_waits(ctx), [8000, 2000])
+        self.assertEqual(len(ctx.evaluates), 2)
+        self.assertEqual(ctx.pages[0].listener_log, ["on", "remove"])
+        self.assertIn("attempt abandoned: the page's time budget is nearly used", stdout)
+
+    # ── what the reload lets through ─────────────────────────────────────
+
+    def _filter(self, body=None):
+        page = FakePage(FakeContext())
+        handler = monitor._akamai_only_route(page, _challenge_428(15) if body is None else {"status": 428, "body": body})
+        return page, handler
+
+    def _decide(self, handler, page, url, navigation=False, frame=None):
+        route = FakeRoute(url, navigation=navigation, frame=page.main_frame if frame is None else frame)
+        handler(route)
+        return route.outcome
+
+    def test_reload_filter_lets_only_akamai_through(self):
+        page, handler = self._filter()
+        host = "https://disneyworld.disney.go.com"
+        allowed = [
+            (_restaurant_url(), True),
+            (host + "/-UKSQh/rqROa/-14a5/Qrfw/DLuh5r/Wh9aIw/PgQYM34S/VVso", False),
+            (host + "/-UKSQh/rqROa/-14a5/Qrfw/1JuhSzbSuam0rLuXuD/E3tkIw/ZChsdToS/EhI", False),
+            (host + "/_sec/verify?provider=crypto", False),
+            (host + "/_sec/cp_challenge/verify", False),
+            (host + "/dine-res/api/availability/2/2026-12-02,2026-12-02?facilityId=1&entityType=restaurant", False),
+            (host + "/prodksd/media/waiting-room-assets/processing_request.html", False),
+            (host + "/prodksd/media/waiting-room-assets/processing_request.html?x=1", False),
+        ]
+        blocked = [
+            (host + "/dine-res/main-ABCDEF.js", False),
+            (host + "/dine-res/polyfills-5FDKUQTZ.js", False),
+            (host + "/dine-res/api/dine-detail/ohana?entityType=restaurant", False),
+            (host + "/authenticator/authenticator-bundle.js?feature=dine-res-spa", False),
+            (host + "/profile-api/authentication/get-client-token/", False),
+            (host + "/prodksd/media/waiting-room-assets/other.html", False),
+            ("https://cdn.registerdisney.go.com/v4/bundle/web/TPR-WDW-LBJS.WEB/en-US", False),
+            ("https://k-aus1.clicktale.net/v2/recording", False),
+            ("https://elsewhere.example/-UKSQh/rqROa/x", False),
+            ("https://elsewhere.example/_sec/verify", False),
+            ("https://secure.cdn1.wdpromedia.com/media/waiting-room-assets/_render_space_mountain_v1.jpg", False),
+        ]
+        for url, navigation in allowed:
+            self.assertEqual(self._decide(handler, page, url, navigation), "continue", url)
+        for url, navigation in blocked:
+            self.assertEqual(self._decide(handler, page, url, navigation), "abort", url)
+
+    def test_reload_filter_blocks_navigations_in_sub_frames(self):
+        page, handler = self._filter()
+        self.assertEqual(self._decide(handler, page, "https://disneyworld.disney.go.com/authenticator/responder.html",
+                                      navigation=True, frame=object()), "abort")
+        self.assertEqual(self._decide(handler, page, "https://elsewhere.example/", navigation=True), "abort")
+
+    def test_reload_filter_reads_the_akamai_path_from_the_428(self):
+        body = json.dumps({"verify_url": "/zQ9-new/a/b/c", "branding_cust_url": ""})
+        page, handler = self._filter(body)
+        self.assertEqual(self._decide(handler, page, "https://disneyworld.disney.go.com/zQ9-new/x/y"), "continue")
+        self.assertEqual(self._decide(handler, page, "https://disneyworld.disney.go.com/-UKSQh/x/y"), "abort")
+        self.assertEqual(self._decide(handler, page, "https://disneyworld.disney.go.com/"), "abort")
+
+    def test_reload_filter_never_raises(self):
+        page, handler = self._filter()
+        for failing in ("continue", "abort", "request"):
+            route = FakeRoute("https://disneyworld.disney.go.com/_sec/verify" if failing != "abort" else "https://x.example/",
+                              frame=page.main_frame, fail=failing)
+            handler(route)
+        self.assertEqual(route.outcome, "abort", "a request that cannot be read is blocked")
 
     def test_wait_secs_parsing_and_clamps(self):
         self.assertEqual(monitor._akamai_challenge_wait_secs({"body": '{"chlg_duration":15}'}), 45)
@@ -619,6 +843,7 @@ class AkamaiChallengeRecoveryTest(_MonitorTestBase):
             self.assertEqual(ctx.gotos[0]["url"], _restaurant_url())
             self.assertEqual(_waits(ctx), [8000])
             self.assertEqual(ctx.pages[0].listener_log, [])
+            self.assertEqual(ctx.pages[0].route_calls, [])
             self.assertNotIn("Akamai", stdout)
             self.assertIn("1 slot(s) found via Playwright", stdout)
 
@@ -828,6 +1053,7 @@ class BrowserGuardTest(_MonitorTestBase):
         self.assertFalse(tripped)
         self.assertEqual(guard.mem_mb, 420_000 // 1024)
         self.assertEqual(guard.peak_mb, guard.mem_mb)
+        self.assertEqual(guard.largest, "renderer 244 MB")
         self.assertEqual(guard.tripped, "")
         self.assertEqual(self.kills, [])
         self.assertEqual(stdout, "")
@@ -835,6 +1061,10 @@ class BrowserGuardTest(_MonitorTestBase):
         self._check(guard)
         self.assertEqual(guard.mem_mb, 270_000 // 1024)
         self.assertEqual(guard.peak_mb, 420_000 // 1024, "peak is kept")
+        self.assertEqual(guard.largest, "renderer 97 MB")
+        self.memory_kb[100] = 300_000
+        self._check(guard)
+        self.assertEqual(guard.largest, "main 292 MB")
 
     def test_memory_over_limit_kills_only_the_renderers(self):
         with mock.patch.dict(os.environ, {"DISNEY_BROWSER_MEM_LIMIT_MB": "600"}):

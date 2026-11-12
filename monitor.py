@@ -27,6 +27,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date, datetime, time as datetime_time, timedelta
 from typing import List, Optional, Tuple
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
@@ -527,6 +528,11 @@ def check_restaurant(restaurant: dict, token: str) -> List[Slot]:
 AKAMAI_CHALLENGE_STATUS = 428
 # Akamai's in-page challenge script calls this once the proof-of-work is done.
 _AKAMAI_VERIFY_PATH = "/_sec/cp_challenge/verify"
+# One call per proof-of-work round while the challenge runs.
+_AKAMAI_PROOF_PATH = "/_sec/verify"
+_DISNEY_HOST = "disneyworld.disney.go.com"
+# After the app-free reload, time for Akamai's scripts to start before the fetch.
+_AKAMAI_RELOAD_SETTLE_MS = 2000
 # Time kept back after the challenge wait for the re-fetch and a clean close.
 _AKAMAI_CHALLENGE_RESERVE_SECS = 15
 
@@ -689,6 +695,7 @@ class _BrowserGuard:
         self.mem_limit_mb = _env_int("DISNEY_BROWSER_MEM_LIMIT_MB", 1000, 200, 8000)
         self.mem_mb: Optional[int] = None   # last sample; None until /proc shows the browser
         self.peak_mb = 0
+        self.largest = ""                   # biggest process at the last sample, e.g. "renderer 412 MB"
         self.tripped = ""
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._run, name="browser-guard", daemon=True)
@@ -708,7 +715,11 @@ class _BrowserGuard:
         """Take one sample. Kills the renderers and returns True when a limit is broken."""
         procs = _browser_processes()
         if procs:
-            self.mem_mb = sum(_process_memory_kb(pid) for pid, _cmd in procs) // 1024
+            sizes = [(_process_memory_kb(pid), cmd) for pid, cmd in procs]
+            self.mem_mb = sum(kb for kb, _cmd in sizes) // 1024
+            top_kb, top_cmd = max(sizes, key=lambda item: item[0])
+            kind = top_cmd.split("--type=")[1].split()[0] if "--type=" in top_cmd else "main"
+            self.largest = f"{kind} {top_kb // 1024} MB"
             self.peak_mb = max(self.peak_mb, self.mem_mb)
         if self.seconds_left() <= 0:
             reason = self._time_limit
@@ -835,13 +846,58 @@ def disney_session_seconds_left(context) -> int:
         return 0
 
 
-def _attempt_akamai_challenge(page, guard, result: dict, refetch, name: str) -> dict:
+def _akamai_only_route(page, result: dict):
+    """Route handler that lets through only what Akamai's challenge needs.
+
+    The challenge is solved by Akamai's own scripts; the restaurant app and the
+    third-party scripts around it are not needed for it. Akamai's script path
+    and its waiting-page URL come from the 428 body. Returns None when the
+    body does not name them.
+    """
+    try:
+        body = json.loads((result or {}).get("body") or "")
+        verify = urlsplit(str(body["verify_url"]))
+        prefix = "/" + verify.path.split("/")[1] + "/"
+        waiting_page = str(body.get("branding_cust_url") or "").split("?")[0]
+    except (TypeError, ValueError, KeyError, IndexError):
+        return None
+    if verify.netloc not in ("", _DISNEY_HOST) or len(prefix) < 4:
+        return None
+    allowed_paths = (prefix, "/_sec/", "/dine-res/api/availability/")
+
+    def handler(route) -> None:
+        keep = False
+        try:
+            request = route.request
+            parts = urlsplit(request.url)
+            if parts.netloc == _DISNEY_HOST:
+                keep = bool(
+                    parts.path.startswith(allowed_paths)
+                    or (waiting_page and request.url.split("?")[0] == waiting_page)
+                    or (request.is_navigation_request() and request.frame == page.main_frame)
+                )
+        except Exception:
+            keep = False
+        try:
+            if keep:
+                route.continue_()
+            else:
+                route.abort()
+        except Exception:
+            pass
+
+    return handler
+
+
+def _attempt_akamai_challenge(page, guard, result: dict, refetch, name: str, url: str) -> dict:
     """One bounded attempt per poll at Akamai's crypto challenge (HTTP 428). Off by default.
 
-    The 428 has already started the challenge inside this page. Stay on the
-    page, with no reload and no second tab, until Akamai's verify call
-    returns, then fetch once more. Gives up without re-fetching when the wait
-    cap, the page's time budget or the challenge memory ceiling is reached.
+    Reloads the restaurant page in the same tab with everything except
+    Akamai's own requests blocked, so the restaurant app is not running while
+    the challenge is solved. Fetches there to start the challenge, waits for
+    Akamai's verify call, then fetches once more. Gives up without that last
+    fetch when the wait cap, the page's time budget or the challenge memory
+    ceiling is reached.
     """
     global _akamai_attempt_used
     if result.get("status") != AKAMAI_CHALLENGE_STATUS or not _akamai_challenge_enabled():
@@ -851,57 +907,88 @@ def _attempt_akamai_challenge(page, guard, result: dict, refetch, name: str) -> 
         return result
     _akamai_attempt_used = True
 
-    mem_limit = _env_int("DISNEY_AKAMAI_CHALLENGE_MEM_MB", 500, 100, 8000)
-    wait_cap = min(_akamai_challenge_wait_secs(result), int(guard.seconds_left()) - _AKAMAI_CHALLENGE_RESERVE_SECS)
+    mem_limit = _env_int("DISNEY_AKAMAI_CHALLENGE_MEM_MB", 700, 100, 8000)
     if guard.mem_mb is None:
         print(f"[monitor] {name}: HTTP 428 Akamai challenge; not attempting it because browser memory cannot be measured here.", flush=True)
         return result
-    if guard.mem_mb > mem_limit:
-        print(f"[monitor] {name}: HTTP 428 Akamai challenge; not attempting it because the browser is already at "
-              f"{guard.mem_mb} MB (challenge ceiling {mem_limit} MB).", flush=True)
+    only_akamai = _akamai_only_route(page, result)
+    if only_akamai is None:
+        print(f"[monitor] {name}: HTTP 428 Akamai challenge; not attempting it because the response does not name Akamai's script path.", flush=True)
         return result
-    if wait_cap < 5:
+    if int(guard.seconds_left()) - _AKAMAI_CHALLENGE_RESERVE_SECS < 5:
         print(f"[monitor] {name}: HTTP 428 Akamai challenge; not attempting it because the page's time budget is nearly used.", flush=True)
         return result
 
+    print(f"[monitor] {name}: HTTP 428 Akamai challenge; reloading the page with only Akamai's scripts "
+          f"(browser at {guard.mem_mb} MB).", flush=True)
+    try:
+        page.route("**/*", only_akamai)
+        page.goto(url, wait_until="load", timeout=30000)
+        page.wait_for_timeout(_AKAMAI_RELOAD_SETTLE_MS)
+    except Exception as exc:
+        if guard.tripped:
+            raise
+        reason = (str(exc).splitlines() or [type(exc).__name__])[0][:160]
+        print(f"[monitor] {name}: Akamai challenge attempt abandoned: the reload failed ({reason}).", flush=True)
+        return result
+
     verify_statuses: List[int] = []
+    proof_statuses: List[int] = []
 
     def on_response(response) -> None:
         try:
             if _AKAMAI_VERIFY_PATH in response.url:
                 verify_statuses.append(response.status)
+            elif _AKAMAI_PROOF_PATH in response.url:
+                proof_statuses.append(response.status)
         except Exception:
             pass
 
-    print(f"[monitor] {name}: HTTP 428 Akamai challenge; waiting up to {wait_cap}s on this page for it to finish "
-          f"(browser at {guard.mem_mb} MB, challenge ceiling {mem_limit} MB).", flush=True)
-    started = time.monotonic()
-    gave_up = f"no verify call within {wait_cap}s"
+    def proof_summary() -> str:
+        refused = sum(1 for status in proof_statuses if status != 200)
+        return f"{len(proof_statuses)} proof rounds answered" + (f", {refused} of them not HTTP 200" if refused else "")
+
     page.on("response", on_response)
     try:
+        result = refetch()
+        if result.get("status") != AKAMAI_CHALLENGE_STATUS:
+            print(f"[monitor] {name}: after the reload the availability API returns HTTP {result.get('status')}.", flush=True)
+            return result
+        wait_cap = min(_akamai_challenge_wait_secs(result), int(guard.seconds_left()) - _AKAMAI_CHALLENGE_RESERVE_SECS)
+        if wait_cap < 5:
+            print(f"[monitor] {name}: Akamai challenge attempt abandoned: the page's time budget is nearly used.", flush=True)
+            return result
+        print(f"[monitor] {name}: waiting up to {wait_cap}s for the challenge to finish "
+              f"(browser at {guard.mem_mb} MB, challenge ceiling {mem_limit} MB).", flush=True)
+        started = time.monotonic()
+        gave_up = f"no verify call within {wait_cap}s"
         while time.monotonic() - started < wait_cap:
             page.wait_for_timeout(1000)
             if verify_statuses:
                 break
             if guard.mem_mb > mem_limit:
-                gave_up = f"the browser reached {guard.mem_mb} MB (challenge ceiling {mem_limit} MB)"
+                largest = getattr(guard, "largest", "")
+                gave_up = (f"the browser reached {guard.mem_mb} MB (challenge ceiling {mem_limit} MB"
+                           + (f"; largest process: {largest}" if largest else "") + ")")
                 break
+        waited = int(time.monotonic() - started)
+        if not verify_statuses:
+            print(f"[monitor] {name}: Akamai challenge attempt abandoned after {waited}s: {gave_up}; {proof_summary()}.", flush=True)
+            return result
+        if verify_statuses[-1] != 200:
+            print(f"[monitor] {name}: Akamai challenge verify call returned HTTP {verify_statuses[-1]} after {waited}s "
+                  f"({proof_summary()}); not re-fetching.", flush=True)
+            return result
+        page.wait_for_timeout(1000)
+        result = refetch()
+        print(f"[monitor] {name}: Akamai challenge finished in {waited}s ({proof_summary()}); "
+              f"availability API now returns HTTP {result.get('status')}.", flush=True)
+        return result
     finally:
         try:
             page.remove_listener("response", on_response)
         except Exception:
             pass
-    waited = int(time.monotonic() - started)
-    if not verify_statuses:
-        print(f"[monitor] {name}: Akamai challenge attempt abandoned after {waited}s: {gave_up}.", flush=True)
-        return result
-    if verify_statuses[-1] != 200:
-        print(f"[monitor] {name}: Akamai challenge verify call returned HTTP {verify_statuses[-1]} after {waited}s; not re-fetching.", flush=True)
-        return result
-    page.wait_for_timeout(1000)
-    result = refetch()
-    print(f"[monitor] {name}: Akamai challenge finished in {waited}s; availability API now returns HTTP {result.get('status')}.", flush=True)
-    return result
 
 
 def _parse_availability_response(
@@ -991,7 +1078,7 @@ def check_slots_via_playwright(restaurant: dict) -> List[Slot]:
             }
             result = page.evaluate(_AVAILABILITY_FETCH_JS, fetch_args)
             result = _attempt_akamai_challenge(
-                page, guard, result, lambda: page.evaluate(_AVAILABILITY_FETCH_JS, fetch_args), name,
+                page, guard, result, lambda: page.evaluate(_AVAILABILITY_FETCH_JS, fetch_args), name, url,
             )
 
     if result.get("status") == 404:
