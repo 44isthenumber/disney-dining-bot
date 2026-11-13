@@ -175,7 +175,7 @@ function cookieHeaderFrom(res) {
   assert.strictEqual(rawCb.headers.Location, "/?signin=ok");
 
   const apiSrc = require("fs").readFileSync(
-    require("path").join(__dirname, "../netlify/functions/api.js"),
+    require("path").join(__dirname, "../functions/lib/api.js"),
     "utf8"
   );
   assert.ok(apiSrc.includes("connectBlobsFromEvent(event)"));
