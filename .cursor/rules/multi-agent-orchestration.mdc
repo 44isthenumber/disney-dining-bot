@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Multi-Agent Orchestration
 
-Cursor owns. Grok 4.6 builds. Other Cursor LLMs verify. Buzz is chat. Grok Bot is social. Goose and Claude Code are out.
+Cursor owns. `grok-4.7-low` or `grok-4.7-medium` builds. `grok-4.7-high` or `grok-4.7-xhigh` verifies and sets strategy. `composer-2.5` does mechanical work. Buzz is chat. Grok Bot is social. No other models.
 
 - For anything beyond a typo or single-file fix, run `.cursor/skills/deliver/SKILL.md`.
 - Spec verify / QA / validator must be a different model than the builder.
@@ -15,7 +15,7 @@ Cursor owns. Grok 4.6 builds. Other Cursor LLMs verify. Buzz is chat. Grok Bot i
 Default workflow:
 
 1. Read `AGENTS.md` before changing production behavior. `PRODUCT.md` is product/ops detail.
-2. Run `/deliver`. Do not launch Goose or Claude Code.
+2. Run `/deliver`. Models are `grok-4.7` or `composer-2.5` only.
 3. After validator pass, stay off `main` unless Craig said deploy (Netlify).
 
 Safety rules:

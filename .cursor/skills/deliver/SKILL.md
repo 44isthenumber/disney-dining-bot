@@ -1,11 +1,11 @@
 ---
 name: deliver
-description: Magic Table Finder delivery loop — spec, second-model verify, Grok build, Gemini QA, GPT validator. Use on any multi-file or feature change. Replaces Fizz-captain / Claude Code. Cloud and iOS must follow this file; do not depend on laptop-only paths.
+description: Magic Table Finder delivery loop — grok-4.7 strategy and verification, grok-4.7 builds, composer-2.5 mechanical work. Use on any multi-file or feature change. Cloud and iOS must follow this file; do not depend on laptop-only paths.
 ---
 
 # /deliver (Magic Table Finder)
 
-Agents grapple. Craig is not in the loop except redlines. Do not launch Claude Code, Goose, or Slack.
+Agents grapple. Craig is not in the loop except redlines. Allowed models are `grok-4.7` and `composer-2.5` only. Do not launch Slack.
 
 ## Skip
 
@@ -15,11 +15,12 @@ Typos, single-file bug fixes with a clear repro, copy tweaks, or Craig said "jus
 
 | Seat | Model | Job |
 |---|---|---|
-| Spec | inherit (Grok) | User story, testable AC, out of scope, files-that-will-change |
-| Spec verify | `composer-2.5-fast` | Fresh subagent. Try to break the spec. Cite paths. |
-| Build | `cursor-grok-4.6-high-fast` | Stay inside the files list. Tests for every AC. |
-| QA | `gemini-3.7-flash-high` | Run the gate. Falsify AC. |
-| Validator | `gpt-5.6-terra-medium` as `verifier` | Fresh. Credit for refuting. Never saw the build being made. |
+| Spec | `grok-4.7-high` or `grok-4.7-xhigh` | Strategy. User story, testable AC, out of scope, files-that-will-change |
+| Spec verify | `grok-4.7-xhigh` | Verification. Fresh subagent. Try to break the spec. Cite paths. |
+| Build | `grok-4.7-low` or `grok-4.7-medium` | Stay inside the files list. Tests for every AC. |
+| Mechanical | `composer-2.5` | Edits, formatting, and other mechanical work |
+| QA | `grok-4.7-high` | Verification. Run the gate. Falsify AC. |
+| Validator | `grok-4.7-xhigh` | Verification. Fresh. Credit for refuting. Never saw the build being made. |
 
 Two fails in a row → stop and tell Craig.
 
