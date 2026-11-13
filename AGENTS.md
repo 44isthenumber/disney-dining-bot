@@ -1,6 +1,6 @@
 # Magic Table Finder — Agent Instructions
 
-> **Primary law for Cursor and Grok Build.** Do not route work to Goose or Claude/Anthropic.
+> **Primary law for Cursor and Grok Build.** Models are `grok-4.7` or `composer-2.5` only.
 > Prefer this file + `.cursor/rules/`. Product/ops detail is `PRODUCT.md`.
 
 ## Product promise
@@ -14,13 +14,13 @@ Live site: magictablefinder.com.
 | Layer | Tool | Notes |
 |---|---|---|
 | Owner | **Cursor** | Classify, integrate, verify, Cloud/iOS |
-| Builder | **Grok 4.7 in Cursor** | Default coding model |
-| QC | **Other Cursor LLMs** | `/deliver` — spec verify / QA / validator must differ from the builder |
+| Builder | **`grok-4.7-low` or `grok-4.7-medium`** | Default coding model |
+| QC | **`grok-4.7-high` or `grok-4.7-xhigh`** | `/deliver` — spec verify / QA / validator. Different effort than the builder |
+| Mechanical | **`composer-2.5`** | Formatting and other mechanical edits |
 | Social / agents | **Grok Bot** | Out-of-repo only. Not this repo's owner. |
 | Communication | **Buzz** | Mentions and phone. Fizz frames, not captain. Never Slack. |
 | Production poller | **VPS systemd timer** | Every 10 min. Headed Playwright under Xvfb. Not Cloud. |
-| High-risk review | **Codex** | Auth, Twilio, VPS, Gist, destructive git |
-| Goose / Claude Code | **Out** | Do not launch |
+| High-risk review | **`grok-4.7-xhigh`** | Auth, Twilio, VPS, Gist, destructive git |
 
 ## Cursor Cloud specific instructions
 

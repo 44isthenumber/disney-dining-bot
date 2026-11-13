@@ -1,6 +1,6 @@
 # Magic Table Finder — Product and ops brief
 
-> Agent law is `AGENTS.md`. This file is product/ops detail only. Do not launch Claude Code.
+> Agent law is `AGENTS.md`. This file is product/ops detail only. Models are `grok-4.7` or `composer-2.5` only.
 
 ## What This Project Does
 Self-hosted MouseWatcher-style service for Walt Disney World dining. A web UI at **magictablefinder.com** lets each user manage their own watch list; a VPS worker polls Disney and sends SMS alerts to the user who created the watch.
@@ -286,8 +286,8 @@ For end-to-end diagnostic patterns, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
 When multiple agents are available:
 
 - Owner: Cursor. Implements, reviews, commits, deploys, production safety.
-- Builder: Grok 4.6 in Cursor.
-- Do not launch Goose or Claude.
+- Builder: `grok-4.7-low` or `grok-4.7-medium` in Cursor.
+- Strategy and verification: `grok-4.7-high` or `grok-4.7-xhigh`. Mechanical work: `composer-2.5`.
 - QA/ops checks: smoke tests, VPS timer state, bot health, Twilio usage, no leftover fake watches.
 
 For meaningful changes:

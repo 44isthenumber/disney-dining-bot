@@ -26,7 +26,7 @@ SMS when a **new matching** Walt Disney World reservation opening appears. Not a
 - Do not advertise a minute-level poll interval on the public landing.
 - Do not make the availability calendar modal the default logged-in surface. Restaurants tab (catalog + Create Watch) is the empty-state home; My Watches is home when the user already has watches.
 - Locked pricing (Craig 2026-08-30): Single Watch **$4.99** one-time; Planner **$14.99/month** for **4** active alerts. Show Single Watch $4.99 and Planner $14.99/month (cap 4) in `public/index.html` at landing, pay CTA, upgrade prompt, and the logged-in plan line.
-- Auth, Stripe, Twilio, VPS, Gist cutover, destructive git: high-risk review (Codex). Stay off `main` unless Craig said deploy.
+- Auth, Stripe, Twilio, VPS, Gist cutover, destructive git: high-risk review (`grok-4.7-xhigh`). Stay off `main` unless Craig said deploy.
 
 ## Current slice
 
@@ -168,7 +168,7 @@ Name Stripe as the payment processor. State that Checkout is **not** SMS consent
 
 ### Out of scope
 
-Live Stripe keys in Cloud, sending a real Checkout, public launch (Slice 4), poller/Disney session, `netlify.toml`, pause in Portal, Brunch, Disneyland, auto-book, free SMS, Goose/Claude Code.
+Live Stripe keys in Cloud, sending a real Checkout, public launch (Slice 4), poller/Disney session, `netlify.toml`, pause in Portal, Brunch, Disneyland, auto-book, free SMS, any model other than `grok-4.7` and `composer-2.5`.
 
 ---
 
@@ -628,7 +628,7 @@ As a guest, the landing promises a text when a matching table **newly opens**, n
 - MouseDining-style public availability calendar as the home screen
 - Per-meal party sizes
 - Portal pause
-- Goose / Claude Code
+- Any model other than `grok-4.7` and `composer-2.5`
 
 # Slice 2 files that will change
 
